@@ -1,2 +1,2 @@
 # vms-estimator
-Web application for developing cost wstimates for Video Surveillance installations
+Web application for developing cost estimates for Video Surveillance installations
