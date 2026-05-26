@@ -1,0 +1,9 @@
+Field	Type	Null	Key	Default	Extra
+maintenance_id	int(11)	NO	PRI	NULL	auto_increment
+camera_id	int(11)	NO	MUL	NULL	
+service_date	date	NO		NULL	
+service_type	varchar(100)	YES		NULL	
+technician	varchar(100)	YES		NULL	
+issue_found	text	YES		NULL	
+corrective_action	text	YES		NULL	
+next_service_due	date	YES		NULL	

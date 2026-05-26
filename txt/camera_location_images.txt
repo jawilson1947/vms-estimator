@@ -1,0 +1,14 @@
+Field	Type	Null	Key	Default	Extra
+image_id	int(11)	NO	PRI	NULL	auto_increment
+camera_id	int(11)	YES	MUL	NULL	
+location_id	int(11)	YES	MUL	NULL	
+image_type	enum('Site Survey','Mounting Location','Field of View','Cable Path','Installed Camera','Maintenance','Other')	YES		Other	
+file_name	varchar(255)	NO		NULL	
+original_file_name	varchar(255)	YES		NULL	
+file_path	varchar(500)	NO		NULL	
+file_url	varchar(500)	YES		NULL	
+mime_type	varchar(100)	YES		NULL	
+file_size_bytes	bigint(20)	YES		NULL	
+description	text	YES		NULL	
+uploaded_by	varchar(100)	YES		NULL	
+uploaded_at	timestamp	NO		CURRENT_TIMESTAMP	

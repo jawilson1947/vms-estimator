@@ -1,0 +1,9 @@
+Field	Type	Null	Key	Default	Extra
+customer_id	int(11)	NO	PRI	NULL	auto_increment
+customer_name	varchar(200)	NO		NULL	
+contact_name	varchar(150)	YES		NULL	
+contact_title	varchar(100)	YES		NULL	
+phone	varchar(50)	YES		NULL	
+email	varchar(150)	YES		NULL	
+billing_address	text	YES		NULL	
+notes	text	YES		NULL	

@@ -1,0 +1,13 @@
+Field	Type	Null	Key	Default	Extra
+cost_id	int(11)	NO	PRI	NULL	auto_increment
+project_id	int(11)	NO	MUL	NULL	
+cost_category	enum('Camera Equipment','Network Equipment','Cabling','Mounting Hardware','Licensing','Labor','Consulting','Project Management','Overhead','Travel','Permits','Contingency','Other')	NO		NULL	
+description	varchar(255)	YES		NULL	
+quantity	decimal(10,2)	YES		1.00	
+unit_cost	decimal(10,2)	YES		0.00	
+markup_percent	decimal(5,2)	YES		0.00	
+line_total	decimal(12,2)	YES		NULL	STORED GENERATED
+vendor	varchar(150)	YES		NULL	
+cost_date	date	YES		NULL	
+billable	tinyint(1)	YES		1	
+notes	text	YES		NULL	

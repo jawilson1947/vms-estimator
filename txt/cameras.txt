@@ -1,0 +1,26 @@
+Field	Type	Null	Key	Default	Extra
+camera_id	int(11)	NO	PRI	NULL	auto_increment
+camera_code	varchar(50)	NO	UNI	NULL	
+camera_name	varchar(150)	NO		NULL	
+model_id	int(11)	YES	MUL	NULL	
+location_id	int(11)	YES	MUL	NULL	
+serial_number	varchar(100)	YES		NULL	
+asset_tag	varchar(100)	YES		NULL	
+ip_address	varchar(45)	YES		NULL	
+mac_address	varchar(50)	YES		NULL	
+vlan_id	int(11)	YES		NULL	
+switch_name	varchar(100)	YES		NULL	
+switch_port	varchar(50)	YES		NULL	
+nvr_name	varchar(100)	YES		NULL	
+recording_mode	enum('Continuous','Motion','Event','Scheduled')	YES		NULL	
+retention_days	int(11)	YES		NULL	
+bitrate_mbps	decimal(6,2)	YES		NULL	
+frame_rate	int(11)	YES		NULL	
+install_date	date	YES		NULL	
+warranty_expiration	date	YES		NULL	
+firmware_version	varchar(100)	YES		NULL	
+username_changed	tinyint(1)	YES		0	
+https_enabled	tinyint(1)	YES		0	
+privacy_mask_enabled	tinyint(1)	YES		0	
+status	enum('Planned','Installed','Active','Offline','Needs Repair','Retired')	YES		Planned	
+notes	text	YES		NULL	

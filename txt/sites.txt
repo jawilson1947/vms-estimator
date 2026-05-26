@@ -1,0 +1,9 @@
+Field	Type	Null	Key	Default	Extra
+site_id	int(11)	NO	PRI	NULL	auto_increment
+customer_id	int(11)	YES	MUL	NULL	
+project_id	int(11)	YES	MUL	NULL	
+site_name	varchar(150)	NO		NULL	
+address	varchar(255)	YES		NULL	
+city	varchar(100)	YES		NULL	
+state	varchar(50)	YES		NULL	
+notes	text	YES		NULL	

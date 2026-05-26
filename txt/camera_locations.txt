@@ -1,0 +1,8 @@
+Field	Type	Null	Key	Default	Extra
+location_id	int(11)	NO	PRI	NULL	auto_increment
+building_id	int(11)	NO	MUL	NULL	
+floor	varchar(50)	YES		NULL	
+area_name	varchar(150)	YES		NULL	
+mounting_location	varchar(150)	YES		NULL	
+coverage_purpose	varchar(150)	YES		NULL	
+notes	text	YES		NULL	

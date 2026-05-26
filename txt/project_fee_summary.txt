@@ -1,0 +1,11 @@
+Field	Type	Null	Key	Default	Extra
+fee_id	int(11)	NO	PRI	NULL	auto_increment
+project_id	int(11)	NO	MUL	NULL	
+direct_cost_total	decimal(12,2)	YES		0.00	
+overhead_percent	decimal(5,2)	YES		0.00	
+overhead_amount	decimal(12,2)	YES		0.00	
+consulting_fee	decimal(12,2)	YES		0.00	
+project_management_fee	decimal(12,2)	YES		0.00	
+contingency_amount	decimal(12,2)	YES		0.00	
+tax_amount	decimal(12,2)	YES		0.00	
+grand_total	decimal(12,2)	YES		0.00	

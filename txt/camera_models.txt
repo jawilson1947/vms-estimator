@@ -1,0 +1,20 @@
+Field	Type	Null	Key	Default	Extra
+model_id	int(11)	NO	PRI	NULL	auto_increment
+manufacturer	varchar(100)	YES		NULL	
+model_number	varchar(100)	YES		NULL	
+camera_type	enum('Dome','Bullet','Turret','PTZ','Fisheye','LPR','Other')	YES		NULL	
+indoor_outdoor	enum('Indoor','Outdoor','Both')	YES		NULL	
+resolution	varchar(50)	YES		NULL	
+lens_type	varchar(100)	YES		NULL	
+focal_length	varchar(100)	YES		NULL	
+field_of_view	varchar(100)	YES		NULL	
+ir_distance	varchar(100)	YES		NULL	
+wdr	varchar(100)	YES		NULL	
+low_light_rating	varchar(100)	YES		NULL	
+codec_support	varchar(150)	YES		NULL	
+poe_standard	varchar(50)	YES		NULL	
+max_power_watts	decimal(6,2)	YES		NULL	
+weather_rating	varchar(50)	YES		NULL	
+vandal_rating	varchar(50)	YES		NULL	
+onvif_profile	varchar(100)	YES		NULL	
+notes	text	YES		NULL	

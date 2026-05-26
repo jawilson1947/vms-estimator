@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           Int       @id @default(autoincrement()) @map("user_id")
+  firstName    String?   @map("first_name") @db.VarChar(100)
+  lastName     String?   @map("last_name") @db.VarChar(100)
+  username     String    @unique @db.VarChar(100)
+  email        String    @unique @db.VarChar(150)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         UserRole? @default(VIEWER)
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLogin    DateTime? @map("last_login")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  auditLogs    AuditLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN           @map("Administrator")
+  PROJECT_MANAGER @map("Project Manager")
+  TECHNICIAN      @map("Technician")
+  VIEWER          @map("Viewer")
+}
+
+// ─── Customers ───────────────────────────────────────────────────────────────
+
+model Customer {
+  id             Int       @id @default(autoincrement()) @map("customer_id")
+  customerName   String    @map("customer_name") @db.VarChar(200)
+  contactName    String?   @map("contact_name") @db.VarChar(150)
+  contactTitle   String?   @map("contact_title") @db.VarChar(100)
+  phone          String?   @db.VarChar(50)
+  email          String?   @db.VarChar(150)
+  billingAddress String?   @map("billing_address") @db.Text
+  notes          String?   @db.Text
+
+  projects       Project[]
+  sites          Site[]
+
+  @@map("customers")
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+model Project {
+  id                  Int           @id @default(autoincrement()) @map("project_id")
+  customerId          Int           @map("customer_id")
+  projectName         String        @map("project_name") @db.VarChar(200)
+  projectNumber       String?       @map("project_number") @db.VarChar(50)
+  projectStatus       ProjectStatus @default(PROPOSED) @map("project_status")
+  startDate           DateTime?     @map("start_date") @db.Date
+  completionDate      DateTime?     @map("completion_date") @db.Date
+  projectManager      String?       @map("project_manager") @db.VarChar(150)
+  consultingRate      Decimal?      @map("consulting_rate") @db.Decimal(10, 2)
+  overheadRatePercent Decimal?      @map("overhead_rate_percent") @db.Decimal(5, 2)
+  notes               String?       @db.Text
+
+  customer            Customer          @relation(fields: [customerId], references: [id])
+  sites               Site[]
+  costs               ProjectCost[]
+  feeSummary          ProjectFeeSummary?
+
+  @@map("projects")
+}
+
+enum ProjectStatus {
+  PROPOSED    @map("Proposed")
+  APPROVED    @map("Approved")
+  IN_PROGRESS @map("In Progress")
+  COMPLETED   @map("Completed")
+  ON_HOLD     @map("On Hold")
+  CANCELLED   @map("Cancelled")
+}
+
+// ─── Sites & Buildings ───────────────────────────────────────────────────────
+
+model Site {
+  id         Int        @id @default(autoincrement()) @map("site_id")
+  customerId Int?       @map("customer_id")
+  projectId  Int?       @map("project_id")
+  siteName   String     @map("site_name") @db.VarChar(150)
+  address    String?    @db.VarChar(255)
+  city       String?    @db.VarChar(100)
+  state      String?    @db.VarChar(50)
+  notes      String?    @db.Text
+
+  customer   Customer?  @relation(fields: [customerId], references: [id])
+  project    Project?   @relation(fields: [projectId], references: [id])
+  buildings  Building[]
+
+  @@map("sites")
+}
+
+model Building {
+  id           Int              @id @default(autoincrement()) @map("building_id")
+  siteId       Int              @map("site_id")
+  buildingName String           @map("building_name") @db.VarChar(150)
+  notes        String?          @db.Text
+
+  site         Site             @relation(fields: [siteId], references: [id])
+  locations    CameraLocation[]
+
+  @@map("buildings")
+}
+
+// ─── Camera Locations ────────────────────────────────────────────────────────
+
+model CameraLocation {
+  id               Int                   @id @default(autoincrement()) @map("location_id")
+  buildingId       Int                   @map("building_id")
+  floor            String?               @db.VarChar(50)
+  areaName         String?               @map("area_name") @db.VarChar(150)
+  mountingLocation String?               @map("mounting_location") @db.VarChar(150)
+  coveragePurpose  String?               @map("coverage_purpose") @db.VarChar(150)
+  notes            String?               @db.Text
+
+  building         Building              @relation(fields: [buildingId], references: [id])
+  cameras          Camera[]
+  images           CameraLocationImage[]
+
+  @@map("camera_locations")
+}
+
+// ─── Camera Models ───────────────────────────────────────────────────────────
+
+model CameraModel {
+  id             Int          @id @default(autoincrement()) @map("model_id")
+  manufacturer   String?      @db.VarChar(100)
+  modelNumber    String?      @map("model_number") @db.VarChar(100)
+  cameraType     CameraType?  @map("camera_type")
+  indoorOutdoor  Environment? @map("indoor_outdoor")
+  resolution     String?      @db.VarChar(50)
+  lensType       String?      @map("lens_type") @db.VarChar(100)
+  focalLength    String?      @map("focal_length") @db.VarChar(100)
+  fieldOfView    String?      @map("field_of_view") @db.VarChar(100)
+  irDistance     String?      @map("ir_distance") @db.VarChar(100)
+  wdr            String?      @db.VarChar(100)
+  lowLightRating String?      @map("low_light_rating") @db.VarChar(100)
+  codecSupport   String?      @map("codec_support") @db.VarChar(150)
+  poeStandard    String?      @map("poe_standard") @db.VarChar(50)
+  maxPowerWatts  Decimal?     @map("max_power_watts") @db.Decimal(6, 2)
+  weatherRating  String?      @map("weather_rating") @db.VarChar(50)
+  vandalRating   String?      @map("vandal_rating") @db.VarChar(50)
+  onvifProfile   String?      @map("onvif_profile") @db.VarChar(100)
+  notes          String?      @db.Text
+
+  cameras        Camera[]
+
+  @@map("camera_models")
+}
+
+enum CameraType {
+  DOME    @map("Dome")
+  BULLET  @map("Bullet")
+  TURRET  @map("Turret")
+  PTZ     @map("PTZ")
+  FISHEYE @map("Fisheye")
+  LPR     @map("LPR")
+  OTHER   @map("Other")
+}
+
+enum Environment {
+  INDOOR  @map("Indoor")
+  OUTDOOR @map("Outdoor")
+  BOTH    @map("Both")
+}
+
+// ─── Cameras ─────────────────────────────────────────────────────────────────
+
+model Camera {
+  id                 Int            @id @default(autoincrement()) @map("camera_id")
+  cameraCode         String         @unique @map("camera_code") @db.VarChar(50)
+  cameraName         String         @map("camera_name") @db.VarChar(150)
+  modelId            Int?           @map("model_id")
+  locationId         Int?           @map("location_id")
+  serialNumber       String?        @map("serial_number") @db.VarChar(100)
+  assetTag           String?        @map("asset_tag") @db.VarChar(100)
+  ipAddress          String?        @map("ip_address") @db.VarChar(45)
+  macAddress         String?        @map("mac_address") @db.VarChar(50)
+  vlanId             Int?           @map("vlan_id")
+  switchName         String?        @map("switch_name") @db.VarChar(100)
+  switchPort         String?        @map("switch_port") @db.VarChar(50)
+  nvrName            String?        @map("nvr_name") @db.VarChar(100)
+  recordingMode      RecordingMode? @map("recording_mode")
+  retentionDays      Int?           @map("retention_days")
+  bitrateMbps        Decimal?       @map("bitrate_mbps") @db.Decimal(6, 2)
+  frameRate          Int?           @map("frame_rate")
+  installDate        DateTime?      @map("install_date") @db.Date
+  warrantyExpiration DateTime?      @map("warranty_expiration") @db.Date
+  firmwareVersion    String?        @map("firmware_version") @db.VarChar(100)
+  usernameChanged    Boolean        @default(false) @map("username_changed")
+  httpsEnabled       Boolean        @default(false) @map("https_enabled")
+  privacyMaskEnabled Boolean        @default(false) @map("privacy_mask_enabled")
+  status             CameraStatus   @default(PLANNED)
+  notes              String?        @db.Text
+
+  model              CameraModel?         @relation(fields: [modelId], references: [id])
+  location           CameraLocation?      @relation(fields: [locationId], references: [id])
+  images             CameraLocationImage[]
+  maintenanceRecords MaintenanceRecord[]
+
+  @@map("cameras")
+}
+
+enum RecordingMode {
+  CONTINUOUS @map("Continuous")
+  MOTION     @map("Motion")
+  EVENT      @map("Event")
+  SCHEDULED  @map("Scheduled")
+}
+
+enum CameraStatus {
+  PLANNED      @map("Planned")
+  INSTALLED    @map("Installed")
+  ACTIVE       @map("Active")
+  OFFLINE      @map("Offline")
+  NEEDS_REPAIR @map("Needs Repair")
+  RETIRED      @map("Retired")
+}
+
+// ─── Images ──────────────────────────────────────────────────────────────────
+
+model CameraLocationImage {
+  id               Int       @id @default(autoincrement()) @map("image_id")
+  cameraId         Int?      @map("camera_id")
+  locationId       Int?      @map("location_id")
+  imageType        ImageType @default(OTHER) @map("image_type")
+  fileName         String    @map("file_name") @db.VarChar(255)
+  originalFileName String?   @map("original_file_name") @db.VarChar(255)
+  filePath         String    @map("file_path") @db.VarChar(500)
+  fileUrl          String?   @map("file_url") @db.VarChar(500)
+  mimeType         String?   @map("mime_type") @db.VarChar(100)
+  fileSizeBytes    BigInt?   @map("file_size_bytes")
+  description      String?   @db.Text
+  uploadedBy       String?   @map("uploaded_by") @db.VarChar(100)
+  uploadedAt       DateTime  @default(now()) @map("uploaded_at")
+
+  camera           Camera?         @relation(fields: [cameraId], references: [id], onDelete: Cascade)
+  location         CameraLocation? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@map("camera_location_images")
+}
+
+enum ImageType {
+  SITE_SURVEY       @map("Site Survey")
+  MOUNTING_LOCATION @map("Mounting Location")
+  FIELD_OF_VIEW     @map("Field of View")
+  CABLE_PATH        @map("Cable Path")
+  INSTALLED_CAMERA  @map("Installed Camera")
+  MAINTENANCE       @map("Maintenance")
+  OTHER             @map("Other")
+}
+
+// ─── Maintenance ─────────────────────────────────────────────────────────────
+
+model MaintenanceRecord {
+  id               Int       @id @default(autoincrement()) @map("maintenance_id")
+  cameraId         Int       @map("camera_id")
+  serviceDate      DateTime  @map("service_date") @db.Date
+  serviceType      String?   @map("service_type") @db.VarChar(100)
+  technician       String?   @db.VarChar(100)
+  issueFound       String?   @map("issue_found") @db.Text
+  correctiveAction String?   @map("corrective_action") @db.Text
+  nextServiceDue   DateTime? @map("next_service_due") @db.Date
+
+  camera           Camera    @relation(fields: [cameraId], references: [id])
+
+  @@map("maintenance_records")
+}
+
+// ─── Project Costs ───────────────────────────────────────────────────────────
+
+model ProjectCost {
+  id            Int          @id @default(autoincrement()) @map("cost_id")
+  projectId     Int          @map("project_id")
+  costCategory  CostCategory @map("cost_category")
+  description   String?      @db.VarChar(255)
+  quantity      Decimal      @default(1) @db.Decimal(10, 2)
+  unitCost      Decimal      @default(0) @map("unit_cost") @db.Decimal(10, 2)
+  markupPercent Decimal      @default(0) @map("markup_percent") @db.Decimal(5, 2)
+  lineTotal     Decimal?     @map("line_total") @db.Decimal(12, 2)
+  vendor        String?      @db.VarChar(150)
+  costDate      DateTime?    @map("cost_date") @db.Date
+  billable      Boolean      @default(true)
+  notes         String?      @db.Text
+
+  project       Project      @relation(fields: [projectId], references: [id])
+
+  @@map("project_costs")
+}
+
+enum CostCategory {
+  CAMERA_EQUIPMENT   @map("Camera Equipment")
+  NETWORK_EQUIPMENT  @map("Network Equipment")
+  CABLING            @map("Cabling")
+  MOUNTING_HARDWARE  @map("Mounting Hardware")
+  LICENSING          @map("Licensing")
+  LABOR              @map("Labor")
+  CONSULTING         @map("Consulting")
+  PROJECT_MANAGEMENT @map("Project Management")
+  OVERHEAD           @map("Overhead")
+  TRAVEL             @map("Travel")
+  PERMITS            @map("Permits")
+  CONTINGENCY        @map("Contingency")
+  OTHER              @map("Other")
+}
+
+// ─── Project Fee Summary ─────────────────────────────────────────────────────
+
+model ProjectFeeSummary {
+  id                   Int     @id @default(autoincrement()) @map("fee_id")
+  projectId            Int     @unique @map("project_id")
+  directCostTotal      Decimal @default(0) @map("direct_cost_total") @db.Decimal(12, 2)
+  overheadPercent      Decimal @default(0) @map("overhead_percent") @db.Decimal(5, 2)
+  overheadAmount       Decimal @default(0) @map("overhead_amount") @db.Decimal(12, 2)
+  consultingFee        Decimal @default(0) @map("consulting_fee") @db.Decimal(12, 2)
+  projectManagementFee Decimal @default(0) @map("project_management_fee") @db.Decimal(12, 2)
+  contingencyAmount    Decimal @default(0) @map("contingency_amount") @db.Decimal(12, 2)
+  taxAmount            Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  grandTotal           Decimal @default(0) @map("grand_total") @db.Decimal(12, 2)
+
+  project              Project @relation(fields: [projectId], references: [id])
+
+  @@map("project_fee_summary")
+}
+
+// Audit Log
+
+model AuditLog {
+  id         Int      @id @default(autoincrement()) @map("audit_id")
+  userId     Int?     @map("user_id")
+  userEmail  String?  @map("user_email") @db.VarChar(255)
+  action     String   @db.VarChar(100)
+  entityType String?  @map("entity_type") @db.VarChar(100)
+  entityId   Int?     @map("entity_id")
+  detail     String?  @db.Text
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_log")
+}

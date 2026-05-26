@@ -1,0 +1,12 @@
+Field	Type	Null	Key	Default	Extra
+project_id	int(11)	NO	PRI	NULL	auto_increment
+customer_id	int(11)	NO	MUL	NULL	
+project_name	varchar(200)	NO		NULL	
+project_number	varchar(50)	YES		NULL	
+project_status	enum('Proposed','Approved','In Progress','Completed','On Hold','Cancelled')	YES		Proposed	
+start_date	date	YES		NULL	
+completion_date	date	YES		NULL	
+project_manager	varchar(150)	YES		NULL	
+consulting_rate	decimal(10,2)	YES		NULL	
+overhead_rate_percent	decimal(5,2)	YES		NULL	
+notes	text	YES		NULL	

@@ -1,0 +1,5 @@
+Field	Type	Null	Key	Default	Extra
+building_id	int(11)	NO	PRI	NULL	auto_increment
+site_id	int(11)	NO	MUL	NULL	
+building_name	varchar(150)	NO		NULL	
+notes	text	YES		NULL	

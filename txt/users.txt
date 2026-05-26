@@ -1,0 +1,12 @@
+Field	Type	Null	Key	Default	Extra
+user_id	int(11)	NO	PRI	NULL	auto_increment
+first_name	varchar(100)	YES		NULL	
+last_name	varchar(100)	YES		NULL	
+username	varchar(100)	NO	UNI	NULL	
+email	varchar(150)	NO	UNI	NULL	
+password_hash	varchar(255)	NO		NULL	
+role	enum('Administrator','Project Manager','Technician','Viewer')	YES		Viewer	
+is_active	tinyint(1)	YES		1	
+last_login	timestamp	YES		NULL	
+created_at	timestamp	NO		CURRENT_TIMESTAMP	
+updated_at	timestamp	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
