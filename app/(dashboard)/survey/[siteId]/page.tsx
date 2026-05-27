@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect, notFound } from 'next/navigation';
@@ -18,6 +19,14 @@ interface SurveyFieldRow {
   surveyed_at:  Date | null;
 }
 
+interface FloorPlanRow {
+  plan_id:            number;
+  building_id:        number;
+  floor:              string;
+  original_file_name: string | null;
+  file_url:           string | null;
+}
+
 export default async function SurveyPage({ params }: { params: Promise<{ siteId: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect('/login');
@@ -26,7 +35,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ siteId:
   const siteId = parseInt(siteIdStr);
   if (isNaN(siteId)) notFound();
 
-  // Main query — only touches fields the existing Prisma client knows about
+  // Main query
   const site = await prisma.site.findUnique({
     where: { id: siteId },
     include: {
@@ -36,7 +45,16 @@ export default async function SurveyPage({ params }: { params: Promise<{ siteId:
           locations: {
             orderBy: { areaName: 'asc' },
             include: {
-              cameras: { select: { id: true, cameraCode: true, status: true } },
+              cameras: {
+                select: {
+                  id: true,
+                  cameraCode: true,
+                  cameraName: true,
+                  status: true,
+                  locationId: true,
+                  model: { select: { manufacturer: true, modelNumber: true, cameraType: true } },
+                },
+              },
               images: {
                 where: { imageType: 'SITE_SURVEY' },
                 select: { id: true, fileUrl: true, description: true, uploadedAt: true },
@@ -73,6 +91,24 @@ export default async function SurveyPage({ params }: { params: Promise<{ siteId:
     });
   }
 
+  // Fetch floor plans for all buildings via raw SQL
+  const buildingIds = site.buildings.map(b => b.id);
+  const floorPlansByBuilding: Record<number, FloorPlanRow[]> = {};
+  if (buildingIds.length > 0) {
+    try {
+      const rows = await prisma.$queryRaw<FloorPlanRow[]>(
+        Prisma.sql`SELECT plan_id, building_id, floor, original_file_name, file_url
+          FROM building_floor_plans
+          WHERE building_id IN (${Prisma.join(buildingIds)})
+          ORDER BY floor ASC`
+      );
+      for (const r of rows) {
+        if (!floorPlansByBuilding[r.building_id]) floorPlansByBuilding[r.building_id] = [];
+        floorPlansByBuilding[r.building_id].push(r);
+      }
+    } catch { /* table may not exist yet */ }
+  }
+
   // Normalize into the shape SurveyBoard expects
   const normalizedSite = {
     id: site.id,
@@ -80,6 +116,12 @@ export default async function SurveyPage({ params }: { params: Promise<{ siteId:
     buildings: site.buildings.map(b => ({
       id: b.id,
       buildingName: b.buildingName,
+      floorPlans: (floorPlansByBuilding[b.id] ?? []).map(r => ({
+        id:               r.plan_id,
+        floor:            r.floor,
+        originalFileName: r.original_file_name,
+        fileUrl:          r.file_url,
+      })),
       locations: b.locations.map(l => {
         const sf = surveyMap.get(l.id) ?? { surveyNotes: null, surveyedAt: null };
         return {
