@@ -24,6 +24,10 @@ export interface UseSpeechRecognitionReturn {
   error: string | null;
   start: () => void;
   stop: () => void;
+  /** Temporarily silence the recogniser (e.g. while TTS is speaking). */
+  pause: () => void;
+  /** Resume listening after a pause. No-op if recognition is disabled. */
+  resume: () => void;
 }
 
 export function useSpeechRecognition(
@@ -56,6 +60,24 @@ export function useSpeechRecognition(
   const stop = useCallback(() => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
     recognitionRef.current?.stop();
+  }, []);
+
+  /**
+   * Pause recognition without disabling it — used by TTS to prevent the
+   * recogniser from hearing its own output. Clears the auto-restart timer so
+   * the recogniser stays quiet until resume() is called.
+   */
+  const pause = useCallback(() => {
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    try { recognitionRef.current?.stop(); } catch { /* ignore */ }
+  }, []);
+
+  /**
+   * Resume recognition after a TTS-triggered pause. No-op when disabled.
+   */
+  const resume = useCallback(() => {
+    if (!enabledRef.current) return;
+    try { recognitionRef.current?.start(); } catch { /* already running */ }
   }, []);
 
   // Detect support on the client only (avoids SSR/client hydration mismatch)
@@ -141,5 +163,5 @@ export function useSpeechRecognition(
     }
   }, [enabled]);
 
-  return { supported, listening, transcript, error, start, stop };
+  return { supported, listening, transcript, error, start, stop, pause, resume };
 }

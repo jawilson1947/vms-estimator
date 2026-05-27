@@ -6,6 +6,7 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
+import { useSpeak } from '@/hooks/useSpeak';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ interface VoiceContextValue {
   listening: boolean;
   registerCommands: (id: string, commands: VoiceCommand[]) => () => void;
   setSites: (sites: VoiceSite[]) => void;
+  /** Speak a confirmation aloud. Pauses recognition while speaking. */
+  speak: (text: string) => void;
 }
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
@@ -103,6 +106,10 @@ function matchSite(spoken: string, sites: VoiceSite[]): VoiceSite | null {
 
 const VALUE_TIMEOUT_MS = 6000;
 
+// Ref to the speak function — kept as a ref so handleTranscript (stable callback) can call it
+// without recreating itself whenever speak changes identity.
+// Populated inside VoiceProvider after speak is initialised.
+
 // Regex to parse "start/open/launch survey [for] <name>" or "survey [for] <name>"
 const SURVEY_CMD_RE = /^(?:(?:start|open|launch)\s+survey|survey)\s+(?:for\s+)?(.+)$/;
 
@@ -119,14 +126,16 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const valueTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modeRef          = useRef(mode);
   const sitesRef         = useRef(sites);
+  const speakRef         = useRef<(text: string) => void>(() => {});
   modeRef.current  = mode;
   sitesRef.current = sites;
 
-  function clearValueMode() {
+  function clearValueMode(timedOut = false) {
     if (valueTimerRef.current) clearTimeout(valueTimerRef.current);
     setMode('idle');
     setActiveField(null);
     valueCallbackRef.current = null;
+    if (timedOut) speakRef.current('Timed out. Try again.');
   }
 
   const waitForValue = useCallback((fieldName: string, onValue: (v: string) => void) => {
@@ -134,7 +143,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     setMode('waitingForValue');
     setActiveField(fieldName);
     valueCallbackRef.current = onValue;
-    valueTimerRef.current = setTimeout(clearValueMode, VALUE_TIMEOUT_MS);
+    valueTimerRef.current = setTimeout(() => clearValueMode(true), VALUE_TIMEOUT_MS);
   }, []);
 
   const registerCommands = useCallback((id: string, commands: VoiceCommand[]) => {
@@ -158,12 +167,19 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     if (surveyMatch) {
       const spoken = surveyMatch[1].trim();
       const site = matchSite(spoken, sitesRef.current);
-      router.push(site ? '/survey/' + site.id : '/survey');
+      if (site) {
+        speakRef.current(`Opening survey for ${site.siteName}`);
+        router.push('/survey/' + site.id);
+      } else {
+        speakRef.current('Site not found. Opening survey list.');
+        router.push('/survey');
+      }
       return;
     }
 
     // "start survey" / "survey" with no name
     if (text === 'start survey' || text === 'open survey' || text === 'survey') {
+      speakRef.current('Opening survey');
       router.push('/survey');
       return;
     }
@@ -182,7 +198,9 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
-  const { supported, listening } = useSpeechRecognition(handleTranscript, enabled);
+  const { supported, listening, pause, resume } = useSpeechRecognition(handleTranscript, enabled);
+  const speak = useSpeak(pause, resume);
+  speakRef.current = speak;
 
   const waitForValueRef = useRef(waitForValue);
   waitForValueRef.current = waitForValue;
@@ -197,6 +215,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     listening,
     registerCommands,
     setSites,
+    speak,
   };
 
   // Side-channel so useWaitForValue() can access waitForValue without context churn

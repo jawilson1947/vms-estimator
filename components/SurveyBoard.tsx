@@ -16,6 +16,7 @@ import {
   MagnifyingGlassIcon,
   DocumentIcon,
   ArrowTopRightOnSquareIcon,
+  QuestionMarkCircleIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
 import { useVoice, useWaitForValue } from '@/context/VoiceContext';
@@ -347,7 +348,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
   const atLimit = pending.length >= MAX_PHOTOS;
 
   // ── Voice commands ──────────────────────────────────────────────────────────
-  const { registerCommands, mode, activeField } = useVoice();
+  const { registerCommands, mode, activeField, speak } = useVoice();
   const waitForValue = useWaitForValue();
 
   useEffect(() => {
@@ -355,27 +356,49 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
       {
         keywords: ['name'],
         action: () => {
+          speak('Say the area name');
           setVoiceField('areaName');
-          waitForValue('Name', (val) => { setAreaName(val); setVoiceField(null); });
+          waitForValue('Name', (val) => {
+            setAreaName(val);
+            setVoiceField(null);
+            speak(`Name set to ${val}`);
+          });
         },
       },
       {
         keywords: ['floor'],
         action: () => {
+          speak('Say the floor');
           setVoiceField('floor');
-          waitForValue('Floor', (val) => { setFloor(val); setVoiceField(null); });
+          waitForValue('Floor', (val) => {
+            setFloor(val);
+            setVoiceField(null);
+            speak(`Floor ${val}`);
+          });
         },
       },
       {
         keywords: ['notes', 'note'],
         action: () => {
+          speak('Say your notes');
           setVoiceField('notes');
-          waitForValue('Notes', (val) => { setSurveyNotes(val); setVoiceField(null); });
+          waitForValue('Notes', (val) => {
+            setSurveyNotes(val);
+            setVoiceField(null);
+            speak('Notes recorded');
+          });
         },
       },
       {
         keywords: ['photo'],
-        action: () => { if (!atLimit) setPhotoPrompted(true); },
+        action: () => {
+          if (atLimit) {
+            speak('Photo limit reached. Five photos maximum.');
+          } else {
+            speak('Tap the screen to capture a photo');
+            setPhotoPrompted(true);
+          }
+        },
       },
       {
         keywords: ['save'],
@@ -387,12 +410,12 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
       },
       {
         keywords: ['exit', 'cancel', 'close'],
-        action: () => { onClose(); },
+        action: () => { speak('Closing'); onClose(); },
       },
     ]);
     return unregister;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [registerCommands]);
+  }, [registerCommands, speak, atLimit]);
 
   function voicePulse(field: string) {
     return voiceField === field || (mode === 'waitingForValue' && activeField?.toLowerCase() === field.toLowerCase())
@@ -419,7 +442,12 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
   }
 
   async function handleSave(andNext = false) {
-    if (!areaName.trim()) { areaRef.current?.focus(); return; }
+    if (!areaName.trim()) {
+      speak('Please say a name first');
+      areaRef.current?.focus();
+      return;
+    }
+    speak('Saving location');
     setSaving(true);
     try {
       // 1. Create the location
@@ -452,6 +480,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
       onSave({ ...loc, images: uploaded });
 
       if (andNext) {
+        speak(`${areaName.trim()} saved. Ready for next location.`);
         setAreaName('');
         setFloor('');
         setSurveyNotes('');
@@ -459,6 +488,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
         setSaveLabel('');
         setTimeout(() => areaRef.current?.focus(), 50);
       } else {
+        speak(`${areaName.trim()} saved`);
         onClose();
       }
     } finally {
@@ -674,6 +704,35 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
   const [deleting,    setDeleting]    = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
+  const { registerCommands, speak } = useVoice();
+
+  // Voice commands for the location detail panel
+  useEffect(() => {
+    const unregister = registerCommands('location-panel', [
+      {
+        keywords: ['save', 'mark surveyed'],
+        action: () => { saveNotes(); },
+      },
+      {
+        keywords: ['photo'],
+        action: () => {
+          if (images.length >= MAX_PHOTOS) {
+            speak('Photo limit reached. Five photos maximum.');
+          } else {
+            speak('Tap the screen to add a photo');
+            photoInputRef.current?.click();
+          }
+        },
+      },
+      {
+        keywords: ['close', 'back', 'exit'],
+        action: () => { speak('Closing'); onClose(); },
+      },
+    ]);
+    return unregister;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registerCommands, speak, images.length]);
+
   const atLimit = images.length >= MAX_PHOTOS;
   const assignedCamera = cameras[0] ?? null;
 
@@ -712,6 +771,7 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
   }
 
   async function saveNotes() {
+    speak('Saving');
     setSaving(true);
     try {
       const res = await fetch(`/api/survey/locations/${location.id}`, {
@@ -721,6 +781,7 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
       });
       const updated = await res.json();
       onUpdate({ ...updated, images, cameras });
+      speak(`${location.areaName} marked as surveyed`);
       onClose();
     } finally {
       setSaving(false);
@@ -756,6 +817,7 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
         const updated = [...images, newImg];
         setImages(updated);
         onUpdate({ ...location, surveyNotes, cameras, images: updated, surveyedAt: new Date().toISOString() });
+        speak(`Photo added. ${updated.length} of ${MAX_PHOTOS}.`);
       }
     } finally {
       setUploading(false);
@@ -1116,6 +1178,141 @@ function BuildingAccordion({ building, siteId, filter, onLocationUpdate, onLocat
   );
 }
 
+// ── Voice quick-reference popup ───────────────────────────────────────────────
+
+const QUICK_REF_SECTIONS = [
+  {
+    title: 'Open a Survey',
+    commands: [
+      { say: '"Start survey for [site name]"', responds: '"Opening survey for [site name]"' },
+      { say: '"Start survey" / "Open survey"',  responds: '"Opening survey"' },
+    ],
+  },
+  {
+    title: 'Survey Board',
+    commands: [
+      { say: '"Add location" / "New location"', responds: '"Opening add location"' },
+    ],
+  },
+  {
+    title: 'Add Location — Fields',
+    commands: [
+      { say: '"Name"  ->  speak value',           responds: '"Say the area name" -> "Name set to [value]"' },
+      { say: '"Floor"  ->  speak value',          responds: '"Say the floor" -> "Floor [value]"' },
+      { say: '"Notes"  ->  speak value',          responds: '"Say your notes" -> "Notes recorded"' },
+      { say: '"Photo"',                          responds: '"Tap the screen to capture a photo"', note: '★ tap required' },
+      { say: '"Save"',                           responds: '"[Name] saved"' },
+      { say: '"Next"',                           responds: '"[Name] saved. Ready for next location."' },
+      { say: '"Exit" / "Cancel" / "Close"',      responds: '"Closing"' },
+    ],
+  },
+  {
+    title: 'Location Detail',
+    commands: [
+      { say: '"Save" / "Mark surveyed"',         responds: '"[Name] marked as surveyed"' },
+      { say: '"Photo"',                          responds: '"Tap the screen to add a photo"', note: '★ tap required' },
+      { say: '"Close" / "Back" / "Exit"',        responds: '"Closing"' },
+    ],
+  },
+] as const;
+
+function VoiceQuickRefButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        title="Voice command quick reference"
+        className="flex items-center justify-center w-11 h-11 rounded-full bg-white border border-gray-200 shadow-lg text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+        aria-label="Voice command help"
+      >
+        <QuestionMarkCircleIcon className="w-5 h-5" />
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="bg-white w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[90vh]"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-100">
+                  <MicrophoneIcon className="w-4 h-4 text-blue-600" />
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-gray-900">Voice Command Reference</p>
+                  <p className="text-xs text-gray-400">Every command confirmed aloud — fully hands-free</p>
+                </div>
+              </div>
+              <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600 ml-4 shrink-0">
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="overflow-y-auto px-5 py-4 flex-1 space-y-5">
+              {/* Photo tip */}
+              <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                <span className="text-base shrink-0">★</span>
+                <span><strong>Photo capture</strong> is the only step requiring a screen tap. Everything else is hands-free.</span>
+              </div>
+
+              {QUICK_REF_SECTIONS.map((section, si) => (
+                <div key={si}>
+                  <p className="text-xs font-bold text-blue-700 uppercase tracking-wide mb-2">{section.title}</p>
+                  <div className="rounded-xl overflow-hidden border border-gray-100 shadow-sm">
+                    {/* Column headers */}
+                    <div className="grid grid-cols-2 bg-blue-600 text-white text-xs font-semibold px-3 py-2 gap-3">
+                      <span>You say</span>
+                      <span>Device responds</span>
+                    </div>
+                    {section.commands.map((cmd, ci) => (
+                      <div
+                        key={ci}
+                        className={`grid grid-cols-2 px-3 py-2.5 gap-3 text-xs border-t border-gray-100 ${ci % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                      >
+                        <div>
+                          <span className="font-mono text-blue-700 leading-snug">{cmd.say}</span>
+                          {'note' in cmd && cmd.note && (
+                            <span className="ml-1.5 text-amber-600 font-semibold text-xs">{cmd.note}</span>
+                          )}
+                        </div>
+                        <div className="text-green-700 italic leading-snug">{cmd.responds}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {/* Timeout note */}
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-500">
+                <strong className="text-gray-700">Timeout:</strong> You have <strong>6 seconds</strong> to speak a value after the prompt.
+                If missed, the device says <span className="text-green-700 italic">&ldquo;Timed out. Try again.&rdquo;</span> — repeat the field command to retry.
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 px-5 py-3 border-t border-gray-100">
+              <button
+                onClick={() => setOpen(false)}
+                className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Main SurveyBoard ──────────────────────────────────────────────────────────
 
 interface Props {
@@ -1128,16 +1325,16 @@ export function SurveyBoard({ initialSite }: Props) {
   const [showAdd, setShowAdd] = useState(false);
 
   // Register "add location" voice command while this board is mounted
-  const { registerCommands } = useVoice();
+  const { registerCommands, speak } = useVoice();
   useEffect(() => {
     const unregister = registerCommands('survey-board', [
       {
         keywords: ['add location', 'new location'],
-        action: () => setShowAdd(true),
+        action: () => { speak('Opening add location'); setShowAdd(true); },
       },
     ]);
     return unregister;
-  }, [registerCommands]);
+  }, [registerCommands, speak]);
 
   const allLocations = site.buildings.flatMap(b => b.locations);
   const doneCount = allLocations.filter(isDone).length;
@@ -1230,14 +1427,17 @@ export function SurveyBoard({ initialSite }: Props) {
         ))}
       </div>
 
-      {/* Floating add button */}
-      <button
-        onClick={() => setShowAdd(true)}
-        className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors text-sm font-medium z-40"
-      >
-        <PlusIcon className="w-5 h-5" />
-        Add Location
-      </button>
+      {/* Floating action buttons */}
+      <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
+        <VoiceQuickRefButton />
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+        >
+          <PlusIcon className="w-5 h-5" />
+          Add Location
+        </button>
+      </div>
 
       {showAdd && (
         <QuickAddSheet
