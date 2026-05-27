@@ -6,10 +6,13 @@ import {
   BuildingOffice2Icon, MapPinIcon, CameraIcon,
 } from '@heroicons/react/24/outline';
 import { AddBuildingForm } from '@/components/AddBuildingForm';
+import { BuildingActions } from '@/components/BuildingActions';
+import { BuildingFloorPlans } from '@/components/BuildingFloorPlans';
 
-export default async function SiteDetailPage({ params }: { params: { id: string } }) {
+export default async function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const site = await prisma.site.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: {
       customer: { select: { id: true, customerName: true } },
       project:  { select: { id: true, projectName:  true } },
@@ -103,7 +106,7 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
 
         {site.buildings.map(building => (
           <div key={building.id} className="card overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="group flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <BuildingOffice2Icon className="w-4 h-4 text-gray-400" />
                 <span className="font-semibold text-gray-900 text-sm">{building.buildingName}</span>
@@ -111,7 +114,8 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
                   {building._count.locations} location{building._count.locations !== 1 ? 's' : ''}
                 </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-3">
+                <BuildingActions buildingId={building.id} buildingName={building.buildingName} />
                 <Link
                   href={`/cameras?buildingId=${building.id}`}
                   className="text-xs text-blue-600 hover:underline"
@@ -119,6 +123,11 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
                   View cameras
                 </Link>
               </div>
+            </div>
+
+            {/* Floor plans */}
+            <div className="px-5 py-3 border-b border-gray-100">
+              <BuildingFloorPlans buildingId={building.id} />
             </div>
 
             {building.locations.length === 0 ? (
@@ -155,7 +164,6 @@ export default async function SiteDetailPage({ params }: { params: { id: string 
         {/* Add building form */}
         <AddBuildingForm siteId={site.id} />
       </div>
-
       {site.notes && (
         <div className="card p-5 mt-4">
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Notes</h3>

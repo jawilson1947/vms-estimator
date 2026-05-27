@@ -3,15 +3,16 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET /api/cameras/[id]/maintenance
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const records = await prisma.maintenanceRecord.findMany({
-    where:   { cameraId: Number(params.id) },
+    where:   { cameraId: Number(id) },
     orderBy: { serviceDate: 'desc' },
   });
 
@@ -20,13 +21,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // POST /api/cameras/[id]/maintenance
 export async function POST(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const b = await req.json();
   const record = await prisma.maintenanceRecord.create({
     data: {
-      cameraId:        Number(params.id),
+      cameraId:        Number(id),
       serviceDate:     new Date(b.serviceDate),
       serviceType:     b.serviceType     || null,
       technician:      b.technician      || null,

@@ -4,15 +4,16 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { CameraType, Environment } from '@prisma/client';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET /api/camera-models/[id]
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const model = await prisma.cameraModel.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: { _count: { select: { cameras: true } } },
   });
 
@@ -22,13 +23,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // PUT /api/camera-models/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body  = await req.json();
 
   const model = await prisma.cameraModel.update({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     data: {
       manufacturer:   body.manufacturer   || null,
       modelNumber:    body.modelNumber    || null,
@@ -56,10 +58,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 // DELETE /api/camera-models/[id]
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const inUse = await prisma.camera.count({ where: { modelId: Number(params.id) } });
+  const inUse = await prisma.camera.count({ where: { modelId: Number(id) } });
   if (inUse > 0) {
     return NextResponse.json(
       { error: `Cannot delete — ${inUse} camera(s) are using this model.` },
@@ -67,6 +70,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     );
   }
 
-  await prisma.cameraModel.delete({ where: { id: Number(params.id) } });
+  await prisma.cameraModel.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

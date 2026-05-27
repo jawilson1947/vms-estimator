@@ -15,12 +15,13 @@ const LGRAY = '#F3F4F6';
 // GET /api/reports/site-survey/[siteId]
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { siteId: string } }
+  { params }: { params: Promise<{ siteId: string }> }
 ) {
+  const { siteId: siteIdStr } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const siteId = parseInt(params.siteId);
+  const siteId = parseInt(siteIdStr);
   if (isNaN(siteId)) return NextResponse.json({ error: 'Invalid site ID' }, { status: 400 });
 
   const site = await prisma.site.findUnique({

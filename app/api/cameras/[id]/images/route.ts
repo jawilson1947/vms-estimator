@@ -5,18 +5,19 @@ import { prisma } from '@/lib/prisma';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 const MAX_SIZE = 25 * 1024 * 1024; // 25 MB
 
 // GET /api/cameras/[id]/images
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const images = await prisma.cameraLocationImage.findMany({
-    where: { cameraId: Number(params.id) },
+    where: { cameraId: Number(id) },
     orderBy: { uploadedAt: 'desc' },
   });
 
@@ -30,10 +31,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // POST /api/cameras/[id]/images  — multipart upload
 export async function POST(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const cameraId = Number(params.id);
+  const cameraId = Number(id);
 
   // Verify camera exists
   const camera = await prisma.camera.findUnique({ where: { id: cameraId } });

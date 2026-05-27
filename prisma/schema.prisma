@@ -104,15 +104,34 @@ model Site {
 }
 
 model Building {
-  id           Int              @id @default(autoincrement()) @map("building_id")
-  siteId       Int              @map("site_id")
-  buildingName String           @map("building_name") @db.VarChar(150)
-  notes        String?          @db.Text
+  id           Int                @id @default(autoincrement()) @map("building_id")
+  siteId       Int                @map("site_id")
+  buildingName String             @map("building_name") @db.VarChar(150)
+  notes        String?            @db.Text
 
-  site         Site             @relation(fields: [siteId], references: [id])
+  site         Site               @relation(fields: [siteId], references: [id])
   locations    CameraLocation[]
+  floorPlans   BuildingFloorPlan[]
 
   @@map("buildings")
+}
+
+model BuildingFloorPlan {
+  id               Int      @id @default(autoincrement()) @map("plan_id")
+  buildingId       Int      @map("building_id")
+  floor            String   @db.VarChar(50)
+  fileName         String   @map("file_name") @db.VarChar(255)
+  originalFileName String?  @map("original_file_name") @db.VarChar(255)
+  filePath         String   @map("file_path") @db.VarChar(500)
+  fileUrl          String?  @map("file_url") @db.VarChar(500)
+  fileSizeBytes    BigInt?  @map("file_size_bytes")
+  uploadedBy       String?  @map("uploaded_by") @db.VarChar(100)
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+
+  @@unique([buildingId, floor])
+  @@map("building_floor_plans")
 }
 
 // ─── Camera Locations ────────────────────────────────────────────────────────
@@ -125,6 +144,8 @@ model CameraLocation {
   mountingLocation String?               @map("mounting_location") @db.VarChar(150)
   coveragePurpose  String?               @map("coverage_purpose") @db.VarChar(150)
   notes            String?               @db.Text
+  surveyNotes      String?               @map("survey_notes") @db.Text
+  surveyedAt       DateTime?             @map("surveyed_at")
 
   building         Building              @relation(fields: [buildingId], references: [id])
   cameras          Camera[]

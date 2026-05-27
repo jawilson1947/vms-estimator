@@ -4,15 +4,16 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { CameraStatus, RecordingMode } from '@prisma/client';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET /api/cameras/[id]
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const camera = await prisma.camera.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: {
       model:             true,
       location: {
@@ -31,6 +32,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // PUT /api/cameras/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -40,7 +42,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!b.cameraName?.trim()) return NextResponse.json({ error: 'Camera name is required' }, { status: 400 });
 
   const camera = await prisma.camera.update({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     data:  {
       cameraCode:        b.cameraCode.trim(),
       cameraName:        b.cameraName.trim(),
@@ -74,9 +76,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 // DELETE /api/cameras/[id]
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  await prisma.camera.delete({ where: { id: Number(params.id) } });
+  await prisma.camera.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

@@ -4,17 +4,18 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { CostCategory } from '@prisma/client';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // PUT /api/project-costs/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const b = await req.json();
 
   await prisma.projectCost.update({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     data:  {
       costCategory:  b.costCategory as CostCategory,
       description:   b.description  || null,
@@ -30,15 +31,16 @@ export async function PUT(req: NextRequest, { params }: Params) {
   });
 
   // Re-read to return the fresh DB-computed lineTotal
-  const fresh = await prisma.projectCost.findUnique({ where: { id: Number(params.id) } });
+  const fresh = await prisma.projectCost.findUnique({ where: { id: Number(id) } });
   return NextResponse.json(fresh);
 }
 
 // DELETE /api/project-costs/[id]
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  await prisma.projectCost.delete({ where: { id: Number(params.id) } });
+  await prisma.projectCost.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

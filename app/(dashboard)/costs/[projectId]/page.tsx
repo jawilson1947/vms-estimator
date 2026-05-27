@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { CostEstimator } from '@/components/CostEstimator';
 
-export default async function ProjectCostPage({ params }: { params: { projectId: string } }) {
+export default async function ProjectCostPage({ params }: { params: Promise<{ projectId: string }> }) {
+  const { projectId } = await params;
   const project = await prisma.project.findUnique({
-    where:   { id: Number(params.projectId) },
+    where:   { id: Number(projectId) },
     include: {
       customer:   { select: { customerName: true } },
       costs:      { orderBy: [{ costCategory: 'asc' }, { id: 'asc' }] },

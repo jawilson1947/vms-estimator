@@ -3,15 +3,16 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET /api/customers/[id]
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const customer = await prisma.customer.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     include: {
       projects: {
         orderBy: { projectName: 'asc' },
@@ -30,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // PUT /api/customers/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -41,7 +43,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   const customer = await prisma.customer.update({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     data:  { customerName, contactName, contactTitle, phone, email, billingAddress, notes },
   });
 
@@ -50,9 +52,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 // DELETE /api/customers/[id]
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  await prisma.customer.delete({ where: { id: Number(params.id) } });
+  await prisma.customer.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

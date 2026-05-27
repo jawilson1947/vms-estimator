@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { Sidebar } from '@/components/Sidebar';
 import { Navbar } from '@/components/Navbar';
+import { VoiceShell } from '@/components/VoiceShell';
 
 export default async function DashboardLayout({
   children,
@@ -10,20 +11,19 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession(authOptions);
-
-  if (!session) {
-    redirect('/login');
-  }
+  if (!session) redirect('/login');
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
-        <Navbar />
-        <main className="flex-1 p-6 overflow-auto">
-          {children}
-        </main>
+    <VoiceShell>
+      <div className="flex min-h-screen">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Navbar />
+          <main className="flex-1 p-3 overflow-auto">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </VoiceShell>
   );
 }

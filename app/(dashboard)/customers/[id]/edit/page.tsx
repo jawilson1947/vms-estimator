@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { CustomerForm } from '@/components/CustomerForm';
 
-export default async function EditCustomerPage({ params }: { params: { id: string } }) {
+export default async function EditCustomerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const customer = await prisma.customer.findUnique({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
   });
 
   if (!customer) notFound();

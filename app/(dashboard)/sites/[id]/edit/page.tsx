@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { SiteForm } from '@/components/SiteForm';
 
-export default async function EditSitePage({ params }: { params: { id: string } }) {
+export default async function EditSitePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const [site, customers, projects] = await Promise.all([
-    prisma.site.findUnique({ where: { id: Number(params.id) } }),
+    prisma.site.findUnique({ where: { id: Number(id) } }),
     prisma.customer.findMany({ orderBy: { customerName: 'asc' }, select: { id: true, customerName: true } }),
     prisma.project.findMany({  orderBy: { projectName:  'asc' }, select: { id: true, projectName:  true } }),
   ]);

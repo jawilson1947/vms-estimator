@@ -4,15 +4,16 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ProjectStatus } from '@prisma/client';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET /api/projects/[id]
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const project = await prisma.project.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: {
       customer:   { select: { id: true, customerName: true } },
       sites: {
@@ -30,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // PUT /api/projects/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -43,7 +45,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if (!projectName?.trim()) return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
 
   const project = await prisma.project.update({
-    where: { id: Number(params.id) },
+    where: { id: Number(id) },
     data:  {
       customerId:          Number(customerId),
       projectName,
@@ -63,9 +65,10 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 // DELETE /api/projects/[id]
 export async function DELETE(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  await prisma.project.delete({ where: { id: Number(params.id) } });
+  await prisma.project.delete({ where: { id: Number(id) } });
   return NextResponse.json({ success: true });
 }

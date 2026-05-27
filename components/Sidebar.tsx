@@ -16,24 +16,28 @@ import {
   Cog6ToothIcon,
   WifiIcon,
   DocumentTextIcon,
+  MapPinIcon,
+  ShieldExclamationIcon,
 } from '@heroicons/react/24/outline';
 
 const nav = [
-  { label: 'Dashboard',   href: '/dashboard',   icon: HomeIcon },
-  { label: 'Cameras',     href: '/cameras',      icon: CameraIcon },
-  { label: 'Projects',    href: '/projects',     icon: FolderIcon },
-  { label: 'Customers',   href: '/customers',    icon: UsersIcon },
-  { label: 'Sites',       href: '/sites',        icon: BuildingOffice2Icon },
-  { label: 'Maintenance', href: '/maintenance',  icon: WrenchScrewdriverIcon },
-  { label: 'Network',     href: '/network',      icon: WifiIcon },
-  { label: 'Worksheet',   href: '/worksheet',    icon: DocumentTextIcon },
-  { label: 'Compliance',  href: '/compliance',   icon: ShieldCheckIcon },
-  { label: 'Costs',       href: '/costs',        icon: CurrencyDollarIcon },
-  { label: 'Reports',     href: '/reports',      icon: DocumentChartBarIcon },
+  { label: 'Survey',      href: '/survey',      icon: MapPinIcon,            color: 'text-teal-500'    },
+  { label: 'Dashboard',   href: '/dashboard',   icon: HomeIcon,              color: 'text-blue-500'    },
+  { label: 'Cameras',     href: '/cameras',     icon: CameraIcon,            color: 'text-indigo-500'  },
+  { label: 'Projects',    href: '/projects',    icon: FolderIcon,            color: 'text-violet-500'  },
+  { label: 'Customers',   href: '/customers',   icon: UsersIcon,             color: 'text-orange-500'  },
+  { label: 'Sites',       href: '/sites',       icon: BuildingOffice2Icon,   color: 'text-green-500'   },
+  { label: 'Maintenance', href: '/maintenance', icon: WrenchScrewdriverIcon, color: 'text-amber-500'   },
+  { label: 'Network',     href: '/network',     icon: WifiIcon,              color: 'text-cyan-500'    },
+  { label: 'Worksheet',   href: '/worksheet',   icon: DocumentTextIcon,      color: 'text-sky-500'     },
+  { label: 'Compliance',  href: '/compliance',  icon: ShieldCheckIcon,       color: 'text-emerald-500' },
+  { label: 'Costs',       href: '/costs',       icon: CurrencyDollarIcon,    color: 'text-lime-600'    },
+  { label: 'Reports',     href: '/reports',     icon: DocumentChartBarIcon,  color: 'text-purple-500'  },
+  { label: 'Settings',    href: '/settings',    icon: Cog6ToothIcon,         color: 'text-gray-400'    },
 ];
 
 const adminNav = [
-  { label: 'Admin',       href: '/admin',        icon: Cog6ToothIcon },
+  { label: 'Admin', href: '/admin', icon: ShieldExclamationIcon, color: 'text-gray-400' },
 ];
 
 export function Sidebar() {
@@ -44,51 +48,57 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="w-56 shrink-0 bg-gray-900 min-h-screen flex flex-col">
+    <aside className="w-40 shrink-0 bg-gray-900 min-h-screen flex flex-col">
       {/* Logo */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-gray-800">
-        <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
-          <CameraIcon className="w-5 h-5 text-white" />
+      <div className="flex items-center gap-2 px-3 py-3 border-b border-gray-800">
+        <div className="w-6 h-6 bg-blue-600 rounded flex items-center justify-center shrink-0">
+          <CameraIcon className="w-3.5 h-3.5 text-white" />
         </div>
-        <span className="text-white font-bold text-sm tracking-wide">CSMS</span>
+        <span className="text-white font-bold text-xs tracking-wide">CSMS</span>
       </div>
 
       {/* Main nav */}
-      <nav className="flex-1 px-2 py-4 space-y-0.5">
-        {nav.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={clsx(
-              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isActive(href)
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-            )}
-          >
-            <Icon className="w-4.5 h-4.5 shrink-0" />
-            {label}
-          </Link>
-        ))}
+      <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto">
+        {nav.map(({ label, href, icon: Icon, color }) => {
+          const active = isActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={clsx(
+                'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors',
+                active
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              )}
+            >
+              <Icon className={clsx('w-3.5 h-3.5 shrink-0', active ? 'text-white' : color)} />
+              {label}
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Admin nav */}
-      <div className="px-2 py-3 border-t border-gray-800 space-y-0.5">
-        {adminNav.map(({ label, href, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={clsx(
-              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isActive(href)
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white'
-            )}
-          >
-            <Icon className="w-4.5 h-4.5 shrink-0" />
-            {label}
-          </Link>
-        ))}
+      <div className="px-1.5 py-2 border-t border-gray-800 space-y-0.5">
+        {adminNav.map(({ label, href, icon: Icon, color }) => {
+          const active = isActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={clsx(
+                'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium transition-colors',
+                active
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+              )}
+            >
+              <Icon className={clsx('w-3.5 h-3.5 shrink-0', active ? 'text-white' : color)} />
+              {label}
+            </Link>
+          );
+        })}
       </div>
     </aside>
   );

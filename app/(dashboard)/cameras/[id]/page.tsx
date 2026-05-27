@@ -18,9 +18,10 @@ const statusLabels: Record<string, string> = {
   OFFLINE: 'Offline', NEEDS_REPAIR: 'Needs Repair', RETIRED: 'Retired',
 };
 
-export default async function CameraDetailPage({ params }: { params: { id: string } }) {
+export default async function CameraDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const camera = await prisma.camera.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: {
       model: true,
       location: { include: { building: { include: { site: true } } } },

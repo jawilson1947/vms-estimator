@@ -4,15 +4,16 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { CostCategory } from '@prisma/client';
 
-type Params = { params: { id: string } };
+type Params = { params: Promise<{ id: string }> };
 
 // GET /api/projects/[id]/costs
 export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const costs = await prisma.projectCost.findMany({
-    where:   { projectId: Number(params.id) },
+    where:   { projectId: Number(id) },
     orderBy: [{ costCategory: 'asc' }, { id: 'asc' }],
   });
 
@@ -21,6 +22,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
 // POST /api/projects/[id]/costs
 export async function POST(req: NextRequest, { params }: Params) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const cost = await prisma.projectCost.create({
     data: {
-      projectId:    Number(params.id),
+      projectId:    Number(id),
       costCategory: b.costCategory as CostCategory,
       description:  b.description  || null,
       quantity:     b.quantity     ? Number(b.quantity)     : 1,

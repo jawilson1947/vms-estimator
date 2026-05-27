@@ -30,9 +30,10 @@ const costCategoryLabels: Record<string, string> = {
   OTHER:              'Other',
 };
 
-export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
+export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const project = await prisma.project.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: {
       customer:   { select: { id: true, customerName: true } },
       sites:      { orderBy: { siteName: 'asc' }, include: { buildings: true } },

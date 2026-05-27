@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { CameraForm } from '@/components/CameraForm';
 
-export default async function EditCameraPage({ params }: { params: { id: string } }) {
+export default async function EditCameraPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const [camera, models, locations] = await Promise.all([
-    prisma.camera.findUnique({ where: { id: Number(params.id) } }),
+    prisma.camera.findUnique({ where: { id: Number(id) } }),
     prisma.cameraModel.findMany({
       orderBy: [{ manufacturer: 'asc' }, { modelNumber: 'asc' }],
       select:  { id: true, manufacturer: true, modelNumber: true },

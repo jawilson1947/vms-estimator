@@ -28,9 +28,10 @@ const statusLabels: Record<string, string> = {
   CANCELLED:   'Cancelled',
 };
 
-export default async function CustomerDetailPage({ params }: { params: { id: string } }) {
+export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const customer = await prisma.customer.findUnique({
-    where:   { id: Number(params.id) },
+    where:   { id: Number(id) },
     include: {
       projects: { orderBy: { projectName: 'asc' } },
       sites:    { orderBy: { siteName: 'asc' } },
