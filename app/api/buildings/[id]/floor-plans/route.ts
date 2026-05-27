@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { writeFile, mkdir, unlink } from 'fs/promises';
-import path from 'path';
+import { put, del } from '@vercel/blob';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -45,38 +44,34 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (!file) return NextResponse.json({ error: 'No PDF provided' }, { status: 400 });
   if (!floor) return NextResponse.json({ error: 'Floor label is required' }, { status: 400 });
 
-  // Delete existing plan for this floor (file + record)
+  // Delete existing plan for this floor
   const existing = await prisma.$queryRaw<FloorPlanRow[]>`
-    SELECT plan_id, file_path FROM building_floor_plans
+    SELECT plan_id, file_url FROM building_floor_plans
     WHERE  building_id = ${buildingId} AND floor = ${floor}
-    LIMIT 1
+    LIMIT  1
   `;
   if (existing.length > 0) {
-    const oldPath = path.join(process.cwd(), 'public', existing[0].file_path);
-    try { await unlink(oldPath); } catch { /* already gone */ }
+    try { if (existing[0].file_url) await del(existing[0].file_url); } catch { /* already gone */ }
     await prisma.$executeRaw`
       DELETE FROM building_floor_plans WHERE plan_id = ${existing[0].plan_id}
     `;
   }
 
-  // Save new file
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'floor-plans');
-  await mkdir(uploadDir, { recursive: true });
+  // Upload to Vercel Blob
+  const safeName = floor.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  const fileName = `fp-${buildingId}-${safeName}-${Date.now()}.pdf`;
 
-  const safeName   = floor.replace(/[^a-z0-9]/gi, '-').toLowerCase();
-  const fileName   = `fp-${buildingId}-${safeName}-${Date.now()}.pdf`;
-  const filePath   = path.join('uploads', 'floor-plans', fileName);
-  const fileUrl    = `/uploads/floor-plans/${fileName}`;
-
-  const bytes = await file.arrayBuffer();
-  await writeFile(path.join(process.cwd(), 'public', filePath), Buffer.from(bytes));
+  const blob = await put(`floor-plans/${fileName}`, file, {
+    access: 'public',
+    contentType: 'application/pdf',
+  });
 
   await prisma.$executeRaw`
     INSERT INTO building_floor_plans
       (building_id, floor, file_name, original_file_name, file_path, file_url,
        file_size_bytes, uploaded_by, uploaded_at)
     VALUES
-      (${buildingId}, ${floor}, ${fileName}, ${file.name}, ${filePath}, ${fileUrl},
+      (${buildingId}, ${floor}, ${fileName}, ${file.name}, ${blob.url}, ${blob.url},
        ${BigInt(file.size)}, ${session.user?.email ?? 'unknown'}, NOW(3))
   `;
 
@@ -94,16 +89,16 @@ export async function POST(req: NextRequest, { params }: Params) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 interface FloorPlanRow {
-  plan_id: number;
-  building_id: number;
-  floor: string;
-  file_name: string;
+  plan_id:            number;
+  building_id:        number;
+  floor:              string;
+  file_name:          string;
   original_file_name: string | null;
-  file_path: string;
-  file_url: string | null;
-  file_size_bytes: bigint | null;
-  uploaded_by: string | null;
-  uploaded_at: Date;
+  file_path:          string;
+  file_url:           string | null;
+  file_size_bytes:    bigint | null;
+  uploaded_by:        string | null;
+  uploaded_at:        Date;
 }
 
 function normalise(r: FloorPlanRow) {

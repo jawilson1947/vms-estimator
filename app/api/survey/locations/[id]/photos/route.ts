@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 
 // POST /api/survey/locations/[id]/photos
 export async function POST(
@@ -23,34 +22,31 @@ export async function POST(
 
   if (!file) return NextResponse.json({ error: 'No photo provided' }, { status: 400 });
 
-  // Save to public/uploads/survey/
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'survey');
-  await mkdir(uploadDir, { recursive: true });
-
   const ext      = (file.name.split('.').pop() ?? 'jpg').toLowerCase();
   const fileName = `survey-${locationId}-${Date.now()}.${ext}`;
-  const filePath = path.join('uploads', 'survey', fileName);
-  const fileUrl  = `/uploads/survey/${fileName}`;
 
-  const bytes = await file.arrayBuffer();
-  await writeFile(path.join(process.cwd(), 'public', filePath), Buffer.from(bytes));
+  // Upload to Vercel Blob
+  const blob = await put(`survey/${fileName}`, file, {
+    access: 'public',
+    contentType: file.type || `image/${ext}`,
+  });
 
   const image = await prisma.cameraLocationImage.create({
     data: {
       locationId,
       fileName,
-      filePath,
-      fileUrl,
+      filePath:         blob.url,
+      fileUrl:          blob.url,
       originalFileName: file.name,
-      mimeType: file.type || `image/${ext}`,
-      fileSizeBytes: BigInt(file.size),
-      description: description || null,
-      imageType: 'SITE_SURVEY',
-      uploadedBy: session.user?.email ?? 'unknown',
+      mimeType:         file.type || `image/${ext}`,
+      fileSizeBytes:    BigInt(file.size),
+      description:      description || null,
+      imageType:        'SITE_SURVEY',
+      uploadedBy:       session.user?.email ?? 'unknown',
     },
   });
 
-  // Mark location as surveyed via raw SQL (safe before prisma generate)
+  // Mark location as surveyed via raw SQL
   try {
     await prisma.$executeRaw`
       UPDATE camera_locations SET surveyed_at = NOW() WHERE location_id = ${locationId}
@@ -59,7 +55,7 @@ export async function POST(
 
   return NextResponse.json({
     id:        image.id,
-    imageUrl:  fileUrl,
+    imageUrl:  blob.url,
     caption:   description || null,
     createdAt: image.uploadedAt.toISOString(),
   }, { status: 201 });
