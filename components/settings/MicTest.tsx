@@ -110,12 +110,18 @@ export function MicTest() {
     audioCtxRef.current  = ctx;
     analyserRef.current  = analyser;
 
+    // Pick the best supported MIME type — iOS Safari uses audio/mp4, not audio/webm
+    const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(
+      t => MediaRecorder.isTypeSupported(t)
+    ) ?? '';
+
     // MediaRecorder
-    const recorder = new MediaRecorder(stream);
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
     recorderRef.current  = recorder;
     recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
     recorder.onstop = () => {
-      blobRef.current = new Blob(chunksRef.current, { type: 'audio/webm' });
+      const type = recorder.mimeType || mimeType || 'audio/webm';
+      blobRef.current = new Blob(chunksRef.current, { type });
       cancelAnimationFrame(rafRef.current);
       if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
       if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') { audioCtxRef.current.close(); audioCtxRef.current = null; }
@@ -154,11 +160,17 @@ export function MicTest() {
     if (!blobRef.current) return;
     const url = URL.createObjectURL(blobRef.current);
     const audio = new Audio(url);
+    // playsInline prevents iOS from routing to earpiece when a media session is active
+    (audio as any).playsInline = true;
     audioElRef.current = audio;
     setPhase('playing');
     audio.onended = () => { URL.revokeObjectURL(url); setPhase('recorded'); };
-    audio.onerror = () => { URL.revokeObjectURL(url); setPhase('recorded'); };
-    audio.play();
+    audio.onerror = () => { URL.revokeObjectURL(url); setPhase('recorded'); setErrorMsg('Playback failed. Your browser may not support this audio format.'); };
+    audio.play().catch(() => {
+      URL.revokeObjectURL(url);
+      setPhase('recorded');
+      setErrorMsg('Playback blocked. Tap the button again to retry.');
+    });
   }
 
   // ── Reset ──────────────────────────────────────────────────────────────────
