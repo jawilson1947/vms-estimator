@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import clsx from 'clsx';
 import {
   HomeIcon,
@@ -18,6 +19,7 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   ShieldExclamationIcon,
+  ArrowRightStartOnRectangleIcon,
 } from '@heroicons/react/24/outline';
 
 const nav = [
@@ -78,6 +80,17 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Log off */}
+      <div className="px-1.5 pb-1 border-t border-gray-800">
+        <button
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-colors mt-0.5"
+        >
+          <ArrowRightStartOnRectangleIcon className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+          Log Off
+        </button>
+      </div>
 
       {/* Admin nav */}
       <div className="px-1.5 py-2 border-t border-gray-800 space-y-0.5">
