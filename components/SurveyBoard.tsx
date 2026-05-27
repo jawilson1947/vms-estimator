@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   PlusIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   CameraIcon,
   CheckCircleIcon,
@@ -11,7 +12,6 @@ import {
   PencilIcon,
   PhotoIcon,
   XMarkIcon,
-  ArrowUpTrayIcon,
   MicrophoneIcon,
   MagnifyingGlassIcon,
   DocumentIcon,
@@ -128,7 +128,7 @@ function cameraLabel(cam: SurveyCamera | AvailableCamera) {
 interface CameraPickerProps {
   siteId: number;
   assignedCamera: SurveyCamera | null;
-  onAssign: (cameraId: number | null, cameraModelId?: number) => Promise<void>;
+  onAssign: (cameraId: number | null, cameraModelId?: number, camera?: AvailableCamera | null, model?: AvailableCameraModel | null) => Promise<void>;
   assigning: boolean;
 }
 
@@ -180,7 +180,9 @@ function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPic
   async function pick(cameraId: number | null, modelId?: number) {
     setOpen(false);
     setSearch('');
-    await onAssign(cameraId, modelId);
+    const cam   = cameraId !== null  ? (inventory.find(c => c.id === cameraId) ?? null) : null;
+    const model = modelId  !== undefined ? (models.find(m => m.id === modelId) ?? null)  : null;
+    await onAssign(cameraId, modelId, cam, model);
   }
 
   return (
@@ -321,6 +323,7 @@ function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPic
 const MAX_PHOTOS = 5;
 
 interface QuickAddProps {
+  siteId: number;
   buildings: SurveyBuilding[];
   defaultBuildingId?: number;
   onSave: (loc: SurveyLocation) => void;
@@ -332,7 +335,7 @@ interface PendingPhoto {
   preview: string;
 }
 
-function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickAddProps) {
+function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }: QuickAddProps) {
   const [buildingId, setBuildingId]   = useState(String(defaultBuildingId ?? buildings[0]?.id ?? ''));
   const [areaName,   setAreaName]     = useState('');
   const [floor,      setFloor]        = useState('');
@@ -342,6 +345,10 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
   const [saveLabel,  setSaveLabel]    = useState('');
   const [voiceField, setVoiceField]   = useState<string | null>(null);
   const [photoPrompted, setPhotoPrompted] = useState(false);
+  // Pending camera selection — applied after location is created
+  const [pendingCameraId,      setPendingCameraId]      = useState<number | null>(null);
+  const [pendingCameraModelId, setPendingCameraModelId] = useState<number | null>(null);
+  const [pendingCameraObj,     setPendingCameraObj]     = useState<SurveyCamera | null>(null);
   const areaRef      = useRef<HTMLInputElement>(null);
   const photoRef     = useRef<HTMLInputElement>(null);
   const libraryRef   = useRef<HTMLInputElement>(null);
@@ -466,7 +473,20 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
       });
       const loc: SurveyLocation = await res.json();
 
-      // 2. Upload any queued photos
+      // 2. Assign camera if one was selected
+      if (pendingCameraId !== null || pendingCameraModelId !== null) {
+        setSaveLabel('Assigning camera…');
+        await fetch(`/api/survey/locations/${loc.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...(pendingCameraId      !== null ? { cameraId:      pendingCameraId }      : {}),
+            ...(pendingCameraModelId !== null ? { cameraModelId: pendingCameraModelId } : {}),
+          }),
+        });
+      }
+
+      // 3. Upload any queued photos
       const uploaded: SurveyImage[] = [];
       for (let i = 0; i < pending.length; i++) {
         setSaveLabel(`Uploading photo ${i + 1} of ${pending.length}…`);
@@ -488,6 +508,9 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
         setSurveyNotes('');
         setPending([]);
         setSaveLabel('');
+        setPendingCameraId(null);
+        setPendingCameraModelId(null);
+        setPendingCameraObj(null);
         setTimeout(() => areaRef.current?.focus(), 50);
       } else {
         speak(`${areaName.trim()} saved`);
@@ -570,6 +593,34 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
             />
           </div>
 
+          {/* Assign Camera */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              Assigned Camera
+            </label>
+            <CameraPicker
+              siteId={siteId}
+              assignedCamera={pendingCameraObj}
+              assigning={false}
+              onAssign={async (cameraId, cameraModelId, camera, model) => {
+                if (cameraId === null && cameraModelId === undefined) {
+                  setPendingCameraId(null);
+                  setPendingCameraModelId(null);
+                  setPendingCameraObj(null);
+                } else if (typeof cameraId === 'number') {
+                  setPendingCameraId(cameraId);
+                  setPendingCameraModelId(null);
+                  setPendingCameraObj(camera ?? { id: cameraId, cameraCode: '', cameraName: 'Camera', status: 'PLANNED', locationId: null, model: null });
+                } else if (typeof cameraModelId === 'number') {
+                  setPendingCameraId(null);
+                  setPendingCameraModelId(cameraModelId);
+                  const label = model ? ([model.manufacturer, model.modelNumber].filter(Boolean).join(' ').trim() || 'Planned camera') : 'Planned camera';
+                  setPendingCameraObj({ id: -1, cameraCode: '(planned)', cameraName: label, status: 'PLANNED', locationId: null, model: model ?? null });
+                }
+              }}
+            />
+          </div>
+
           {/* Voice hint */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
             <MicrophoneIcon className="w-3 h-3 text-gray-400 shrink-0" />
@@ -597,34 +648,13 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
               onChange={(e) => { addPhoto(e); setPhotoPrompted(false); }}
             />
 
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center mb-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Photos
                 <span className={`ml-1.5 font-normal ${atLimit ? 'text-amber-500' : 'text-gray-400'}`}>
                   ({pending.length}/{MAX_PHOTOS})
                 </span>
               </span>
-              {!atLimit && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => photoRef.current?.click()}
-                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
-                  >
-                    <CameraIcon className="w-3.5 h-3.5" />
-                    Camera
-                  </button>
-                  <span className="text-gray-300">|</span>
-                  <button
-                    type="button"
-                    onClick={() => libraryRef.current?.click()}
-                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
-                  >
-                    <PhotoIcon className="w-3.5 h-3.5" />
-                    Library
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Voice photo prompt — shown when user says "Photo" */}
@@ -647,7 +677,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
                   className="h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
                 >
                   <CameraIcon className="w-5 h-5" />
-                  <span className="text-xs">Camera</span>
+                  <span className="text-xs">Take Photo</span>
                 </button>
                 <button
                   type="button"
@@ -655,7 +685,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
                   className="h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
                 >
                   <PhotoIcon className="w-5 h-5" />
-                  <span className="text-xs">Photo Library</span>
+                  <span className="text-xs">From Library</span>
                 </button>
               </div>
             ) : (
@@ -679,7 +709,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
                       type="button"
                       onClick={() => photoRef.current?.click()}
                       className="flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors border-b border-gray-200"
-                      title="Camera"
+                      title="Take Photo"
                     >
                       <CameraIcon className="w-3.5 h-3.5" />
                     </button>
@@ -687,7 +717,7 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
                       type="button"
                       onClick={() => libraryRef.current?.click()}
                       className="flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
-                      title="Photo Library"
+                      title="From Library"
                     >
                       <PhotoIcon className="w-3.5 h-3.5" />
                     </button>
@@ -1011,24 +1041,11 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
                   ({images.length}/{MAX_PHOTOS})
                 </span>
               </span>
-              {!atLimit && !uploading && (
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => photoInputRef.current?.click()}
-                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
-                  >
-                    <CameraIcon className="w-3.5 h-3.5" />
-                    Camera
-                  </button>
-                  <span className="text-gray-300">|</span>
-                  <button
-                    onClick={() => libraryInputRef.current?.click()}
-                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
-                  >
-                    <PhotoIcon className="w-3.5 h-3.5" />
-                    Library
-                  </button>
-                </div>
+              {uploading && (
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  Uploading…
+                </span>
               )}
               {uploading && (
                 <span className="text-xs text-gray-400 flex items-center gap-1">
@@ -1045,14 +1062,14 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
                   className="h-24 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
                 >
                   <CameraIcon className="w-6 h-6" />
-                  <span className="text-xs">Camera</span>
+                  <span className="text-xs">Take Photo</span>
                 </button>
                 <button
                   onClick={() => libraryInputRef.current?.click()}
                   className="h-24 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
                 >
                   <PhotoIcon className="w-6 h-6" />
-                  <span className="text-xs">Photo Library</span>
+                  <span className="text-xs">From Library</span>
                 </button>
               </div>
             ) : (
@@ -1078,14 +1095,14 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
                     <button
                       onClick={() => photoInputRef.current?.click()}
                       className="flex items-center justify-center gap-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors border-b border-gray-200"
-                      title="Camera"
+                      title="Take Photo"
                     >
                       <CameraIcon className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => libraryInputRef.current?.click()}
                       className="flex items-center justify-center gap-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
-                      title="Photo Library"
+                      title="From Library"
                     >
                       <PhotoIcon className="w-4 h-4" />
                     </button>
@@ -1177,17 +1194,24 @@ interface BuildingRowProps {
   initialOpen: boolean;
 }
 
+const PAGE_SIZE = 6;
+
 function BuildingAccordion({ building, siteId, filter, allBuildings, onLocationUpdate, onLocationAdd, onLocationDelete, initialOpen }: BuildingRowProps) {
   const [open, setOpen] = useState(initialOpen);
   const [addingHere, setAddingHere] = useState(false);
   const [detailLoc, setDetailLoc] = useState<SurveyLocation | null>(null);
   const [showFloorPlans, setShowFloorPlans] = useState(false);
+  const [page, setPage] = useState(0);
 
   const visibleLocs = building.locations.filter(l => {
     if (filter === 'done') return isDone(l);
     if (filter === 'pending') return !isDone(l);
     return true;
   });
+
+  const pageCount = Math.ceil(visibleLocs.length / PAGE_SIZE);
+  const safePage  = Math.min(page, Math.max(0, pageCount - 1));
+  const pageLocs  = visibleLocs.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   const doneCount = building.locations.filter(isDone).length;
   const total = building.locations.length;
@@ -1279,7 +1303,7 @@ function BuildingAccordion({ building, siteId, filter, allBuildings, onLocationU
           {visibleLocs.length === 0 && (
             <p className="px-4 py-3 text-sm text-gray-400 italic">No locations match this filter.</p>
           )}
-          {visibleLocs.map(loc => (
+          {pageLocs.map(loc => (
             <button
               key={loc.id}
               onClick={() => setDetailLoc(loc)}
@@ -1311,6 +1335,32 @@ function BuildingAccordion({ building, siteId, filter, allBuildings, onLocationU
             </button>
           ))}
 
+          {/* Pagination */}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-50 bg-gray-50/60">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={safePage === 0}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeftIcon className="w-3.5 h-3.5" />
+                Prev
+              </button>
+              <span className="text-xs text-gray-400">
+                {safePage + 1} / {pageCount}
+                <span className="ml-1 text-gray-300">({visibleLocs.length} locations)</span>
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+                disabled={safePage === pageCount - 1}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <ChevronRightIcon className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Add location button */}
           <button
             onClick={() => setAddingHere(true)}
@@ -1325,6 +1375,7 @@ function BuildingAccordion({ building, siteId, filter, allBuildings, onLocationU
       {/* Modals */}
       {addingHere && (
         <QuickAddSheet
+          siteId={siteId}
           buildings={[building]}
           defaultBuildingId={building.id}
           onSave={loc => { onLocationAdd(loc); setAddingHere(false); }}
@@ -1561,40 +1612,34 @@ export function SurveyBoard({ initialSite }: Props) {
   }, []);
 
   return (
-    <div className="relative min-h-screen pb-24">
-      {/* Progress header */}
-      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4 shadow-sm">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Survey Progress</p>
-            <p className="text-2xl font-bold text-gray-900">{pct}%</p>
-          </div>
-          <div className="text-right">
-            <p className="text-sm font-medium text-gray-700">{doneCount} / {total}</p>
-            <p className="text-xs text-gray-400">locations surveyed</p>
-          </div>
+    <div className="p-4 md:p-6 max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{site.siteName}</h1>
+          <p className="text-sm text-gray-500">
+            {total} location{total !== 1 ? 's' : ''} · {doneCount} surveyed
+          </p>
         </div>
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div
-            className="h-2 bg-green-500 rounded-full transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{pct}%</span>
+          <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+          </div>
         </div>
       </div>
 
-      {/* Filter chips */}
+      {/* Filter bar */}
       <div className="flex gap-2 mb-4">
         {(['all', 'pending', 'done'] as Filter[]).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors capitalize ${
-              filter === f
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
+              filter === f ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
-            {f}
+            {f === 'all' ? 'All' : f === 'pending' ? 'Pending' : 'Surveyed'}
           </button>
         ))}
       </div>
@@ -1616,12 +1661,11 @@ export function SurveyBoard({ initialSite }: Props) {
         ))}
       </div>
 
-      {/* Floating action buttons */}
-      <div className="fixed bottom-6 right-6 flex items-center gap-3 z-40">
-        <VoiceQuickRefButton />
+      {/* Add Location button */}
+      <div className="mt-4 flex justify-center">
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
         >
           <PlusIcon className="w-5 h-5" />
           Add Location
@@ -1630,6 +1674,7 @@ export function SurveyBoard({ initialSite }: Props) {
 
       {showAdd && (
         <QuickAddSheet
+          siteId={site.id}
           buildings={site.buildings}
           onSave={loc => { handleLocationAdd(loc); setShowAdd(false); }}
           onClose={() => setShowAdd(false)}
