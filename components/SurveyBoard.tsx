@@ -342,8 +342,9 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
   const [saveLabel,  setSaveLabel]    = useState('');
   const [voiceField, setVoiceField]   = useState<string | null>(null);
   const [photoPrompted, setPhotoPrompted] = useState(false);
-  const areaRef     = useRef<HTMLInputElement>(null);
-  const photoRef    = useRef<HTMLInputElement>(null);
+  const areaRef      = useRef<HTMLInputElement>(null);
+  const photoRef     = useRef<HTMLInputElement>(null);
+  const libraryRef   = useRef<HTMLInputElement>(null);
 
   const atLimit = pending.length >= MAX_PHOTOS;
 
@@ -431,7 +432,8 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
       preview: URL.createObjectURL(file),
     }));
     setPending(prev => [...prev, ...toAdd]);
-    if (photoRef.current) photoRef.current.value = '';
+    if (photoRef.current)   photoRef.current.value = '';
+    if (libraryRef.current) libraryRef.current.value = '';
   }
 
   function removePhoto(idx: number) {
@@ -576,6 +578,25 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
 
           {/* Photos */}
           <div>
+            {/* Hidden file inputs */}
+            <input
+              ref={photoRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              className="hidden"
+              onChange={(e) => { addPhoto(e); setPhotoPrompted(false); }}
+            />
+            <input
+              ref={libraryRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => { addPhoto(e); setPhotoPrompted(false); }}
+            />
+
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Photos
@@ -584,24 +605,26 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
                 </span>
               </span>
               {!atLimit && (
-                <button
-                  type="button"
-                  onClick={() => photoRef.current?.click()}
-                  className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
-                >
-                  <ArrowUpTrayIcon className="w-3.5 h-3.5" />
-                  Add Photo
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => photoRef.current?.click()}
+                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                  >
+                    <CameraIcon className="w-3.5 h-3.5" />
+                    Camera
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => libraryRef.current?.click()}
+                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                  >
+                    <PhotoIcon className="w-3.5 h-3.5" />
+                    Library
+                  </button>
+                </div>
               )}
-              <input
-                ref={photoRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                multiple
-                className="hidden"
-                onChange={(e) => { addPhoto(e); setPhotoPrompted(false); }}
-              />
             </div>
 
             {/* Voice photo prompt — shown when user says "Photo" */}
@@ -617,14 +640,24 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
             )}
 
             {pending.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => photoRef.current?.click()}
-                className="w-full h-24 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
-              >
-                <PhotoIcon className="w-6 h-6" />
-                <span className="text-xs">Add up to {MAX_PHOTOS} photos</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => photoRef.current?.click()}
+                  className="h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+                >
+                  <CameraIcon className="w-5 h-5" />
+                  <span className="text-xs">Camera</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => libraryRef.current?.click()}
+                  className="h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+                >
+                  <PhotoIcon className="w-5 h-5" />
+                  <span className="text-xs">Photo Library</span>
+                </button>
+              </div>
             ) : (
               <div className="grid grid-cols-4 gap-2">
                 {pending.map((p, idx) => (
@@ -641,13 +674,24 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
                   </div>
                 ))}
                 {!atLimit && (
-                  <button
-                    type="button"
-                    onClick={() => photoRef.current?.click()}
-                    className="aspect-square rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                  </button>
+                  <div className="aspect-square rounded-lg border-2 border-dashed border-gray-200 grid grid-rows-2 overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => photoRef.current?.click()}
+                      className="flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors border-b border-gray-200"
+                      title="Camera"
+                    >
+                      <CameraIcon className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => libraryRef.current?.click()}
+                      className="flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                      title="Photo Library"
+                    >
+                      <PhotoIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 )}
                 {atLimit && (
                   <div className="aspect-square rounded-lg border-2 border-amber-200 bg-amber-50 flex flex-col items-center justify-center text-amber-500">
@@ -687,22 +731,30 @@ function QuickAddSheet({ buildings, defaultBuildingId, onSave, onClose }: QuickA
 interface LocationPanelProps {
   location: SurveyLocation;
   siteId: number;
+  allBuildings: SurveyBuilding[];
   onUpdate: (loc: SurveyLocation) => void;
   onDelete: (id: number) => void;
   onClose: () => void;
 }
 
-function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: LocationPanelProps) {
-  const [surveyNotes, setSurveyNotes] = useState(location.surveyNotes ?? '');
-  const [cameras,     setCameras]     = useState(location.cameras);
-  const [images,      setImages]      = useState(location.images);
-  const [saving,      setSaving]      = useState(false);
-  const [uploading,   setUploading]   = useState(false);
-  const [deletingId,  setDeletingId]  = useState<number | null>(null);
-  const [assigning,   setAssigning]   = useState(false);
+function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onClose }: LocationPanelProps) {
+  const [surveyNotes,   setSurveyNotes]   = useState(location.surveyNotes ?? '');
+  const [cameras,       setCameras]       = useState(location.cameras);
+  const [images,        setImages]        = useState(location.images);
+  const [saving,        setSaving]        = useState(false);
+  const [uploading,     setUploading]     = useState(false);
+  const [deletingId,    setDeletingId]    = useState<number | null>(null);
+  const [assigning,     setAssigning]     = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting,    setDeleting]    = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [deleting,      setDeleting]      = useState(false);
+  // Edit-details mode
+  const [editMode,      setEditMode]      = useState(false);
+  const [editAreaName,  setEditAreaName]  = useState(location.areaName ?? '');
+  const [editFloor,     setEditFloor]     = useState(location.floor ?? '');
+  const [editBuildingId, setEditBuildingId] = useState(String(location.buildingId));
+  const [savingEdits,   setSavingEdits]   = useState(false);
+  const photoInputRef   = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
 
   const { registerCommands, speak } = useVoice();
 
@@ -767,6 +819,28 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
       }
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function saveDetails() {
+    setSavingEdits(true);
+    try {
+      const res = await fetch(`/api/survey/locations/${location.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          areaName:   editAreaName.trim() || location.areaName,
+          floor:      editFloor.trim()    || null,
+          buildingId: parseInt(editBuildingId, 10),
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        onUpdate({ ...updated, images, cameras });
+        setEditMode(false);
+      }
+    } finally {
+      setSavingEdits(false);
     }
   }
 
@@ -838,11 +912,69 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
       >
         {/* Header */}
         <div className="flex items-start justify-between p-5 border-b border-gray-100">
-          <div>
-            <h3 className="text-base font-semibold text-gray-900">{location.areaName}</h3>
-            {location.floor && <p className="text-xs text-gray-500 mt-0.5">Floor {location.floor}</p>}
-          </div>
-          <button onClick={onClose} className="ml-4 text-gray-400 hover:text-gray-600 shrink-0">
+          {editMode ? (
+            <div className="flex-1 space-y-2 mr-3">
+              <input
+                value={editAreaName}
+                onChange={e => setEditAreaName(e.target.value)}
+                placeholder="Area name"
+                className="input-field text-sm w-full"
+              />
+              <input
+                value={editFloor}
+                onChange={e => setEditFloor(e.target.value)}
+                placeholder="Floor (optional)"
+                className="input-field text-sm w-full"
+              />
+              {allBuildings.length > 1 && (
+                <select
+                  value={editBuildingId}
+                  onChange={e => setEditBuildingId(e.target.value)}
+                  className="input-field text-sm w-full"
+                >
+                  {allBuildings.map(b => (
+                    <option key={b.id} value={String(b.id)}>{b.buildingName}</option>
+                  ))}
+                </select>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={saveDetails}
+                  disabled={savingEdits}
+                  className="btn-primary text-xs px-3 py-1.5 flex items-center gap-1"
+                >
+                  {savingEdits && <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />}
+                  {savingEdits ? 'Saving…' : 'Save changes'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditMode(false);
+                    setEditAreaName(location.areaName ?? '');
+                    setEditFloor(location.floor ?? '');
+                    setEditBuildingId(String(location.buildingId));
+                  }}
+                  className="btn-secondary text-xs px-3 py-1.5"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 flex-1">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">{location.areaName}</h3>
+                {location.floor && <p className="text-xs text-gray-500 mt-0.5">Floor {location.floor}</p>}
+              </div>
+              <button
+                onClick={() => setEditMode(true)}
+                className="mt-0.5 text-gray-300 hover:text-blue-500 transition-colors"
+                title="Edit name, floor, or building"
+              >
+                <PencilIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          <button onClick={onClose} className="ml-2 text-gray-400 hover:text-gray-600 shrink-0">
             <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
@@ -868,6 +1000,10 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
 
           {/* Photos */}
           <div>
+            {/* Hidden file inputs — camera capture and library */}
+            <input ref={photoInputRef}   type="file" accept="image/*" capture="environment" className="hidden" onChange={uploadPhoto} />
+            <input ref={libraryInputRef} type="file" accept="image/*"                       className="hidden" onChange={uploadPhoto} />
+
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Photos
@@ -875,34 +1011,50 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
                   ({images.length}/{MAX_PHOTOS})
                 </span>
               </span>
-              {!atLimit && (
-                <button
-                  onClick={() => photoInputRef.current?.click()}
-                  disabled={uploading}
-                  className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline disabled:opacity-40"
-                >
-                  <ArrowUpTrayIcon className="w-3.5 h-3.5" />
-                  {uploading ? 'Uploading…' : 'Add Photo'}
-                </button>
+              {!atLimit && !uploading && (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                  >
+                    <CameraIcon className="w-3.5 h-3.5" />
+                    Camera
+                  </button>
+                  <span className="text-gray-300">|</span>
+                  <button
+                    onClick={() => libraryInputRef.current?.click()}
+                    className="flex items-center gap-1 text-xs text-blue-600 font-medium hover:underline"
+                  >
+                    <PhotoIcon className="w-3.5 h-3.5" />
+                    Library
+                  </button>
+                </div>
               )}
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={uploadPhoto}
-              />
+              {uploading && (
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  Uploading…
+                </span>
+              )}
             </div>
 
             {images.length === 0 ? (
-              <button
-                onClick={() => photoInputRef.current?.click()}
-                className="w-full h-28 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
-              >
-                <PhotoIcon className="w-7 h-7" />
-                <span className="text-xs">Tap to add a photo (up to {MAX_PHOTOS})</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => photoInputRef.current?.click()}
+                  className="h-24 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+                >
+                  <CameraIcon className="w-6 h-6" />
+                  <span className="text-xs">Camera</span>
+                </button>
+                <button
+                  onClick={() => libraryInputRef.current?.click()}
+                  className="h-24 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+                >
+                  <PhotoIcon className="w-6 h-6" />
+                  <span className="text-xs">Photo Library</span>
+                </button>
+              </div>
             ) : (
               <div className="grid grid-cols-3 gap-2">
                 {images.map(img => (
@@ -921,15 +1073,28 @@ function LocationPanel({ location, siteId, onUpdate, onDelete, onClose }: Locati
                     </button>
                   </div>
                 ))}
-                {!atLimit && (
-                  <button
-                    onClick={() => photoInputRef.current?.click()}
-                    disabled={uploading}
-                    className="aspect-square rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors disabled:opacity-40"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                    <span className="text-xs">{uploading ? '…' : 'Add'}</span>
-                  </button>
+                {!atLimit && !uploading && (
+                  <div className="aspect-square rounded-xl border-2 border-dashed border-gray-200 grid grid-rows-2 overflow-hidden">
+                    <button
+                      onClick={() => photoInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors border-b border-gray-200"
+                      title="Camera"
+                    >
+                      <CameraIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => libraryInputRef.current?.click()}
+                      className="flex items-center justify-center gap-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                      title="Photo Library"
+                    >
+                      <PhotoIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+                {uploading && (
+                  <div className="aspect-square rounded-xl border-2 border-gray-200 bg-gray-50 flex items-center justify-center">
+                    <span className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                  </div>
                 )}
                 {atLimit && (
                   <div className="aspect-square rounded-xl border-2 border-amber-200 bg-amber-50 flex flex-col items-center justify-center gap-1 text-amber-500">
@@ -1005,13 +1170,14 @@ interface BuildingRowProps {
   building: SurveyBuilding;
   siteId: number;
   filter: Filter;
+  allBuildings: SurveyBuilding[];
   onLocationUpdate: (loc: SurveyLocation) => void;
   onLocationAdd: (loc: SurveyLocation) => void;
   onLocationDelete: (id: number) => void;
   initialOpen: boolean;
 }
 
-function BuildingAccordion({ building, siteId, filter, onLocationUpdate, onLocationAdd, onLocationDelete, initialOpen }: BuildingRowProps) {
+function BuildingAccordion({ building, siteId, filter, allBuildings, onLocationUpdate, onLocationAdd, onLocationDelete, initialOpen }: BuildingRowProps) {
   const [open, setOpen] = useState(initialOpen);
   const [addingHere, setAddingHere] = useState(false);
   const [detailLoc, setDetailLoc] = useState<SurveyLocation | null>(null);
@@ -1169,6 +1335,7 @@ function BuildingAccordion({ building, siteId, filter, onLocationUpdate, onLocat
         <LocationPanel
           location={detailLoc}
           siteId={siteId}
+          allBuildings={allBuildings}
           onUpdate={updated => { onLocationUpdate(updated); setDetailLoc(updated); }}
           onDelete={id => { onLocationDelete(id); setDetailLoc(null); }}
           onClose={() => setDetailLoc(null)}
@@ -1342,13 +1509,34 @@ export function SurveyBoard({ initialSite }: Props) {
   const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   const handleLocationUpdate = useCallback((updated: SurveyLocation) => {
-    setSite(prev => ({
-      ...prev,
-      buildings: prev.buildings.map(b => ({
-        ...b,
-        locations: b.locations.map(l => l.id === updated.id ? updated : l),
-      })),
-    }));
+    setSite(prev => {
+      const currentBuilding = prev.buildings.find(b => b.locations.some(l => l.id === updated.id));
+      if (!currentBuilding) return prev;
+
+      if (currentBuilding.id === updated.buildingId) {
+        // Same building — update in place
+        return {
+          ...prev,
+          buildings: prev.buildings.map(b => ({
+            ...b,
+            locations: b.locations.map(l => l.id === updated.id ? updated : l),
+          })),
+        };
+      } else {
+        // Building changed — move location to new building
+        return {
+          ...prev,
+          buildings: prev.buildings.map(b => {
+            if (b.id === currentBuilding.id) {
+              return { ...b, locations: b.locations.filter(l => l.id !== updated.id) };
+            } else if (b.id === updated.buildingId) {
+              return { ...b, locations: [...b.locations, updated] };
+            }
+            return b;
+          }),
+        };
+      }
+    });
   }, []);
 
   const handleLocationAdd = useCallback((newLoc: SurveyLocation) => {
@@ -1419,6 +1607,7 @@ export function SurveyBoard({ initialSite }: Props) {
             building={b}
             siteId={site.id}
             filter={filter}
+            allBuildings={site.buildings}
             onLocationUpdate={handleLocationUpdate}
             onLocationAdd={handleLocationAdd}
             onLocationDelete={handleLocationDelete}

@@ -1,0 +1,3 @@
+// Release / production build configuration
+// Replace with your deployed Next.js domain
+API_BASE_URL = https://your-production-domain.com

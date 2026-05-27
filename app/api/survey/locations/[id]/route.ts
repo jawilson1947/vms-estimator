@@ -16,7 +16,7 @@ export async function PATCH(
 
   const body = await req.json();
   const {
-    areaName, floor, surveyNotes, notes, mountingLocation, coveragePurpose, markSurveyed,
+    areaName, floor, buildingId, surveyNotes, notes, mountingLocation, coveragePurpose, markSurveyed,
     cameraId, cameraModelId,
   } = body;
 
@@ -52,6 +52,7 @@ export async function PATCH(
   const knownData: Record<string, unknown> = {};
   if (areaName !== undefined) knownData.areaName = areaName;
   if (floor !== undefined) knownData.floor = floor;
+  if (buildingId !== undefined) knownData.buildingId = parseInt(String(buildingId), 10);
   if (notes !== undefined) knownData.notes = notes;
   if (mountingLocation !== undefined) knownData.mountingLocation = mountingLocation;
   if (coveragePurpose !== undefined) knownData.coveragePurpose = coveragePurpose;

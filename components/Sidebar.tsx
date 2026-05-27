@@ -143,23 +143,6 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Admin nav */}
-      <div className="px-1.5 py-2 border-t border-gray-800 space-y-0.5">
-        {adminNav.map(({ label, href, icon: Icon, color }) => {
-          const active = isActive(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={itemClass(active)}
-            >
-              <Icon className={clsx('w-3.5 h-3.5 shrink-0', active ? 'text-white' : color)} />
-              {!collapsed && label}
-            </Link>
-          );
-        })}
-      </div>
     </aside>
   );
 }
