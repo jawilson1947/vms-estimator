@@ -46,6 +46,9 @@ export function useSpeechRecognition(
   const recognitionRef   = useRef<any>(null);
   const restartTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enabledRef       = useRef(enabled);
+  // True while TTS is speaking — prevents onend from auto-restarting the
+  // recogniser and picking up the spoken prompt as a field value.
+  const pausedRef        = useRef(false);
   const [listening,  setListening]  = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error,      setError]      = useState<string | null>(null);
@@ -69,15 +72,23 @@ export function useSpeechRecognition(
    */
   const pause = useCallback(() => {
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    pausedRef.current = true;   // block onend from auto-restarting
     try { recognitionRef.current?.stop(); } catch { /* ignore */ }
   }, []);
 
   /**
    * Resume recognition after a TTS-triggered pause. No-op when disabled.
+   * Small delay lets the speaker audio decay so the mic doesn't immediately
+   * pick up residual TTS sound.
    */
   const resume = useCallback(() => {
     if (!enabledRef.current) return;
-    try { recognitionRef.current?.start(); } catch { /* already running */ }
+    pausedRef.current = false;
+    setTimeout(() => {
+      if (!pausedRef.current && enabledRef.current) {
+        try { recognitionRef.current?.start(); } catch { /* already running */ }
+      }
+    }, 350);
   }, []);
 
   // Detect support on the client only (avoids SSR/client hydration mismatch)
@@ -114,10 +125,11 @@ export function useSpeechRecognition(
 
     recognition.onend = () => {
       setListening(false);
-      // Only restart if this instance is still the active one
-      if (!unmounted && enabledRef.current) {
+      // Only restart if this instance is still active AND we weren't paused
+      // deliberately by TTS (pausedRef guards against that case).
+      if (!unmounted && enabledRef.current && !pausedRef.current) {
         restartTimerRef.current = setTimeout(() => {
-          if (!unmounted) {
+          if (!unmounted && !pausedRef.current) {
             try { recognition.start(); } catch { /* already started */ }
           }
         }, 300);
