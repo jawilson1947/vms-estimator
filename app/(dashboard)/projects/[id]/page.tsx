@@ -5,6 +5,7 @@ import {
   ChevronRightIcon, PencilSquareIcon, PlusIcon,
   MapPinIcon, CurrencyDollarIcon, BuildingOffice2Icon,
 } from '@heroicons/react/24/outline';
+import { AddSiteButton } from '@/components/AddSiteButton';
 
 const statusColors: Record<string, string> = {
   PROPOSED:    'bg-gray-100 text-gray-600',
@@ -153,9 +154,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             Sites
             <span className="ml-2 badge bg-gray-100 text-gray-600">{project.sites.length}</span>
           </h2>
-          <Link href={`/sites/new?projectId=${project.id}`} className="btn-secondary text-xs py-1 px-2.5">
-            <PlusIcon className="w-3.5 h-3.5" /> Add Site
-          </Link>
+          <AddSiteButton
+            projectId={project.id}
+            excludeIds={project.sites.map(s => s.id)}
+          />
         </div>
 
         {project.sites.length === 0 ? (
