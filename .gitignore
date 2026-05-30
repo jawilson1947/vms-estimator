@@ -37,3 +37,15 @@ next-env.d.ts
 # uploads
 /public/uploads/
 *.log
+
+# iOS / Xcode
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios/DerivedData/
+ios/Pods/
+ios/*.ipa
+ios/*.dSYM.zip
+ios/*.dSYM
+ios/.DS_Store
