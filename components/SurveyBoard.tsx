@@ -17,9 +17,11 @@ import {
   DocumentIcon,
   ArrowTopRightOnSquareIcon,
   QuestionMarkCircleIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
 import { useVoice, useWaitForValue } from '@/context/VoiceContext';
+import { SurveyAgentChat } from '@/components/SurveyAgentChat';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1541,6 +1543,7 @@ export function SurveyBoard({ initialSite }: Props) {
   const [site, setSite] = useState<SurveySite>(initialSite);
   const [filter, setFilter] = useState<Filter>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [showAgent, setShowAgent] = useState(false);
 
   // Register "add location" voice command while this board is mounted
   const { registerCommands, speak } = useVoice();
@@ -1662,13 +1665,20 @@ export function SurveyBoard({ initialSite }: Props) {
       </div>
 
       {/* Add Location button */}
-      <div className="mt-4 flex justify-center">
+      <div className="mt-4 flex justify-center gap-3">
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
         >
           <PlusIcon className="w-5 h-5" />
           Add Location
+        </button>
+        <button
+          onClick={() => setShowAgent(true)}
+          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-blue-600 border border-blue-300 bg-white rounded-xl hover:bg-blue-50 transition-colors shadow-sm"
+        >
+          <SparklesIcon className="w-4 h-4" />
+          Survey Chat
         </button>
       </div>
 
@@ -1678,6 +1688,15 @@ export function SurveyBoard({ initialSite }: Props) {
           buildings={site.buildings}
           onSave={loc => { handleLocationAdd(loc); setShowAdd(false); }}
           onClose={() => setShowAdd(false)}
+        />
+      )}
+
+      {showAgent && (
+        <SurveyAgentChat
+          siteId={site.id}
+          buildings={site.buildings.map(b => ({ id: b.id, buildingName: b.buildingName }))}
+          onLocationSaved={loc => { handleLocationAdd(loc as SurveyLocation); }}
+          onExit={() => setShowAgent(false)}
         />
       )}
     </div>

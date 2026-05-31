@@ -15,6 +15,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@headlessui/react": "^1.7.0",
     "@heroicons/react": "^2.1.0",
     "@prisma/client": "^5.14.0",
