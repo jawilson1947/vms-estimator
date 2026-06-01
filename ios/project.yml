@@ -34,8 +34,10 @@ targets:
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        # Inject API_BASE_URL from xcconfig into Info.plist
-        API_BASE_URL: "$(API_BASE_URL)"
+        # Inject API config and CLAUDE_API_KEY from xcconfig into Info.plist
+        API_BASE_SCHEME: "$(API_BASE_SCHEME)"
+        API_BASE_HOST: "$(API_BASE_HOST)"
+        CLAUDE_API_KEY: "$(CLAUDE_API_KEY)"
       configs:
         Debug:
           DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
@@ -51,6 +53,9 @@ targets:
         CFBundleDisplayName: CSMS Survey
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        API_BASE_SCHEME: "$(API_BASE_SCHEME)"
+        API_BASE_HOST: "$(API_BASE_HOST)"
+        CLAUDE_API_KEY: "$(CLAUDE_API_KEY)"
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -62,4 +67,3 @@ targets:
         NSPhotoLibraryAddUsageDescription: "CSMS Survey can save captured photos to your photo library."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true   # Allows HTTP for local dev; tighten for production
-        API_BASE_URL: "$(API_BASE_URL)"

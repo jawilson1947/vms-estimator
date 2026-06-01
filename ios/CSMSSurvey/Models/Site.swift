@@ -21,8 +21,11 @@ struct SurveySite: Codable, Identifiable {
     var buildings: [SurveyBuilding]
 }
 
-struct SurveyBuilding: Codable, Identifiable {
+struct SurveyBuilding: Codable, Identifiable, Hashable {
     let id: Int
     let buildingName: String
     var locations: [SurveyLocation]
+
+    static func == (lhs: SurveyBuilding, rhs: SurveyBuilding) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }

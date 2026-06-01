@@ -9,15 +9,16 @@
 /* Begin PBXBuildFile section */
 		00E6C2475629F4481C3AC006 /* LocationDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AA4CC43236E38D4E1BF452D /* LocationDetailView.swift */; };
 		014E16D9346DD34E60DF9167 /* VoiceTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69E64E9B01495FFAECB9C078 /* VoiceTestView.swift */; };
-		0C6D2B84A7B6C04422B557C5 /* VoiceCommandManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF7F3DCED8AF33C1FBE85D2 /* VoiceCommandManagerTests.swift */; };
+		0676803DF499CDBF4B64EABE /* MicButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DC822B1BB0B381E05490493 /* MicButton.swift */; };
 		10124E705D8F7D073179096E /* AddLocationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29387831190F4625E90A0FF /* AddLocationSheet.swift */; };
 		1A2CC1D698F2E73662323E06 /* VoiceCommandTestPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E832D496DEA92126DE951B2 /* VoiceCommandTestPanel.swift */; };
+		1E3C1ED92AAE2C2F173F5195 /* VoiceInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774A368161A193CC458683E6 /* VoiceInterviewView.swift */; };
 		33BFCF03F0F395781B9C4655 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DACE3FC798D5A03F969DC090 /* AuthService.swift */; };
 		50E7BCD6DF5F374705AE7E5D /* SurveyBoardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691F38AD61CAFB9299F26F72 /* SurveyBoardView.swift */; };
+		514CD7D1584D8E829EAA76DC /* VoiceInterviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE9C4548BFC14FB93DB192C /* VoiceInterviewManager.swift */; };
 		55334DF4081D07214DE6FE94 /* SiteListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7C9D8A65FADBD9CB7DF60EE /* SiteListView.swift */; };
 		59E29BE80D6B7327DAA0845D /* SiteListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA4281ED318EDCD3A5CB074 /* SiteListViewModel.swift */; };
 		5A3EF309FD8C1D0DAB4BAD5A /* VoiceQuickRefView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6FB827E40200EAA68F040A1 /* VoiceQuickRefView.swift */; };
-		668CEB4962D501167F81AB5A /* EncodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E942657D3EC5A4CCD81B4EB5 /* EncodingTests.swift */; };
 		6EFFB534BE90A53D071162F5 /* Site.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E923DD9F5AFC016FE4D24D9 /* Site.swift */; };
 		741E710DE1262C44CD0F2741 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7AA276CB86A332F3967FF5 /* APIClient.swift */; };
 		8AAEACC44EE9DCA5E7EE4FF8 /* SurveyPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58E9EA96E559753BFFD35CD /* SurveyPhoto.swift */; };
@@ -32,20 +33,11 @@
 		BFE4259D09FCF1F59B6656B8 /* SurveyLocation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1683B7036003FCAA0C5438BD /* SurveyLocation.swift */; };
 		C33D687421CE45E7E24471BE /* VoiceDebugPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45DA1AAC05F8BCD2E6C482D7 /* VoiceDebugPanel.swift */; };
 		C361B550AA8F098AF608E0E5 /* SurveyBoardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 364D4B0BAFCC0FDA703CB6D0 /* SurveyBoardViewModel.swift */; };
+		E241CD044CF0A538DCA0B5AC /* ClaudeInterviewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E77976F1C0E7F0795A6233 /* ClaudeInterviewClient.swift */; };
 		E70BA1A4D7693B62B23D20FA /* PhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */; };
 		EAB71A4B56833661F28A7987 /* CSMSSurveyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7741126F21807C1A269CBB /* CSMSSurveyApp.swift */; };
 		FDDFC9B33E13B3AA9E85F4B3 /* VoiceTestPhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC326890394BC7E47F85CF42 /* VoiceTestPhrases.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		9E5CAED7B4E4244AA0808DC4 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = A44E4D93D1BC30D5251560E9 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = E645186BCEDFA2D26BD3DF49;
-			remoteInfo = CSMSSurvey;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		02676A0FF4CB3BED2DDD94EB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -62,12 +54,13 @@
 		63B7BCFCCD60700C4A802400 /* SpeechOutputTestPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutputTestPanel.swift; sourceTree = "<group>"; };
 		691F38AD61CAFB9299F26F72 /* SurveyBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyBoardView.swift; sourceTree = "<group>"; };
 		69E64E9B01495FFAECB9C078 /* VoiceTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTestView.swift; sourceTree = "<group>"; };
-		6DC99A292E4C7885413F6714 /* CSMSSurveyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CSMSSurveyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		6EF7F3DCED8AF33C1FBE85D2 /* VoiceCommandManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandManagerTests.swift; sourceTree = "<group>"; };
 		742F772111EDFBAB44317FF3 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		774A368161A193CC458683E6 /* VoiceInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInterviewView.swift; sourceTree = "<group>"; };
 		7FA4281ED318EDCD3A5CB074 /* SiteListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteListViewModel.swift; sourceTree = "<group>"; };
+		7FE9C4548BFC14FB93DB192C /* VoiceInterviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInterviewManager.swift; sourceTree = "<group>"; };
 		9AA4CC43236E38D4E1BF452D /* LocationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationDetailView.swift; sourceTree = "<group>"; };
 		9D12F52223A5631C236C7822 /* VoiceCommandManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandManager.swift; sourceTree = "<group>"; };
+		9DC822B1BB0B381E05490493 /* MicButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicButton.swift; sourceTree = "<group>"; };
 		B29387831190F4625E90A0FF /* AddLocationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddLocationSheet.swift; sourceTree = "<group>"; };
 		BC326890394BC7E47F85CF42 /* VoiceTestPhrases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTestPhrases.swift; sourceTree = "<group>"; };
 		BD7741126F21807C1A269CBB /* CSMSSurveyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSMSSurveyApp.swift; sourceTree = "<group>"; };
@@ -76,10 +69,10 @@
 		D7924EACD8DE5DDFF625537B /* SpeechOutputManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutputManager.swift; sourceTree = "<group>"; };
 		DACE3FC798D5A03F969DC090 /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		DD7AA276CB86A332F3967FF5 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		E1E77976F1C0E7F0795A6233 /* ClaudeInterviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeInterviewClient.swift; sourceTree = "<group>"; };
 		E58E9EA96E559753BFFD35CD /* SurveyPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyPhoto.swift; sourceTree = "<group>"; };
 		E7A617A8243B5C0C1F6AE3B6 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		E7C9D8A65FADBD9CB7DF60EE /* SiteListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteListView.swift; sourceTree = "<group>"; };
-		E942657D3EC5A4CCD81B4EB5 /* EncodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EncodingTests.swift; sourceTree = "<group>"; };
 		EFF4CD120FEB81FEE2A7F885 /* LocationDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationDetailViewModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -98,7 +91,6 @@
 			isa = PBXGroup;
 			children = (
 				A5DB49DE3445A4A2C8147321 /* CSMSSurvey */,
-				D4054C261B81BD3EDFD55BF8 /* CSMSSurveyTests */,
 				2A11782677A0BB5AA40A4BB2 /* ios */,
 				42FCD0C6C38B9BE300734250 /* Products */,
 			);
@@ -118,7 +110,6 @@
 			isa = PBXGroup;
 			children = (
 				0B0C5C43A0B18DD371FFDA83 /* CSMSSurvey.app */,
-				6DC99A292E4C7885413F6714 /* CSMSSurveyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -157,9 +148,11 @@
 			children = (
 				B29387831190F4625E90A0FF /* AddLocationSheet.swift */,
 				9AA4CC43236E38D4E1BF452D /* LocationDetailView.swift */,
+				9DC822B1BB0B381E05490493 /* MicButton.swift */,
 				12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */,
 				E7C9D8A65FADBD9CB7DF60EE /* SiteListView.swift */,
 				691F38AD61CAFB9299F26F72 /* SurveyBoardView.swift */,
+				774A368161A193CC458683E6 /* VoiceInterviewView.swift */,
 				D6FB827E40200EAA68F040A1 /* VoiceQuickRefView.swift */,
 			);
 			path = Survey;
@@ -180,6 +173,7 @@
 			children = (
 				D7924EACD8DE5DDFF625537B /* SpeechOutputManager.swift */,
 				9D12F52223A5631C236C7822 /* VoiceCommandManager.swift */,
+				7FE9C4548BFC14FB93DB192C /* VoiceInterviewManager.swift */,
 				BC326890394BC7E47F85CF42 /* VoiceTestPhrases.swift */,
 			);
 			path = Voice;
@@ -213,17 +207,9 @@
 			children = (
 				DD7AA276CB86A332F3967FF5 /* APIClient.swift */,
 				DACE3FC798D5A03F969DC090 /* AuthService.swift */,
+				E1E77976F1C0E7F0795A6233 /* ClaudeInterviewClient.swift */,
 			);
 			path = Services;
-			sourceTree = "<group>";
-		};
-		D4054C261B81BD3EDFD55BF8 /* CSMSSurveyTests */ = {
-			isa = PBXGroup;
-			children = (
-				E942657D3EC5A4CCD81B4EB5 /* EncodingTests.swift */,
-				6EF7F3DCED8AF33C1FBE85D2 /* VoiceCommandManagerTests.swift */,
-			);
-			path = CSMSSurveyTests;
 			sourceTree = "<group>";
 		};
 		E6B71C2ECBBAA1012C698AA2 /* Views */ = {
@@ -239,24 +225,6 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9DB8B8A756B1264113F78C91 /* CSMSSurveyTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = DFBDAA7DC8118CA97B8A56E8 /* Build configuration list for PBXNativeTarget "CSMSSurveyTests" */;
-			buildPhases = (
-				B14E56877424913356BA9CCE /* Sources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				1E8A86209BD7D6B0C36B7D07 /* PBXTargetDependency */,
-			);
-			name = CSMSSurveyTests;
-			packageProductDependencies = (
-			);
-			productName = CSMSSurveyTests;
-			productReference = 6DC99A292E4C7885413F6714 /* CSMSSurveyTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 		E645186BCEDFA2D26BD3DF49 /* CSMSSurvey */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = CF3B37B5879583770DDB88A3 /* Build configuration list for PBXNativeTarget "CSMSSurvey" */;
@@ -282,11 +250,8 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					9DB8B8A756B1264113F78C91 = {
-						DevelopmentTeam = "";
-					};
 					E645186BCEDFA2D26BD3DF49 = {
 						ProvisioningStyle = Automatic;
 					};
@@ -307,7 +272,6 @@
 			projectRoot = "";
 			targets = (
 				E645186BCEDFA2D26BD3DF49 /* CSMSSurvey */,
-				9DB8B8A756B1264113F78C91 /* CSMSSurveyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -333,9 +297,11 @@
 				A1664791041BC815BDF3BF3D /* AppEnvironment.swift in Sources */,
 				33BFCF03F0F395781B9C4655 /* AuthService.swift in Sources */,
 				EAB71A4B56833661F28A7987 /* CSMSSurveyApp.swift in Sources */,
+				E241CD044CF0A538DCA0B5AC /* ClaudeInterviewClient.swift in Sources */,
 				00E6C2475629F4481C3AC006 /* LocationDetailView.swift in Sources */,
 				B04597AFC3961C77F0B5DCCC /* LocationDetailViewModel.swift in Sources */,
 				B592856C206256017FC7EB34 /* LoginView.swift in Sources */,
+				0676803DF499CDBF4B64EABE /* MicButton.swift in Sources */,
 				E70BA1A4D7693B62B23D20FA /* PhotoGridView.swift in Sources */,
 				6EFFB534BE90A53D071162F5 /* Site.swift in Sources */,
 				55334DF4081D07214DE6FE94 /* SiteListView.swift in Sources */,
@@ -350,30 +316,15 @@
 				B092676A8310DBAA82A510BD /* VoiceCommandManager.swift in Sources */,
 				1A2CC1D698F2E73662323E06 /* VoiceCommandTestPanel.swift in Sources */,
 				C33D687421CE45E7E24471BE /* VoiceDebugPanel.swift in Sources */,
+				514CD7D1584D8E829EAA76DC /* VoiceInterviewManager.swift in Sources */,
+				1E3C1ED92AAE2C2F173F5195 /* VoiceInterviewView.swift in Sources */,
 				5A3EF309FD8C1D0DAB4BAD5A /* VoiceQuickRefView.swift in Sources */,
 				FDDFC9B33E13B3AA9E85F4B3 /* VoiceTestPhrases.swift in Sources */,
 				014E16D9346DD34E60DF9167 /* VoiceTestView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		B14E56877424913356BA9CCE /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				668CEB4962D501167F81AB5A /* EncodingTests.swift in Sources */,
-				0C6D2B84A7B6C04422B557C5 /* VoiceCommandManagerTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-		1E8A86209BD7D6B0C36B7D07 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = E645186BCEDFA2D26BD3DF49 /* CSMSSurvey */;
-			targetProxy = 9E5CAED7B4E4244AA0808DC4 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		2A8C66BC3502996A8BD189EA /* Release */ = {
@@ -414,7 +365,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -441,6 +391,7 @@
 				API_BASE_SCHEME = "$(API_BASE_SCHEME)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLAUDE_API_KEY = "$(CLAUDE_API_KEY)";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -499,7 +450,6 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -533,6 +483,7 @@
 				API_BASE_SCHEME = "$(API_BASE_SCHEME)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLAUDE_API_KEY = "$(CLAUDE_API_KEY)";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -549,42 +500,6 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Release;
-		};
-		B993B337EBE51BEECFC5ECBA /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				DEVELOPMENT_TEAM = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsupportsystems.CSMSSurveyTests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.9;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CSMSSurvey.app/CSMSSurvey";
-			};
-			name = Debug;
-		};
-		BCF169B10D8AC5A55042149B /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				DEVELOPMENT_TEAM = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.digitalsupportsystems.CSMSSurveyTests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.9;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CSMSSurvey.app/CSMSSurvey";
 			};
 			name = Release;
 		};
@@ -605,15 +520,6 @@
 			buildConfigurations = (
 				6D4BB47BEF71B4059C180B46 /* Debug */,
 				ABFADB2C6175936E438F7D07 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
-		};
-		DFBDAA7DC8118CA97B8A56E8 /* Build configuration list for PBXNativeTarget "CSMSSurveyTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B993B337EBE51BEECFC5ECBA /* Debug */,
-				BCF169B10D8AC5A55042149B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

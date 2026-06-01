@@ -6,9 +6,10 @@ struct AddLocationSheet: View {
     let onSave: (SurveyLocation) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var voice  = VoiceCommandManager.shared
-    private        let speech       = SpeechOutputManager.shared
-    private        let api          = APIClient.shared
+    @StateObject private var voice     = VoiceCommandManager.shared
+    @StateObject private var interview = VoiceInterviewManager.shared
+    private        let speech          = SpeechOutputManager.shared
+    private        let api             = APIClient.shared
 
     @State private var areaName     = ""
     @State private var floor        = ""
@@ -19,121 +20,217 @@ struct AddLocationSheet: View {
     @State private var isSaving     = false
     @State private var errorMsg:    String?
     @State private var voiceField:  String?   // highlights active field
+    @State private var showInterview = false
 
     private let maxPhotos = 5
 
     var body: some View {
         NavigationStack {
-            Form {
-                // Building picker
-                Section("Building") {
-                    Picker("Building", selection: $selectedBuilding) {
-                        Text("Select…").tag(Optional<SurveyBuilding>(nil))
-                        ForEach(buildings) { b in
-                            Text(b.buildingName).tag(Optional(b))
-                        }
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(spacing: 16) {
+                        formContent
                     }
-                }
-
-                // Fields
-                Section("Location") {
-                    fieldRow(label: "Area Name", placeholder: "e.g. Server Room",
-                             text: $areaName, field: "areaName")
-                    fieldRow(label: "Floor", placeholder: "e.g. 2",
-                             text: $floor, field: "floor")
-                }
-
-                Section("Notes") {
-                    TextEditor(text: $surveyNotes)
-                        .frame(minHeight: 80)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(voiceField == "notes"
-                                        ? Color.orange
-                                        : Color(.systemGray4), lineWidth: voiceField == "notes" ? 2 : 1)
-                        )
-                }
-
-                // Pending photos
-                if !pendingPhotos.isEmpty {
-                    Section("Photos (\(pendingPhotos.count)/\(maxPhotos))") {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(pendingPhotos.indices, id: \.self) { i in
-                                    Image(uiImage: pendingPhotos[i])
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 80, height: 80)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-                }
-
-                // Photo add
-                if pendingPhotos.count < maxPhotos {
-                    Section {
-                        PhotosPicker(selection: $photoItem, matching: .images) {
-                            Label("Add Photo", systemImage: "camera")
-                        }
-                    }
-                }
-
-                if let err = errorMsg {
-                    Section {
-                        Text(err).foregroundStyle(.red).font(.caption)
-                    }
+                    .padding(16)
                 }
             }
             .navigationTitle("Add Location")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if isSaving {
-                        ProgressView()
-                    } else {
-                        Button("Save") { Task { await save(andContinue: false) } }
-                            .disabled(areaName.isEmpty || selectedBuilding == nil)
-                    }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    Button("Save & Next") { Task { await save(andContinue: true) } }
-                        .disabled(areaName.isEmpty || selectedBuilding == nil || isSaving)
-                }
-            }
+            .toolbarBackground(Theme.surface, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar { toolbarItems }
         }
-        .onChange(of: photoItem) { _, item in
-            Task { await loadPhoto(item) }
-        }
+        .onChange(of: photoItem) { _, item in Task { await loadPhoto(item) } }
         .onAppear  { registerVoiceCommands() }
         .onDisappear { voice.unregister(id: "quick-add") }
+        .fullScreenCover(isPresented: $showInterview) {
+            VoiceInterviewView(manager: interview) { showInterview = false }
+        }
     }
 
-    // MARK: - Field row helper
+    // MARK: - Form content
 
     @ViewBuilder
-    private func fieldRow(label: String, placeholder: String,
-                          text: Binding<String>, field: String) -> some View {
-        HStack {
-            Text(label)
-                .frame(width: 90, alignment: .leading)
-            TextField(placeholder, text: text)
+    private var formContent: some View {
+        // Building picker
+        VStack(alignment: .leading, spacing: 10) {
+            DarkSectionHeader(title: "Building")
+            Picker("Building", selection: $selectedBuilding) {
+                Text("Select…")
+                    .foregroundStyle(Theme.textTertiary)
+                    .tag(Optional<SurveyBuilding>(nil))
+                ForEach(buildings) { b in
+                    Text(b.buildingName)
+                        .foregroundStyle(Theme.textPrimary)
+                        .tag(Optional(b))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(Theme.accent)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(Theme.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
+        }
+        .darkCard()
+
+        // Location fields
+        VStack(alignment: .leading, spacing: 14) {
+            DarkSectionHeader(title: "Location")
+            themedField(label: "Area Name", placeholder: "e.g. Server Room",
+                        text: $areaName, field: "areaName")
+            themedField(label: "Floor", placeholder: "e.g. 2 or Ground",
+                        text: $floor, field: "floor")
+        }
+        .darkCard()
+
+        // Notes
+        VStack(alignment: .leading, spacing: 10) {
+            DarkSectionHeader(title: "Survey Notes")
+            let isFocused = voiceField == "notes"
+            TextEditor(text: $surveyNotes)
+                .frame(minHeight: 80)
+                .foregroundStyle(Theme.textPrimary)
+                .scrollContentBackground(.hidden)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(voiceField == field ? Color.orange : Color.clear, lineWidth: 2)
-                        .padding(-4)
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(isFocused ? Theme.borderFocus : Theme.border,
+                                lineWidth: isFocused ? 2 : 1)
                 )
+                .tint(Theme.accent)
+        }
+        .darkCard()
+
+        // Photos
+        photoSection
+
+        // Error
+        if let err = errorMsg {
+            Text(err)
+                .font(.caption)
+                .foregroundStyle(Theme.danger)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.dangerSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    @ViewBuilder
+    private var photoSection: some View {
+        if !pendingPhotos.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                DarkSectionHeader(title: "Photos (\(pendingPhotos.count)/\(maxPhotos))")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(pendingPhotos.indices, id: \.self) { i in
+                            Image(uiImage: pendingPhotos[i])
+                                .resizable().scaledToFill()
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+            .darkCard()
+        }
+        if pendingPhotos.count < maxPhotos {
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                Label("Add Photo", systemImage: "camera.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(Theme.accentSoft)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+            }
+        }
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarItems: some ToolbarContent {
+        ToolbarItem(placement: .cancellationAction) {
+            Button("Cancel") { dismiss() }
+                .foregroundStyle(Theme.textSecondary)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+            if isSaving {
+                ProgressView().tint(Theme.accent)
+            } else {
+                Button("Save") { Task { await save(andContinue: false) } }
+                    .foregroundStyle(Theme.accent)
+                    .disabled(areaName.isEmpty || selectedBuilding == nil)
+            }
+        }
+        ToolbarItem(placement: .bottomBar) {
+            Button("Save & Next") { Task { await save(andContinue: true) } }
+                .foregroundStyle(Theme.accent)
+                .disabled(areaName.isEmpty || selectedBuilding == nil || isSaving)
+        }
+        ToolbarItem(placement: .bottomBar) {
+            Button { startVoiceInterview() } label: {
+                Label("Voice Interview", systemImage: "waveform.and.mic")
+                    .foregroundStyle(Theme.textSecondary)
+            }
+            .disabled(isSaving)
+        }
+    }
+
+    // MARK: - Themed field row
+
+    @ViewBuilder
+    private func themedField(label: String, placeholder: String,
+                              text: Binding<String>, field: String) -> some View {
+        let isActive = voiceField == field
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .tracking(0.3)
+            TextField(placeholder, text: text)
+                .foregroundStyle(Theme.textPrimary)
+                .tint(Theme.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Theme.background)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isActive ? Theme.borderFocus : Theme.border,
+                                lineWidth: isActive ? 2 : 1)
+                )
+        }
+    }
+
+    // MARK: - Voice interview
+
+    private func startVoiceInterview() {
+        showInterview = true
+        interview.start(buildings: buildings) { building, name, floorVal, notes, wantsPhotos, andContinue in
+            self.selectedBuilding = self.buildings.first { $0.buildingName == building }
+            self.areaName    = name
+            self.floor       = floorVal ?? ""
+            self.surveyNotes = notes ?? ""
+            self.showInterview = false
+            Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                await self.save(andContinue: andContinue, promptPhotos: wantsPhotos)
+            }
         }
     }
 
     // MARK: - Save
 
-    private func save(andContinue: Bool) async {
+    private func save(andContinue: Bool, promptPhotos: Bool = false) async {
         guard let building = selectedBuilding, !areaName.isEmpty else { return }
         isSaving = true
         errorMsg = nil
@@ -154,7 +251,11 @@ struct AddLocationSheet: View {
                 }
             }
 
-            speech.speak(andContinue ? "\(areaName) saved. Ready for next location." : "\(areaName) saved.")
+            if promptPhotos {
+                speech.speak("\(areaName) saved. Tap Add Photo to add your photos.")
+            } else {
+                speech.speak(andContinue ? "\(areaName) saved. Ready for next location." : "\(areaName) saved.")
+            }
             onSave(saved)
 
             if andContinue {

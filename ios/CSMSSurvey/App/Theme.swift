@@ -1,37 +1,38 @@
 import SwiftUI
 
 // MARK: - Color Palette
+// Warm Professional — deep slate/charcoal with teal accent and cream text.
 
 enum Theme {
-    // Backgrounds
-    static let background       = Color(red: 0.07, green: 0.09, blue: 0.12)
-    static let surface          = Color(red: 0.12, green: 0.15, blue: 0.20)
-    static let surfaceElevated  = Color(red: 0.17, green: 0.21, blue: 0.27)
+    // Backgrounds — warm charcoal, not cool blue
+    static let background       = Color(red: 0.09, green: 0.10, blue: 0.11)
+    static let surface          = Color(red: 0.14, green: 0.15, blue: 0.17)
+    static let surfaceElevated  = Color(red: 0.19, green: 0.21, blue: 0.23)
 
-    // Accent
-    static let accent           = Color(red: 0.22, green: 0.50, blue: 0.98)
-    static let accentDeep       = Color(red: 0.12, green: 0.36, blue: 0.88)
-    static let accentSoft       = Color(red: 0.22, green: 0.50, blue: 0.98).opacity(0.15)
+    // Accent — deep teal
+    static let accent           = Color(red: 0.16, green: 0.58, blue: 0.54)   // #29948A
+    static let accentDeep       = Color(red: 0.10, green: 0.44, blue: 0.40)   // #1A706A
+    static let accentSoft       = Color(red: 0.16, green: 0.58, blue: 0.54).opacity(0.14)
 
     // Semantic
-    static let success          = Color(red: 0.18, green: 0.80, blue: 0.46)
-    static let successSoft      = Color(red: 0.18, green: 0.80, blue: 0.46).opacity(0.15)
-    static let warning          = Color(red: 1.00, green: 0.64, blue: 0.18)
-    static let warningSoft      = Color(red: 1.00, green: 0.64, blue: 0.18).opacity(0.15)
-    static let danger           = Color(red: 1.00, green: 0.32, blue: 0.32)
-    static let dangerSoft       = Color(red: 1.00, green: 0.32, blue: 0.32).opacity(0.15)
+    static let success          = Color(red: 0.22, green: 0.74, blue: 0.50)   // softer green
+    static let successSoft      = Color(red: 0.22, green: 0.74, blue: 0.50).opacity(0.14)
+    static let warning          = Color(red: 0.92, green: 0.68, blue: 0.26)   // warm amber
+    static let warningSoft      = Color(red: 0.92, green: 0.68, blue: 0.26).opacity(0.14)
+    static let danger           = Color(red: 0.88, green: 0.34, blue: 0.34)
+    static let dangerSoft       = Color(red: 0.88, green: 0.34, blue: 0.34).opacity(0.14)
 
-    // Text
-    static let textPrimary      = Color.white
-    static let textSecondary    = Color.white.opacity(0.55)
-    static let textTertiary     = Color.white.opacity(0.28)
+    // Text — warm cream, not pure white
+    static let textPrimary      = Color(red: 0.94, green: 0.93, blue: 0.90)
+    static let textSecondary    = Color(red: 0.94, green: 0.93, blue: 0.90).opacity(0.52)
+    static let textTertiary     = Color(red: 0.94, green: 0.93, blue: 0.90).opacity(0.26)
 
-    // Borders
-    static let border           = Color.white.opacity(0.09)
-    static let borderFocus      = Color(red: 0.22, green: 0.50, blue: 0.98).opacity(0.55)
+    // Borders — subtle warm dividers
+    static let border           = Color(red: 0.94, green: 0.93, blue: 0.90).opacity(0.08)
+    static let borderFocus      = Color(red: 0.16, green: 0.58, blue: 0.54).opacity(0.50)
 }
 
-// MARK: - Dark Card Modifier
+// MARK: - Card Modifier
 
 struct DarkCardModifier: ViewModifier {
     var padding: CGFloat
@@ -39,21 +40,21 @@ struct DarkCardModifier: ViewModifier {
         content
             .padding(padding)
             .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 16)
                     .stroke(Theme.border, lineWidth: 1)
             )
     }
 }
 
 extension View {
-    func darkCard(padding: CGFloat = 16) -> some View {
+    func darkCard(padding: CGFloat = 18) -> some View {
         modifier(DarkCardModifier(padding: padding))
     }
 }
 
-// MARK: - Dark Text Field Modifier
+// MARK: - Text Field Modifier
 
 struct DarkFieldModifier: ViewModifier {
     func body(content: Content) -> some View {
@@ -61,7 +62,7 @@ struct DarkFieldModifier: ViewModifier {
             .foregroundStyle(Theme.textPrimary)
             .tint(Theme.accent)
             .padding(.horizontal, 14)
-            .padding(.vertical, 11)
+            .padding(.vertical, 12)
             .background(Theme.surfaceElevated)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(
@@ -83,9 +84,9 @@ struct DarkSectionHeader: View {
     let title: String
     var body: some View {
         Text(title.uppercased())
-            .font(.caption.bold())
+            .font(.caption.weight(.semibold))
             .foregroundStyle(Theme.textSecondary)
-            .tracking(0.8)
+            .tracking(1.0)
     }
 }
 
@@ -98,13 +99,40 @@ struct StatusBadge: View {
 
     var body: some View {
         Label(label, systemImage: icon)
-            .font(.caption.bold())
+            .font(.caption.weight(.semibold))
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(color.opacity(0.15))
+            .background(color.opacity(0.12))
             .clipShape(Capsule())
-            .overlay(Capsule().stroke(color.opacity(0.25), lineWidth: 1))
+            .overlay(Capsule().stroke(color.opacity(0.22), lineWidth: 1))
+    }
+}
+
+// MARK: - Primary Button Style
+
+struct TealButtonStyle: ButtonStyle {
+    var isLoading: Bool = false
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(configuration.isPressed
+                          ? Theme.accentDeep
+                          : Theme.accent)
+            )
+            .opacity(isLoading ? 0.7 : 1.0)
+            .animation(.easeInOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+extension View {
+    func tealButtonStyle(isLoading: Bool = false) -> some View {
+        buttonStyle(TealButtonStyle(isLoading: isLoading))
     }
 }
 
@@ -173,17 +201,17 @@ struct MicButton: View {
 
     private var isWaiting: Bool { voice.mode == .waitingForValue }
 
-    private var ringColor: Color     { isWaiting ? Theme.warning : Theme.danger }
+    private var ringColor: Color     { isWaiting ? Theme.warning : Theme.accent }
     private var iconBackground: Color {
         if !voice.enabled      { return Theme.surface }
         if isWaiting           { return Theme.warningSoft }
-        if voice.isListening   { return Theme.danger.opacity(0.18) }
+        if voice.isListening   { return Theme.accentSoft }
         return Theme.accentSoft
     }
     private var iconForeground: Color {
         if !voice.enabled      { return Theme.textTertiary }
         if isWaiting           { return Theme.warning }
-        if voice.isListening   { return Theme.danger }
+        if voice.isListening   { return Theme.accent }
         return Theme.accent
     }
     private var headline: String {
@@ -201,24 +229,24 @@ struct MicButton: View {
     private var headlineColor: Color {
         if !voice.enabled      { return Theme.textSecondary }
         if isWaiting           { return Theme.warning }
-        if voice.isListening   { return Theme.danger }
+        if voice.isListening   { return Theme.accent }
         return Theme.accent
     }
     private var pillBackground: Color {
         if !voice.enabled      { return Theme.surface }
         if isWaiting           { return Theme.warningSoft }
-        if voice.isListening   { return Theme.danger.opacity(0.10) }
+        if voice.isListening   { return Theme.accentSoft }
         return Theme.accentSoft
     }
     private var pillBorder: Color {
         if !voice.enabled      { return Theme.border }
         if isWaiting           { return Theme.warning.opacity(0.35) }
-        if voice.isListening   { return Theme.danger.opacity(0.35) }
-        return Theme.accent.opacity(0.30)
+        if voice.isListening   { return Theme.accent.opacity(0.40) }
+        return Theme.accent.opacity(0.28)
     }
     private var shadowColor: Color {
         if !voice.enabled      { return .clear }
-        if voice.isListening   { return Theme.danger.opacity(0.20) }
-        return Theme.accent.opacity(0.15)
+        if voice.isListening   { return Theme.accent.opacity(0.22) }
+        return Theme.accent.opacity(0.12)
     }
 }

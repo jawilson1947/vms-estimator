@@ -5,9 +5,10 @@ struct SurveyBoardView: View {
     @StateObject private var voice = VoiceCommandManager.shared
     private let speech = SpeechOutputManager.shared
 
-    @State private var showAddSheet   = false
+    @State private var showAddSheet    = false
     @State private var selectedLocation: SurveyLocation?
-    @State private var showQuickRef   = false
+    @State private var showQuickRef    = false
+    @State private var showDevTools    = false
 
     init(siteId: Int) {
         _vm = StateObject(wrappedValue: SurveyBoardViewModel(siteId: siteId))
@@ -15,16 +16,24 @@ struct SurveyBoardView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
+            Theme.background.ignoresSafeArea()
+
             Group {
                 if vm.isLoading && vm.site == nil {
-                    ProgressView("Loading survey…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    VStack(spacing: 14) {
+                        ProgressView().tint(Theme.accent).scaleEffect(1.2)
+                        Text("Loading survey…")
+                            .font(.subheadline)
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let err = vm.errorMsg {
                     ContentUnavailableView {
                         Label("Could not load survey", systemImage: "wifi.slash")
-                    } description: { Text(err) } actions: {
+                    } description: { Text(err).foregroundStyle(Theme.textSecondary) } actions: {
                         Button("Retry") { Task { await vm.load() } }
-                            .buttonStyle(.borderedProminent)
+                            .tealButtonStyle()
+                            .frame(width: 120)
                     }
                 } else {
                     ScrollView {
@@ -33,12 +42,14 @@ struct SurveyBoardView: View {
                             ProgressHeader(done: vm.doneCount,
                                            total: vm.totalCount,
                                            progress: vm.progress)
-                                .padding()
+                                .padding(.horizontal, 16)
+                                .padding(.top, 12)
+                                .padding(.bottom, 4)
 
                             // Filter chips
                             FilterChips(selection: $vm.filter)
-                                .padding(.horizontal)
-                                .padding(.bottom, 8)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
 
                             // Buildings + locations
                             ForEach(vm.filteredBuildings) { building in
@@ -47,18 +58,20 @@ struct SurveyBoardView: View {
                                         LocationRow(location: loc) {
                                             selectedLocation = loc
                                         }
-                                        .padding(.horizontal)
+                                        .padding(.horizontal, 16)
                                         .padding(.vertical, 4)
                                     }
                                 } header: {
-                                    Text(building.buildingName)
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.secondary)
-                                        .textCase(.uppercase)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal)
-                                        .padding(.vertical, 6)
-                                        .background(Color(.systemGroupedBackground))
+                                    HStack {
+                                        Text(building.buildingName.uppercased())
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Theme.textSecondary)
+                                            .tracking(1.0)
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Theme.background)
                                 }
                             }
 
@@ -74,33 +87,48 @@ struct SurveyBoardView: View {
             HStack(spacing: 12) {
                 // Voice quick reference
                 Button { showQuickRef = true } label: {
-                    Image(systemName: "questionmark.circle")
+                    Image(systemName: "questionmark.circle.fill")
                         .font(.title3)
-                        .frame(width: 44, height: 44)
-                        .background(Color(.systemBackground))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 46, height: 46)
+                        .background(Theme.surface)
                         .clipShape(Circle())
-                        .shadow(radius: 4, y: 2)
+                        .overlay(Circle().stroke(Theme.border, lineWidth: 1))
+                        .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
                 }
 
                 // Add location
                 Button { showAddSheet = true } label: {
                     Label("Add Location", systemImage: "plus")
-                        .fontWeight(.semibold)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
-                        .clipShape(Capsule())
-                        .shadow(radius: 4, y: 2)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 13)
+                        .background(
+                            Capsule().fill(
+                                LinearGradient(colors: [Theme.accent, Theme.accentDeep],
+                                               startPoint: .leading, endPoint: .trailing)
+                            )
+                        )
+                        .shadow(color: Theme.accent.opacity(0.35), radius: 8, y: 4)
                 }
             }
             .padding(20)
         }
         .navigationTitle(vm.site?.siteName ?? "Survey")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Theme.surface, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                MicIndicator()
+                HStack(spacing: 8) {
+                    NavigationLink(destination: VoiceTestView()) {
+                        Image(systemName: "wrench.and.screwdriver")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Theme.textSecondary)
+                    }
+                    MicIndicator()
+                }
             }
         }
         .sheet(isPresented: $showAddSheet) {
@@ -142,31 +170,44 @@ private struct ProgressHeader: View {
     let progress: Double
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text("Survey Progress")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .tracking(0.4)
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 32, weight: .bold))
+                        .font(.system(size: 38, weight: .bold, design: .rounded))
+                        .foregroundStyle(Theme.textPrimary)
                 }
                 Spacer()
-                VStack(alignment: .trailing) {
+                VStack(alignment: .trailing, spacing: 2) {
                     Text("\(done) / \(total)")
-                        .font(.subheadline.bold())
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Theme.textPrimary)
                     Text("locations surveyed")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Theme.textSecondary)
                 }
             }
-            ProgressView(value: progress)
-                .tint(.green)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.surfaceElevated)
+                        .frame(height: 6)
+                    Capsule()
+                        .fill(
+                            LinearGradient(colors: [Theme.accent, Theme.accentDeep],
+                                           startPoint: .leading, endPoint: .trailing)
+                        )
+                        .frame(width: geo.size.width * progress, height: 6)
+                        .animation(.easeInOut(duration: 0.4), value: progress)
+                }
+            }
+            .frame(height: 6)
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
+        .darkCard(padding: 18)
     }
 }
 
@@ -176,12 +217,24 @@ private struct FilterChips: View {
         HStack(spacing: 8) {
             ForEach(SurveyFilter.allCases, id: \.self) { f in
                 Button(f.rawValue) { selection = f }
-                    .font(.caption.bold())
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(selection == f ? Color.blue : Color(.secondarySystemBackground))
-                    .foregroundStyle(selection == f ? .white : .primary)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(
+                        selection == f
+                        ? Theme.accentSoft
+                        : Theme.surface
+                    )
+                    .foregroundStyle(
+                        selection == f ? Theme.accent : Theme.textSecondary
+                    )
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(
+                            selection == f ? Theme.accent.opacity(0.35) : Theme.border,
+                            lineWidth: 1
+                        )
+                    )
             }
             Spacer()
         }
@@ -194,37 +247,46 @@ private struct LocationRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 12) {
-                Image(systemName: location.isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(location.isDone ? .green : .secondary)
-                    .font(.title3)
+            HStack(spacing: 14) {
+                // Status indicator
+                ZStack {
+                    Circle()
+                        .fill(location.isDone ? Theme.successSoft : Theme.surfaceElevated)
+                        .frame(width: 36, height: 36)
+                    Image(systemName: location.isDone ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(location.isDone ? Theme.success : Theme.textTertiary)
+                        .font(.system(size: 18, weight: .semibold))
+                }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(location.areaName)
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.primary)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.textPrimary)
                     if let floor = location.floor {
                         Text("Floor \(floor)")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Theme.textSecondary)
                     }
                 }
                 Spacer()
 
                 if !location.images.isEmpty {
-                    Label("\(location.images.count)", systemImage: "photo")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Image(systemName: "photo")
+                        Text("\(location.images.count)")
+                    }
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Theme.textSecondary)
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Theme.textTertiary)
             }
-            .padding(12)
-            .background(Color(.systemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+            .padding(14)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
@@ -243,10 +305,10 @@ private struct MicIndicator: View {
                     if !voice.enabled {
                         Image(systemName: "xmark")
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Theme.danger)
                     } else if voice.isListening {
                         Circle()
-                            .fill(.red)
+                            .fill(Theme.accent)
                             .frame(width: 6, height: 6)
                     }
                 }
@@ -257,10 +319,10 @@ private struct MicIndicator: View {
         voice.enabled ? "mic.fill" : "mic.slash.fill"
     }
     private var micColor: Color {
-        guard voice.enabled else { return .secondary }
+        guard voice.enabled else { return Theme.textTertiary }
         switch voice.mode {
-        case .waitingForValue: return .orange
-        case .idle:            return voice.isListening ? .red : .secondary
+        case .waitingForValue: return Theme.warning
+        case .idle:            return voice.isListening ? Theme.accent : Theme.textSecondary
         }
     }
 }

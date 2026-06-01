@@ -4,7 +4,6 @@ struct SiteListView: View {
     @StateObject private var vm   = SiteListViewModel()
     @EnvironmentObject var auth:    AuthService
     @State private var searchText  = ""
-    @State private var selectedId: Int?
 
     var filtered: [SiteSummary] {
         guard !searchText.isEmpty else { return vm.sites }
@@ -15,42 +14,69 @@ struct SiteListView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if vm.isLoading && vm.sites.isEmpty {
-                    ProgressView("Loading sites…")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let err = vm.errorMsg {
-                    ContentUnavailableView {
-                        Label("Could not load sites", systemImage: "wifi.slash")
-                    } description: {
-                        Text(err)
-                    } actions: {
-                        Button("Retry") { Task { await vm.load() } }
-                            .buttonStyle(.borderedProminent)
-                    }
-                } else if vm.sites.isEmpty {
-                    ContentUnavailableView(
-                        "No Sites",
-                        systemImage: "building.2",
-                        description: Text("No survey sites have been created yet.")
-                    )
-                } else {
-                    List(filtered) { site in
-                        NavigationLink(value: site.id) {
-                            SiteRow(site: site)
+            ZStack {
+                Theme.background.ignoresSafeArea()
+
+                Group {
+                    if vm.isLoading && vm.sites.isEmpty {
+                        VStack(spacing: 14) {
+                            ProgressView()
+                                .tint(Theme.accent)
+                                .scaleEffect(1.2)
+                            Text("Loading sites…")
+                                .font(.subheadline)
+                                .foregroundStyle(Theme.textSecondary)
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let err = vm.errorMsg {
+                        ContentUnavailableView {
+                            Label("Could not load sites", systemImage: "wifi.slash")
+                        } description: {
+                            Text(err).foregroundStyle(Theme.textSecondary)
+                        } actions: {
+                            Button("Retry") { Task { await vm.load() } }
+                                .tealButtonStyle()
+                                .frame(width: 120)
+                        }
+                    } else if vm.sites.isEmpty {
+                        ContentUnavailableView {
+                            Label("No Sites", systemImage: "building.2")
+                        } description: {
+                            Text("No survey sites have been created yet.")
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                    } else {
+                        ScrollView {
+                            LazyVStack(spacing: 10) {
+                                ForEach(filtered) { site in
+                                    NavigationLink(value: site.id) {
+                                        SiteRow(site: site)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 24)
+                        }
+                        .refreshable { await vm.load() }
+                        .searchable(text: $searchText, prompt: "Search sites")
                     }
-                    .searchable(text: $searchText, prompt: "Search sites")
-                    .refreshable { await vm.load() }
                 }
             }
             .navigationTitle("Survey Sites")
+            .toolbarBackground(Theme.surface, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(for: Int.self) { siteId in
                 SurveyBoardView(siteId: siteId)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        NavigationLink(destination: VoiceTestView()) {
+                            Label("Developer Tools", systemImage: "wrench.and.screwdriver")
+                        }
+                        Divider()
                         Button(role: .destructive) {
                             Task { await auth.logout() }
                         } label: {
@@ -58,6 +84,7 @@ struct SiteListView: View {
                         }
                     } label: {
                         Image(systemName: "person.circle")
+                            .foregroundStyle(Theme.textSecondary)
                     }
                 }
             }
@@ -69,13 +96,35 @@ struct SiteListView: View {
 private struct SiteRow: View {
     let site: SiteSummary
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(site.siteName)
-                .font(.headline)
-            Text("\(site.buildings.count) building\(site.buildings.count == 1 ? "" : "s")")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 14) {
+            // Icon
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.accentSoft)
+                    .frame(width: 42, height: 42)
+                Image(systemName: "building.2.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(site.siteName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("\(site.buildings.count) building\(site.buildings.count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.textTertiary)
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 1))
     }
 }

@@ -73,7 +73,8 @@ final class SurveyBoardViewModel: ObservableObject {
     }
 
     func remove(locationId: Int) {
-        for bi in (site?.buildings.indices ?? []) {
+        guard let indices = site?.buildings.indices else { return }
+        for bi in indices {
             site?.buildings[bi].locations.removeAll { $0.id == locationId }
         }
     }

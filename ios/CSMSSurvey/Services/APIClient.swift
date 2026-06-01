@@ -165,9 +165,6 @@ private extension Data {
 
 extension URL {
     func appending(path: String) -> URL {
-        if #available(iOS 16, *) {
-            return self.appending(path: path)
-        }
-        return appendingPathComponent(path)
+        appendingPathComponent(path)
     }
 }

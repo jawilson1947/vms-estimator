@@ -43,6 +43,29 @@ enum VoiceTestPhrases {
             "Tap to add a photo",
             "Closing",
         ]),
+        Group(name: "Voice Interview — Prompts", phrases: [
+            "Which building? The options are: Main Building; Annex; Warehouse.",
+            "What is the area name?",
+            "What floor is this on? Say skip to leave blank.",
+            "Any survey notes? Say skip to leave blank.",
+            "Do you need to add photos for this location? Say yes or no.",
+            "Great, you can add photos after saving.",
+            "Please say yes or no.",
+        ]),
+        Group(name: "Voice Interview — Confirmations", phrases: [
+            "I heard Server Room — correct?",
+            "I heard Main Building — correct?",
+            "I heard Floor 2 — correct?",
+            "Okay, let's try again.",
+        ]),
+        Group(name: "Voice Interview — Review", phrases: [
+            "Here's what I have. Building: Main Building. Area Name: Server Room. Floor: 2. Survey Notes: skipped. Say save, save and next, or cancel.",
+            "Say save, save and next, or cancel.",
+        ]),
+        Group(name: "Voice Interview — Errors", phrases: [
+            "Microphone failed to start. Please try again.",
+            "Microphone not ready. Please try again.",
+        ]),
         Group(name: "System", phrases: [
             "Timed out. Try again.",
         ]),

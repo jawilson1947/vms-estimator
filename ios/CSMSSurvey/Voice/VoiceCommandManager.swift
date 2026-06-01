@@ -11,6 +11,12 @@ struct VoiceCommand {
     let action: (String) -> Void   // called with remainder after keyword
 }
 
+/// Flat view of one context's registered commands — used by VoiceCommandTestPanel.
+struct RegisteredCommandGroup {
+    let context: String
+    let keywords: [String]
+}
+
 // MARK: - Manager
 
 /// Continuous speech recogniser that drives the hands-free survey workflow.
@@ -49,9 +55,14 @@ final class VoiceCommandManager: NSObject, ObservableObject {
     // MARK: - Permissions
 
     func requestPermission() async {
-        let micStatus = await withCheckedContinuation { cont in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                cont.resume(returning: granted)
+        let micStatus: Bool
+        if #available(iOS 17.0, *) {
+            micStatus = await AVAudioApplication.requestRecordPermission()
+        } else {
+            micStatus = await withCheckedContinuation { cont in
+                AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                    cont.resume(returning: granted)
+                }
             }
         }
         let speechStatus = await withCheckedContinuation { cont in
@@ -71,6 +82,18 @@ final class VoiceCommandManager: NSObject, ObservableObject {
 
     func unregister(id: String) {
         commands.removeValue(forKey: id)
+    }
+
+    /// Flat list of all registered commands, used by VoiceCommandTestPanel.
+    var registeredCommands: [RegisteredCommandGroup] {
+        commands.map { id, cmds in
+            RegisteredCommandGroup(context: id, keywords: cmds.flatMap(\.keywords))
+        }.sorted { $0.context < $1.context }
+    }
+
+    /// Injects a text phrase as if it were recognised by the microphone — for testing only.
+    func simulateInput(_ text: String) {
+        handle(text: text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     // MARK: - waitForValue
@@ -107,17 +130,28 @@ final class VoiceCommandManager: NSObject, ObservableObject {
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playAndRecord, mode: .measurement,
                                   options: [.defaultToSpeaker, .allowBluetooth])
-        try? session.setActive(true, options: .notifyOthersOnDeactivation)
+        try? session.setActive(true)
 
-        recognitionReq = SFSpeechAudioBufferRecognitionRequest()
-        guard let req  = recognitionReq else { return }
+        let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = false
         req.requiresOnDeviceRecognition = false
+        recognitionReq = req
 
         let inputNode = audioEngine.inputNode
         let format    = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
-            self?.recognitionReq?.append(buffer)
+        guard format.sampleRate > 0 else {
+            recognitionReq = nil
+            // Session not settled yet — retry shortly
+            Task {
+                try? await Task.sleep(for: .milliseconds(200))
+                await MainActor.run { self.startListening() }
+            }
+            return
+        }
+        // Capture req directly to avoid @MainActor unsafeForcedSync on the
+        // real-time audio thread (same fix as VoiceInterviewManager).
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+            req.append(buffer)
         }
 
         try? audioEngine.start()
@@ -160,18 +194,20 @@ final class VoiceCommandManager: NSObject, ObservableObject {
     }
 
     private func stopEngine() {
-        audioEngine.stop()
+        if audioEngine.isRunning { audioEngine.stop() }
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionReq  = nil
         isListening     = false
-        audioEngine     = AVAudioEngine()  // reset for next use
+        // Do NOT recreate audioEngine — same reason as VoiceInterviewManager:
+        // a fresh AVAudioEngine() returns 0 Hz from inputNode.outputFormat()
+        // before the hardware session settles, which crashes installTap.
     }
 
     // MARK: - Transcript handling
 
-    private func handle(text: String) {
+    func handle(text: String) {
         lastHeard = text
 
         // Consume as field value

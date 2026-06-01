@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VoiceCommandTestPanel: View {
-    @StateObject private var voice = VoiceCommandManager.shared
+    @ObservedObject private var voice = VoiceCommandManager.shared
     @State private var freeformText = ""
     @State private var lastFired:   String? = nil
     @State private var fixturesLoaded = false

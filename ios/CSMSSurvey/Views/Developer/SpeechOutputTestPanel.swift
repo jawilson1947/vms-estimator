@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 struct SpeechOutputTestPanel: View {
-    @StateObject private var speech = SpeechOutputManager.shared
+    @ObservedObject private var speech = SpeechOutputManager.shared
     @State private var customText   = ""
     @State private var rate: Float  = AVSpeechUtteranceDefaultSpeechRate * 1.15
 

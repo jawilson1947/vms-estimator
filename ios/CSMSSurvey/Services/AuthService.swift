@@ -44,8 +44,10 @@ final class AuthService: ObservableObject {
             "callbackUrl": base.absoluteString,
             "json":        "true",
         ]
+        // .urlQueryAllowed permits & = + # which would break form encoding — exclude them
+        let formSafe = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&#+="))
         req.httpBody = params
-            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")" }
+            .map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: formSafe) ?? "")" }
             .joined(separator: "&")
             .data(using: .utf8)
 
@@ -134,12 +136,3 @@ final class AuthService: ObservableObject {
     }
 }
 
-// URL helper
-private extension URL {
-    func appending(path: String) -> URL {
-        if #available(iOS 16, *) {
-            return self.appending(path: path)
-        }
-        return appendingPathComponent(path)
-    }
-}

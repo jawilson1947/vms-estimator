@@ -13,6 +13,8 @@ final class SpeechOutputManager: NSObject, ObservableObject, AVSpeechSynthesizer
     static let shared = SpeechOutputManager()
 
     @Published var isSpeaking = false
+    /// Overrides the default speech rate when set (used by SpeechOutputTestPanel).
+    @Published var testRate: Float?
 
     private let synth = AVSpeechSynthesizer()
     private var onFinish: (() -> Void)?
@@ -37,7 +39,7 @@ final class SpeechOutputManager: NSObject, ObservableObject, AVSpeechSynthesizer
 
         let utt      = AVSpeechUtterance(string: text)
         utt.voice    = AVSpeechSynthesisVoice(language: "en-US")
-        utt.rate     = AVSpeechUtteranceDefaultSpeechRate * 1.15  // slightly faster
+        utt.rate     = testRate ?? (AVSpeechUtteranceDefaultSpeechRate * 1.15)
         utt.volume   = 1.0
         utt.preUtteranceDelay  = 0.05
         utt.postUtteranceDelay = 0.1

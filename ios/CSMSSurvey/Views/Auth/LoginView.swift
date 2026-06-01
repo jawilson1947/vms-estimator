@@ -9,88 +9,115 @@ struct LoginView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.118, green: 0.227, blue: 0.373)
-                .ignoresSafeArea()
+            // Warm charcoal gradient background
+            LinearGradient(
+                colors: [
+                    Color(red: 0.09, green: 0.10, blue: 0.11),
+                    Color(red: 0.12, green: 0.14, blue: 0.15),
+                ],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer()
 
                 // Logo block
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.blue)
-                            .frame(width: 64, height: 64)
+                        RoundedRectangle(cornerRadius: 18)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Theme.accent, Theme.accentDeep],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 72, height: 72)
+                            .shadow(color: Theme.accent.opacity(0.35), radius: 16, y: 6)
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 28))
+                            .font(.system(size: 30, weight: .semibold))
                             .foregroundStyle(.white)
                     }
+                    .padding(.bottom, 4)
+
                     Text("CSMS Survey")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text("Site survey tool")
+                        .font(.system(size: 30, weight: .bold, design: .default))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text("Professional site survey tool")
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(Theme.textSecondary)
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 44)
 
                 // Card
-                VStack(spacing: 16) {
+                VStack(spacing: 20) {
                     if let msg = errorMsg {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 10) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Theme.danger)
                             Text(msg)
                                 .font(.caption)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Theme.danger)
                         }
-                        .padding(12)
+                        .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .background(Theme.dangerSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.danger.opacity(0.25), lineWidth: 1))
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Email").font(.caption).foregroundStyle(.secondary)
+                    labeledField(label: "Email") {
                         TextField("you@example.com", text: $email)
                             .textContentType(.emailAddress)
                             .keyboardType(.emailAddress)
                             .autocapitalization(.none)
-                            .textFieldStyle(.roundedBorder)
+                            .darkField()
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Password").font(.caption).foregroundStyle(.secondary)
+                    labeledField(label: "Password") {
                         SecureField("Password", text: $password)
                             .textContentType(.password)
-                            .textFieldStyle(.roundedBorder)
+                            .darkField()
                     }
 
                     Button {
                         Task { await signIn() }
                     } label: {
-                        Group {
-                            if isLoading {
-                                ProgressView().tint(.white)
-                            } else {
-                                Text("Sign In")
-                                    .fontWeight(.semibold)
-                            }
+                        if isLoading {
+                            ProgressView().tint(.white)
+                        } else {
+                            Text("Sign In")
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .tealButtonStyle(isLoading: isLoading)
                     .disabled(email.isEmpty || password.isEmpty || isLoading)
+                    .padding(.top, 4)
                 }
-                .padding(24)
-                .background(Color(.systemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-                .shadow(radius: 20, y: 8)
+                .padding(28)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 22))
+                .overlay(RoundedRectangle(cornerRadius: 22).stroke(Theme.border, lineWidth: 1))
+                .shadow(color: .black.opacity(0.30), radius: 28, y: 12)
                 .padding(.horizontal, 24)
 
                 Spacer()
+
+                Text("Digital Support Systems")
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textTertiary)
+                    .padding(.bottom, 28)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func labeledField<F: View>(label: String, @ViewBuilder content: () -> F) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .tracking(0.4)
+            content()
         }
     }
 
