@@ -95,6 +95,39 @@ interface AvailableCameraModel {
   resolution: string | null;
 }
 
+// ── Photo Lightbox ────────────────────────────────────────────────────────────
+
+function PhotoLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  // Close on Escape key
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+        aria-label="Close"
+      >
+        <XMarkIcon className="w-5 h-5 text-white" />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        onClick={e => e.stopPropagation()}
+        className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+        style={{ maxHeight: '90vh', maxWidth: '90vw' }}
+      />
+    </div>
+  );
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function isDone(loc: SurveyLocation) {
@@ -347,6 +380,7 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
   const [saveLabel,  setSaveLabel]    = useState('');
   const [voiceField, setVoiceField]   = useState<string | null>(null);
   const [photoPrompted, setPhotoPrompted] = useState(false);
+  const [expandedPreview, setExpandedPreview] = useState<string | null>(null);
   // Pending camera selection — applied after location is created
   const [pendingCameraId,      setPendingCameraId]      = useState<number | null>(null);
   const [pendingCameraModelId, setPendingCameraModelId] = useState<number | null>(null);
@@ -694,7 +728,12 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
               <div className="grid grid-cols-4 gap-2">
                 {pending.map((p, idx) => (
                   <div key={idx} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 shadow-sm">
-                    <img src={p.preview} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={p.preview}
+                      alt=""
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      onClick={() => setExpandedPreview(p.preview)}
+                    />
                     <button
                       type="button"
                       onClick={() => removePhoto(idx)}
@@ -705,6 +744,13 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
                     </button>
                   </div>
                 ))}
+                {expandedPreview && (
+                  <PhotoLightbox
+                    src={expandedPreview}
+                    alt=""
+                    onClose={() => setExpandedPreview(null)}
+                  />
+                )}
                 {!atLimit && (
                   <div className="aspect-square rounded-lg border-2 border-dashed border-gray-200 grid grid-rows-2 overflow-hidden">
                     <button
@@ -776,6 +822,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
   const [saving,        setSaving]        = useState(false);
   const [uploading,     setUploading]     = useState(false);
   const [deletingId,    setDeletingId]    = useState<number | null>(null);
+  const [expandedPhoto, setExpandedPhoto] = useState<{ src: string; alt: string } | null>(null);
   const [assigning,     setAssigning]     = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting,      setDeleting]      = useState(false);
@@ -1078,7 +1125,12 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
               <div className="grid grid-cols-3 gap-2">
                 {images.map(img => (
                   <div key={img.id} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 shadow-sm">
-                    <img src={img.imageUrl} alt={img.caption ?? ''} className="w-full h-full object-cover" />
+                    <img
+                      src={img.imageUrl}
+                      alt={img.caption ?? ''}
+                      className="w-full h-full object-cover cursor-zoom-in"
+                      onClick={() => setExpandedPhoto({ src: img.imageUrl, alt: img.caption ?? '' })}
+                    />
                     <button
                       type="button"
                       onClick={() => deletePhoto(img.id)}
@@ -1092,6 +1144,13 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
                     </button>
                   </div>
                 ))}
+                {expandedPhoto && (
+                  <PhotoLightbox
+                    src={expandedPhoto.src}
+                    alt={expandedPhoto.alt}
+                    onClose={() => setExpandedPhoto(null)}
+                  />
+                )}
                 {!atLimit && !uploading && (
                   <div className="aspect-square rounded-xl border-2 border-dashed border-gray-200 grid grid-rows-2 overflow-hidden">
                     <button
