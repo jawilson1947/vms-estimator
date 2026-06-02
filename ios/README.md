@@ -129,3 +129,4 @@ The voice system mirrors the web app exactly:
 **Auth fails with 403** — The CSRF token fetch may have failed. Kill the app and relaunch; it fetches a fresh token on each login attempt.
 
 **Photos not uploading** — Ensure `BLOB_READ_WRITE_TOKEN` in `.env.local` is set to a real Vercel Blob token (not the placeholder).
+# Xcode Cloud test
