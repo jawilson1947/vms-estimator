@@ -22,7 +22,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
           _count:    { select: { locations: true } },
           locations: {
             orderBy: { areaName: 'asc' },
-            include: { _count: { select: { cameras: true } } },
+            select: {
+              id: true, areaName: true, floor: true,
+              mountingLocation: true, coveragePurpose: true,
+              cameraModelId: true,
+            },
           },
         },
       },

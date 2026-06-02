@@ -21,7 +21,11 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
         include: {
           locations: {
             orderBy: { areaName: 'asc' },
-            include: { _count: { select: { cameras: true } } },
+            select: {
+              id: true, areaName: true, floor: true,
+              mountingLocation: true, coveragePurpose: true,
+              cameraModelId: true,
+            },
           },
           _count: { select: { locations: true } },
         },
@@ -32,7 +36,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
   if (!site) notFound();
 
   const totalCameras = site.buildings.reduce(
-    (sum, b) => sum + b.locations.reduce((s, l) => s + l._count.cameras, 0), 0
+    (sum, b) => sum + b.locations.filter(l => l.cameraModelId !== null).length, 0
   );
 
   return (
@@ -151,7 +155,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
                       <td className="px-4 py-2.5 text-gray-500">{loc.mountingLocation ?? '—'}</td>
                       <td className="px-4 py-2.5 text-gray-500">{loc.coveragePurpose ?? '—'}</td>
                       <td className="px-4 py-2.5 text-center">
-                        <span className="badge bg-blue-50 text-blue-700">{loc._count.cameras}</span>
+                        <span className="badge bg-blue-50 text-blue-700">{loc.cameraModelId ? 1 : 0}</span>
                       </td>
                     </tr>
                   ))}
