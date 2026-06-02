@@ -32,13 +32,16 @@ interface SurveyImage {
   createdAt: string;
 }
 
-interface SurveyCamera {
-  id: number;
-  cameraCode: string;
-  cameraName: string;
-  status: string;
-  locationId: number | null;
-  model?: { manufacturer: string | null; modelNumber: string | null; cameraType: string | null } | null;
+interface AssignedCameraModel {
+  id:              number;
+  manufacturer:    string | null;
+  model:           string | null;
+  cameraType:      string | null;
+  resolution:      string | null;
+  resolutionClass: string | null;
+  imageUrl:        string | null;
+  ptz:             boolean;
+  indoorOutdoor:   string | null;
 }
 
 interface SurveyLocation {
@@ -51,7 +54,7 @@ interface SurveyLocation {
   mountingLocation: string | null;
   coveragePurpose: string | null;
   surveyedAt: string | null;
-  cameras: SurveyCamera[];
+  cameraModel: AssignedCameraModel | null;
   images: SurveyImage[];
 }
 
@@ -78,21 +81,17 @@ interface SurveySite {
 type Filter = 'all' | 'pending' | 'done';
 
 // Camera picker types
-interface AvailableCamera {
-  id: number;
-  cameraCode: string;
-  cameraName: string;
-  status: string;
-  locationId: number | null;
-  model?: { manufacturer: string | null; modelNumber: string | null; cameraType: string | null } | null;
-}
-
-interface AvailableCameraModel {
-  id: number;
-  manufacturer: string | null;
-  modelNumber: string | null;
-  cameraType: string | null;
-  resolution: string | null;
+interface CatalogModel {
+  id:              number;
+  manufacturer:    string | null;
+  model:           string | null;
+  cameraType:      string | null;
+  resolution:      string | null;
+  resolutionClass: string | null;
+  imageUrl:        string | null;
+  ptz:             boolean;
+  indoorOutdoor:   string | null;
+  cost:            number | null;
 }
 
 // ── Photo Lightbox ────────────────────────────────────────────────────────────
@@ -151,40 +150,34 @@ function statusChip(loc: SurveyLocation) {
   );
 }
 
-function cameraLabel(cam: SurveyCamera | AvailableCamera) {
-  const model = cam.model
-    ? [cam.model.manufacturer, cam.model.modelNumber].filter(Boolean).join(' ')
-    : null;
-  return model || cam.cameraName || cam.cameraCode;
+function cameraModelLabel(m: AssignedCameraModel | CatalogModel) {
+  return [m.manufacturer, m.model].filter(Boolean).join(' ') || 'Unknown model';
 }
 
 // ── Camera picker ─────────────────────────────────────────────────────────────
 
 interface CameraPickerProps {
-  siteId: number;
-  assignedCamera: SurveyCamera | null;
-  onAssign: (cameraId: number | null, cameraModelId?: number, camera?: AvailableCamera | null, model?: AvailableCameraModel | null) => Promise<void>;
+  assignedModel: AssignedCameraModel | null;
+  onAssign: (modelId: number | null) => Promise<void>;
   assigning: boolean;
 }
 
-function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPickerProps) {
-  const [inventory, setInventory]   = useState<AvailableCamera[]>([]);
-  const [models,    setModels]      = useState<AvailableCameraModel[]>([]);
-  const [loading,   setLoading]     = useState(true);
-  const [search,    setSearch]      = useState('');
-  const [open,      setOpen]        = useState(false);
+function CameraPicker({ assignedModel, onAssign, assigning }: CameraPickerProps) {
+  const [catalog,  setCatalog]  = useState<CatalogModel[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState('');
+  const [open,     setOpen]     = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/survey/cameras?siteId=${siteId}`)
+    fetch('/api/survey/cameras')
       .then(r => r.json())
-      .then(d => { setInventory(d.inventory ?? []); setModels(d.models ?? []); })
+      .then((d: CatalogModel[]) => setCatalog(d))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [siteId]);
+  }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -196,40 +189,37 @@ function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPic
   }, []);
 
   const q = search.toLowerCase();
-
-  const filteredInventory = inventory.filter(c =>
+  const filtered = catalog.filter(m =>
     !q ||
-    c.cameraCode.toLowerCase().includes(q) ||
-    c.cameraName.toLowerCase().includes(q) ||
-    (c.model?.manufacturer ?? '').toLowerCase().includes(q) ||
-    (c.model?.modelNumber  ?? '').toLowerCase().includes(q)
+    (m.manufacturer  ?? '').toLowerCase().includes(q) ||
+    (m.model         ?? '').toLowerCase().includes(q) ||
+    (m.cameraType    ?? '').toLowerCase().includes(q) ||
+    (m.resolution    ?? '').toLowerCase().includes(q)
   );
 
-  const filteredModels = models.filter(m =>
-    !q ||
-    (m.manufacturer ?? '').toLowerCase().includes(q) ||
-    (m.modelNumber  ?? '').toLowerCase().includes(q) ||
-    (m.cameraType   ?? '').toLowerCase().includes(q)
-  );
-
-  async function pick(cameraId: number | null, modelId?: number) {
+  async function pick(modelId: number | null) {
     setOpen(false);
     setSearch('');
-    const cam   = cameraId !== null  ? (inventory.find(c => c.id === cameraId) ?? null) : null;
-    const model = modelId  !== undefined ? (models.find(m => m.id === modelId) ?? null)  : null;
-    await onAssign(cameraId, modelId, cam, model);
+    await onAssign(modelId);
   }
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Current assignment display */}
       <div className="flex items-center gap-2 mb-2">
-        {assignedCamera ? (
+        {assignedModel ? (
           <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-            <CameraIcon className="w-4 h-4 text-blue-500 shrink-0" />
+            {assignedModel.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={assignedModel.imageUrl} alt="" className="w-8 h-8 object-contain rounded shrink-0" />
+            ) : (
+              <CameraIcon className="w-4 h-4 text-blue-500 shrink-0" />
+            )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-blue-800 truncate">{cameraLabel(assignedCamera)}</p>
-              <p className="text-xs text-blue-500 truncate">{assignedCamera.cameraCode}</p>
+              <p className="text-xs font-semibold text-blue-800 truncate">{cameraModelLabel(assignedModel)}</p>
+              <p className="text-xs text-blue-500 truncate">
+                {[assignedModel.cameraType, assignedModel.resolution, assignedModel.ptz ? 'PTZ' : null]
+                  .filter(Boolean).join(' · ')}
+              </p>
             </div>
             <button
               onClick={() => pick(null)}
@@ -254,14 +244,12 @@ function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPic
           ) : (
             <CameraIcon className="w-3.5 h-3.5" />
           )}
-          {assignedCamera ? 'Change' : 'Assign'}
+          {assignedModel ? 'Change' : 'Assign'}
         </button>
       </div>
 
-      {/* Dropdown */}
       {open && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
-          {/* Search */}
+        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">
           <div className="sticky top-0 bg-white border-b border-gray-100 px-3 py-2">
             <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 rounded-lg">
               <MagnifyingGlassIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
@@ -269,14 +257,13 @@ function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPic
                 autoFocus
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search cameras or models…"
+                placeholder="Search make, model, type…"
                 className="flex-1 bg-transparent text-xs outline-none text-gray-700 placeholder-gray-400"
               />
             </div>
           </div>
 
-          {/* Unassign option */}
-          {assignedCamera && (
+          {assignedModel && (
             <button
               onClick={() => pick(null)}
               className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-red-600 hover:bg-red-50 transition-colors border-b border-gray-50"
@@ -286,66 +273,40 @@ function CameraPicker({ siteId, assignedCamera, onAssign, assigning }: CameraPic
             </button>
           )}
 
-          {/* Inventory section */}
-          {filteredInventory.length > 0 && (
-            <>
-              <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-b border-gray-100">
-                Inventory
-              </p>
-              {filteredInventory.map(cam => (
-                <button
-                  key={cam.id}
-                  onClick={() => pick(cam.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${
-                    assignedCamera?.id === cam.id ? 'bg-blue-50' : ''
-                  }`}
-                >
-                  <CameraIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-900 truncate">{cameraLabel(cam)}</p>
-                    <p className="text-xs text-gray-400 truncate">
-                      {cam.cameraCode}
-                      {cam.locationId && cam.locationId !== assignedCamera?.locationId
-                        ? ' · currently assigned elsewhere'
-                        : cam.locationId === null ? ' · unassigned' : ''}
-                    </p>
-                  </div>
-                  {assignedCamera?.id === cam.id && (
-                    <CheckCircleSolid className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  )}
-                </button>
-              ))}
-            </>
-          )}
+          {filtered.map(m => (
+            <button
+              key={m.id}
+              onClick={() => pick(m.id)}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${
+                assignedModel?.id === m.id ? 'bg-blue-50' : ''
+              }`}
+            >
+              {m.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={m.imageUrl} alt="" className="w-7 h-7 object-contain rounded shrink-0" />
+              ) : (
+                <CameraIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-gray-900 truncate">{cameraModelLabel(m)}</p>
+                <p className="text-xs text-gray-400 truncate">
+                  {[m.cameraType, m.resolution, m.ptz ? 'PTZ' : null, m.indoorOutdoor]
+                    .filter(Boolean).join(' · ') || 'No details'}
+                </p>
+              </div>
+              {m.cost != null && (
+                <span className="text-xs text-gray-400 shrink-0">${Number(m.cost).toFixed(0)}</span>
+              )}
+              {assignedModel?.id === m.id && (
+                <CheckCircleSolid className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              )}
+            </button>
+          ))}
 
-          {/* Model library section */}
-          {filteredModels.length > 0 && (
-            <>
-              <p className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide bg-gray-50 border-b border-gray-100">
-                Model Library — creates planned camera
-              </p>
-              {filteredModels.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => pick(null, m.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <CameraIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-gray-900 truncate">
-                      {[m.manufacturer, m.modelNumber].filter(Boolean).join(' ') || 'Unknown model'}
-                    </p>
-                    <p className="text-xs text-gray-400 truncate">
-                      {[m.cameraType, m.resolution].filter(Boolean).join(' · ') || 'No details'}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </>
-          )}
-
-          {filteredInventory.length === 0 && filteredModels.length === 0 && (
-            <p className="px-4 py-4 text-xs text-gray-400 text-center">No cameras match your search.</p>
+          {filtered.length === 0 && (
+            <p className="px-4 py-4 text-xs text-gray-400 text-center">
+              {search ? 'No cameras match your search.' : 'No cameras in catalog yet.'}
+            </p>
           )}
         </div>
       )}
@@ -382,9 +343,8 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
   const [photoPrompted, setPhotoPrompted] = useState(false);
   const [expandedPreview, setExpandedPreview] = useState<string | null>(null);
   // Pending camera selection — applied after location is created
-  const [pendingCameraId,      setPendingCameraId]      = useState<number | null>(null);
   const [pendingCameraModelId, setPendingCameraModelId] = useState<number | null>(null);
-  const [pendingCameraObj,     setPendingCameraObj]     = useState<SurveyCamera | null>(null);
+  const [pendingCameraObj,     setPendingCameraObj]     = useState<AssignedCameraModel | null>(null);
   const areaRef      = useRef<HTMLInputElement>(null);
   const photoRef     = useRef<HTMLInputElement>(null);
   const libraryRef   = useRef<HTMLInputElement>(null);
@@ -509,16 +469,13 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
       });
       const loc: SurveyLocation = await res.json();
 
-      // 2. Assign camera if one was selected
-      if (pendingCameraId !== null || pendingCameraModelId !== null) {
+      // 2. Assign camera model if one was selected
+      if (pendingCameraModelId !== null) {
         setSaveLabel('Assigning camera…');
         await fetch(`/api/survey/locations/${loc.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...(pendingCameraId      !== null ? { cameraId:      pendingCameraId }      : {}),
-            ...(pendingCameraModelId !== null ? { cameraModelId: pendingCameraModelId } : {}),
-          }),
+          body: JSON.stringify({ cameraModelId: pendingCameraModelId }),
         });
       }
 
@@ -544,7 +501,6 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
         setSurveyNotes('');
         setPending([]);
         setSaveLabel('');
-        setPendingCameraId(null);
         setPendingCameraModelId(null);
         setPendingCameraObj(null);
         setTimeout(() => areaRef.current?.focus(), 50);
@@ -635,23 +591,16 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
               Assigned Camera
             </label>
             <CameraPicker
-              siteId={siteId}
-              assignedCamera={pendingCameraObj}
+              assignedModel={pendingCameraObj}
               assigning={false}
-              onAssign={async (cameraId, cameraModelId, camera, model) => {
-                if (cameraId === null && cameraModelId === undefined) {
-                  setPendingCameraId(null);
+              onAssign={async (modelId) => {
+                if (modelId === null) {
                   setPendingCameraModelId(null);
                   setPendingCameraObj(null);
-                } else if (typeof cameraId === 'number') {
-                  setPendingCameraId(cameraId);
-                  setPendingCameraModelId(null);
-                  setPendingCameraObj(camera ?? { id: cameraId, cameraCode: '', cameraName: 'Camera', status: 'PLANNED', locationId: null, model: null });
-                } else if (typeof cameraModelId === 'number') {
-                  setPendingCameraId(null);
-                  setPendingCameraModelId(cameraModelId);
-                  const label = model ? ([model.manufacturer, model.modelNumber].filter(Boolean).join(' ').trim() || 'Planned camera') : 'Planned camera';
-                  setPendingCameraObj({ id: -1, cameraCode: '(planned)', cameraName: label, status: 'PLANNED', locationId: null, model: model ?? null });
+                } else {
+                  setPendingCameraModelId(modelId);
+                  // We'll show just the id reference; full object fetched on reload
+                  setPendingCameraObj({ id: modelId, manufacturer: null, model: null, cameraType: null, resolution: null, resolutionClass: null, imageUrl: null, ptz: false, indoorOutdoor: null });
                 }
               }}
             />
@@ -817,7 +766,7 @@ interface LocationPanelProps {
 
 function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onClose }: LocationPanelProps) {
   const [surveyNotes,   setSurveyNotes]   = useState(location.surveyNotes ?? '');
-  const [cameras,       setCameras]       = useState(location.cameras);
+  const [cameraModel,   setCameraModel]   = useState(location.cameraModel);
   const [images,        setImages]        = useState(location.images);
   const [saving,        setSaving]        = useState(false);
   const [uploading,     setUploading]     = useState(false);
@@ -865,19 +814,18 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
   }, [registerCommands, speak, images.length]);
 
   const atLimit = images.length >= MAX_PHOTOS;
-  const assignedCamera = cameras[0] ?? null;
 
-  async function assignCamera(cameraId: number | null, cameraModelId?: number) {
+  async function assignCamera(modelId: number | null) {
     setAssigning(true);
     try {
       const res = await fetch(`/api/survey/locations/${location.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cameraId: cameraId ?? null, ...(cameraModelId ? { cameraModelId } : {}) }),
+        body: JSON.stringify({ cameraModelId: modelId }),
       });
       if (res.ok) {
         const updated: SurveyLocation = await res.json();
-        setCameras(updated.cameras);
+        setCameraModel(updated.cameraModel);
         onUpdate({ ...updated, images });
       }
     } finally {
@@ -894,7 +842,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
       if (res.ok) {
         const updated = images.filter(img => img.id !== photoId);
         setImages(updated);
-        onUpdate({ ...location, surveyNotes, cameras, images: updated });
+        onUpdate({ ...location, surveyNotes, cameraModel, images: updated });
       }
     } finally {
       setDeletingId(null);
@@ -915,7 +863,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
       });
       if (res.ok) {
         const updated = await res.json();
-        onUpdate({ ...updated, images, cameras });
+        onUpdate({ ...updated, images, cameraModel });
         setEditMode(false);
       }
     } finally {
@@ -933,7 +881,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
         body: JSON.stringify({ surveyNotes, markSurveyed: true }),
       });
       const updated = await res.json();
-      onUpdate({ ...updated, images, cameras });
+      onUpdate({ ...updated, images, cameraModel });
       speak(`${location.areaName} marked as surveyed`);
       onClose();
     } finally {
@@ -969,7 +917,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
         const newImg = await res.json();
         const updated = [...images, newImg];
         setImages(updated);
-        onUpdate({ ...location, surveyNotes, cameras, images: updated, surveyedAt: new Date().toISOString() });
+        onUpdate({ ...location, surveyNotes, cameraModel, images: updated, surveyedAt: new Date().toISOString() });
         speak(`Photo added. ${updated.length} of ${MAX_PHOTOS}.`);
       }
     } finally {
@@ -1061,7 +1009,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
         <div className="p-5 space-y-5">
           {/* Status row */}
           <div className="flex items-center gap-2">
-            {statusChip({ ...location, cameras, images })}
+            {statusChip({ ...location, cameraModel, images })}
           </div>
 
           {/* Camera assignment */}
@@ -1070,8 +1018,7 @@ function LocationPanel({ location, siteId, allBuildings, onUpdate, onDelete, onC
               Assigned Camera
             </label>
             <CameraPicker
-              siteId={siteId}
-              assignedCamera={assignedCamera}
+              assignedModel={cameraModel}
               onAssign={assignCamera}
               assigning={assigning}
             />
@@ -1377,10 +1324,10 @@ function BuildingAccordion({ building, siteId, filter, allBuildings, onLocationU
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">{loc.areaName}</p>
                 {loc.floor && <p className="text-xs text-gray-400">Floor {loc.floor}</p>}
-                {loc.cameras[0] && (
+                {loc.cameraModel && (
                   <p className="text-xs text-blue-500 truncate mt-0.5 flex items-center gap-1">
                     <CameraIcon className="w-3 h-3 inline shrink-0" />
-                    {cameraLabel(loc.cameras[0])}
+                    {cameraModelLabel(loc.cameraModel)}
                   </p>
                 )}
               </div>
@@ -1754,7 +1701,7 @@ export function SurveyBoard({ initialSite }: Props) {
         <SurveyAgentChat
           siteId={site.id}
           buildings={site.buildings.map(b => ({ id: b.id, buildingName: b.buildingName }))}
-          onLocationSaved={loc => { handleLocationAdd(loc as SurveyLocation); }}
+          onLocationSaved={loc => { handleLocationAdd(loc as unknown as SurveyLocation); }}
           onExit={() => setShowAgent(false)}
         />
       )}

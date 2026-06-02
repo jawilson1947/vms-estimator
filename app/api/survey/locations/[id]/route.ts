@@ -16,63 +16,43 @@ export async function PATCH(
 
   const body = await req.json();
   const {
-    areaName, floor, buildingId, surveyNotes, notes, mountingLocation, coveragePurpose, markSurveyed,
-    cameraId, cameraModelId,
+    areaName, floor, buildingId, surveyNotes, notes,
+    mountingLocation, coveragePurpose, markSurveyed,
+    cameraModelId,
   } = body;
 
-  if (cameraId !== undefined || cameraModelId !== undefined) {
-    await prisma.camera.updateMany({
-      where: { locationId: id },
-      data: { locationId: null },
-    });
+  const updateData: Record<string, unknown> = {};
+  if (areaName         !== undefined) updateData.areaName         = areaName;
+  if (floor            !== undefined) updateData.floor            = floor;
+  if (buildingId       !== undefined) updateData.buildingId       = parseInt(String(buildingId), 10);
+  if (notes            !== undefined) updateData.notes            = notes;
+  if (mountingLocation !== undefined) updateData.mountingLocation = mountingLocation;
+  if (coveragePurpose  !== undefined) updateData.coveragePurpose  = coveragePurpose;
 
-    if (typeof cameraId === 'number') {
-      await prisma.camera.update({
-        where: { id: cameraId },
-        data: { locationId: id },
-      });
-    } else if (typeof cameraModelId === 'number') {
-      const model = await prisma.cameraModel.findUnique({ where: { id: cameraModelId } });
-      const label = model
-        ? [model.manufacturer, model.modelNumber].filter(Boolean).join(' ').trim() || 'Camera'
-        : 'Camera';
-      const code = 'PLAN-' + String(id) + '-' + String(Date.now());
-      await prisma.camera.create({
-        data: {
-          cameraCode: code,
-          cameraName: label,
-          modelId: cameraModelId,
-          locationId: id,
-          status: 'PLANNED',
-        },
-      });
-    }
+  // Direct model assignment — null clears it
+  if (cameraModelId !== undefined) {
+    updateData.cameraModelId = typeof cameraModelId === 'number' ? cameraModelId : null;
   }
-
-  const knownData: Record<string, unknown> = {};
-  if (areaName !== undefined) knownData.areaName = areaName;
-  if (floor !== undefined) knownData.floor = floor;
-  if (buildingId !== undefined) knownData.buildingId = parseInt(String(buildingId), 10);
-  if (notes !== undefined) knownData.notes = notes;
-  if (mountingLocation !== undefined) knownData.mountingLocation = mountingLocation;
-  if (coveragePurpose !== undefined) knownData.coveragePurpose = coveragePurpose;
 
   const location = await prisma.cameraLocation.update({
     where: { id },
-    data: Object.keys(knownData).length ? knownData : { id },
+    data:  Object.keys(updateData).length ? updateData : { id },
     include: {
-      cameras: {
+      cameraModel: {
         select: {
-          id: true,
-          cameraCode: true,
-          cameraName: true,
-          status: true,
-          locationId: true,
-          model: { select: { manufacturer: true, modelNumber: true, cameraType: true } },
+          id:              true,
+          manufacturer:    true,
+          model:           true,
+          cameraType:      true,
+          resolution:      true,
+          resolutionClass: true,
+          imageUrl:        true,
+          ptz:             true,
+          indoorOutdoor:   true,
         },
       },
       images: {
-        where: { imageType: 'SITE_SURVEY' },
+        where:  { imageType: 'SITE_SURVEY' },
         select: { id: true, fileUrl: true, description: true, uploadedAt: true },
       },
     },
@@ -94,32 +74,31 @@ export async function PATCH(
     `;
     if (rows[0]) {
       surveyNotesValue = rows[0].survey_notes;
-      surveyedAtValue = rows[0].surveyed_at ? new Date(rows[0].surveyed_at).toISOString() : null;
+      surveyedAtValue  = rows[0].surveyed_at ? new Date(rows[0].surveyed_at).toISOString() : null;
     }
   } catch { /* columns may not exist yet */ }
 
   return NextResponse.json({
-    id: location.id,
-    buildingId: location.buildingId,
-    areaName: location.areaName,
-    floor: location.floor,
-    surveyNotes: surveyNotesValue,
-    notes: location.notes,
-    mountingLocation: location.mountingLocation,
+    id:              location.id,
+    buildingId:      location.buildingId,
+    areaName:        location.areaName,
+    floor:           location.floor,
+    surveyNotes:     surveyNotesValue,
+    notes:           location.notes,
+    mountingLocation:location.mountingLocation,
     coveragePurpose: location.coveragePurpose,
-    surveyedAt: surveyedAtValue,
-    cameras: location.cameras,
+    surveyedAt:      surveyedAtValue,
+    cameraModel:     location.cameraModel ?? null,
     images: location.images.map(img => ({
-      id: img.id,
-      imageUrl: img.fileUrl ?? '',
-      caption: img.description ?? null,
+      id:        img.id,
+      imageUrl:  img.fileUrl ?? '',
+      caption:   img.description ?? null,
       createdAt: img.uploadedAt.toISOString(),
     })),
   });
 }
 
 // DELETE /api/survey/locations/[id]
-// Deletes the location, its camera assignments (unlinks cameras), and its images.
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -131,13 +110,6 @@ export async function DELETE(
   const id = parseInt(idStr);
   if (isNaN(id)) return NextResponse.json({ error: 'Invalid ID' }, { status: 400 });
 
-  // Unlink any cameras assigned to this location (don't delete the cameras themselves)
-  await prisma.camera.updateMany({
-    where: { locationId: id },
-    data:  { locationId: null },
-  });
-
-  // Delete the location (cascades to CameraLocationImage records via DB constraint)
   await prisma.cameraLocation.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });

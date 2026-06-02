@@ -2,49 +2,67 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { CameraStatus, RecordingMode } from '@prisma/client';
+import { CameraType, Environment } from '@prisma/client';
+
+// Map title-case UI values ("Dome", "Indoor") to Prisma uppercase enum keys
+
+const CAMERA_TYPE_MAP: Record<string, CameraType> = {
+  dome:    CameraType.DOME,
+  fisheye: CameraType.FISHEYE,
+  turret:  CameraType.TURRET,
+  other:   CameraType.OTHER,
+};
+
+const ENVIRONMENT_MAP: Record<string, Environment> = {
+  indoor:  Environment.INDOOR,
+  outdoor: Environment.OUTDOOR,
+  both:    Environment.BOTH,
+};
+
+function toCameraType(v: unknown): CameraType | null {
+  if (!v || typeof v !== 'string') return null;
+  return CAMERA_TYPE_MAP[v.toLowerCase()] ?? null;
+}
+
+function toEnvironment(v: unknown): Environment | null {
+  if (!v || typeof v !== 'string') return null;
+  return ENVIRONMENT_MAP[v.toLowerCase()] ?? null;
+}
 
 // GET /api/cameras
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const p          = new URL(req.url).searchParams;
-  const search     = p.get('search')     ?? '';
-  const status     = p.get('status')     ?? '';
-  const modelId    = p.get('modelId')    ?? '';
-  const buildingId = p.get('buildingId') ?? '';
-  const vlanId     = p.get('vlanId')     ?? '';
+  const p               = new URL(req.url).searchParams;
+  const search          = p.get('search')          ?? '';
+  const type            = p.get('type')            ?? '';
+  const indoorOutdoor   = p.get('indoorOutdoor')   ?? '';
+  const ptz             = p.get('ptz')             ?? '';
+  const resolutionClass = p.get('resolutionClass') ?? '';
 
-  const cameras = await prisma.camera.findMany({
+  const cameraTypeFilter  = toCameraType(type);
+  const environmentFilter = toEnvironment(indoorOutdoor);
+
+  const models = await prisma.cameraModel.findMany({
     where: {
-      ...(status     ? { status:              status as CameraStatus }   : {}),
-      ...(modelId    ? { modelId:             Number(modelId) }          : {}),
-      ...(vlanId     ? { vlanId:              Number(vlanId)  }          : {}),
-      ...(buildingId ? { location: { buildingId: Number(buildingId) } }  : {}),
-      ...(search
-        ? {
-            OR: [
-              { cameraCode: { contains: search } },
-              { cameraName: { contains: search } },
-              { ipAddress:  { contains: search } },
-              { serialNumber: { contains: search } },
-            ],
-          }
-        : {}),
+      ...(cameraTypeFilter  ? { cameraType:    cameraTypeFilter  } : {}),
+      ...(environmentFilter ? { indoorOutdoor: environmentFilter } : {}),
+      ...(ptz === 'true'  ? { ptz: true  } : {}),
+      ...(ptz === 'false' ? { ptz: false } : {}),
+      ...(resolutionClass ? { resolutionClass } : {}),
+      ...(search ? {
+        OR: [
+          { manufacturer: { contains: search } },
+          { model:        { contains: search } },
+          { resolution:   { contains: search } },
+        ],
+      } : {}),
     },
-    include: {
-      model:    { select: { id: true, manufacturer: true, modelNumber: true, cameraType: true } },
-      location: {
-        select: { id: true, areaName: true, floor: true,
-          building: { select: { id: true, buildingName: true,
-            site: { select: { id: true, siteName: true } } } } },
-      },
-    },
-    orderBy: { cameraCode: 'asc' },
+    orderBy: [{ manufacturer: 'asc' }, { model: 'asc' }],
   });
 
-  return NextResponse.json(cameras);
+  return NextResponse.json(models);
 }
 
 // POST /api/cameras
@@ -54,37 +72,40 @@ export async function POST(req: NextRequest) {
 
   const b = await req.json();
 
-  if (!b.cameraCode?.trim()) return NextResponse.json({ error: 'Camera code is required' }, { status: 400 });
-  if (!b.cameraName?.trim()) return NextResponse.json({ error: 'Camera name is required' }, { status: 400 });
-
-  const camera = await prisma.camera.create({
-    data: {
-      cameraCode:        b.cameraCode.trim(),
-      cameraName:        b.cameraName.trim(),
-      modelId:           b.modelId    ? Number(b.modelId)    : null,
-      locationId:        b.locationId ? Number(b.locationId) : null,
-      serialNumber:      b.serialNumber      || null,
-      assetTag:          b.assetTag          || null,
-      ipAddress:         b.ipAddress         || null,
-      macAddress:        b.macAddress        || null,
-      vlanId:            b.vlanId            ? Number(b.vlanId)     : null,
-      switchName:        b.switchName        || null,
-      switchPort:        b.switchPort        || null,
-      nvrName:           b.nvrName           || null,
-      recordingMode:     b.recordingMode     as RecordingMode || null,
-      retentionDays:     b.retentionDays     ? Number(b.retentionDays)  : null,
-      bitrateMbps:       b.bitrateMbps       ? Number(b.bitrateMbps)    : null,
-      frameRate:         b.frameRate         ? Number(b.frameRate)      : null,
-      installDate:       b.installDate       ? new Date(b.installDate)        : null,
-      warrantyExpiration:b.warrantyExpiration? new Date(b.warrantyExpiration) : null,
-      firmwareVersion:   b.firmwareVersion   || null,
-      usernameChanged:   !!b.usernameChanged,
-      httpsEnabled:      !!b.httpsEnabled,
-      privacyMaskEnabled:!!b.privacyMaskEnabled,
-      status:            b.status as CameraStatus || CameraStatus.PLANNED,
-      notes:             b.notes || null,
-    },
+  const record = await prisma.cameraModel.create({
+    data: buildData(b),
   });
 
-  return NextResponse.json(camera, { status: 201 });
+  return NextResponse.json(record, { status: 201 });
+}
+
+export function buildData(b: Record<string, unknown>) {
+  const str = (v: unknown) => (v && typeof v === 'string' ? v : null) as string | null;
+  return {
+    manufacturer:       str(b.manufacturer),
+    model:              str(b.model),
+    cameraType:         toCameraType(b.cameraType),
+    ptz:                !!b.ptz,
+    panDegrees:         b.panDegrees  ? Number(b.panDegrees)  : null,
+    zoomX:              str(b.zoomX),
+    audio:              !!b.audio,
+    motionDetection:    !!b.motionDetection,
+    resolution:         str(b.resolution),
+    megapixels:         b.megapixels  ? Number(b.megapixels)  : null,
+    cost:               b.cost        ? Number(b.cost)        : null,
+    lensCount:          b.lensCount   ? Number(b.lensCount)   : null,
+    motorizedLens:      !!b.motorizedLens,
+    indoorOutdoor:      toEnvironment(b.indoorOutdoor),
+    imageUrl:           str(b.imageUrl),
+    nightVision:        !!b.nightVision,
+    microphone:         !!b.microphone,
+    rangeFt:            b.rangeFt     ? Number(b.rangeFt)     : null,
+    resolutionClass:    str(b.resolutionClass),
+    vandalProof:        !!b.vandalProof,
+    url:                str(b.url),
+    ssd:                !!b.ssd,
+    fps:                b.fps         ? Number(b.fps)         : null,
+    humanVehicleDetect: !!b.humanVehicleDetect,
+    mount:              Array.isArray(b.mount) ? JSON.stringify(b.mount) : (str(b.mount)),
+  };
 }

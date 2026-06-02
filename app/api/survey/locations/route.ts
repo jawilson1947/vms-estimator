@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     mountingLocation: null,
     coveragePurpose: null,
     surveyedAt:      new Date().toISOString(),
-    cameras:         [],
+    cameraModel:     null,
     images,
   }, { status: 201 });
 }

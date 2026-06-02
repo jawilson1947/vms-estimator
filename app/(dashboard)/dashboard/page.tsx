@@ -13,32 +13,28 @@ import {
 async function getStats() {
   const [
     totalCameras,
-    offlineCameras,
-    activeCameras,
+    totalLocations,
+    assignedLocations,
     totalProjects,
     inProgressProjects,
     totalCustomers,
-    maintenanceDue,
   ] = await Promise.all([
-    prisma.camera.count(),
-    prisma.camera.count({ where: { status: 'OFFLINE' } }),
-    prisma.camera.count({ where: { status: 'ACTIVE' } }),
+    prisma.cameraModel.count(),
+    prisma.cameraLocation.count(),
+    prisma.cameraLocation.count({ where: { cameraModelId: { not: null } } }),
     prisma.project.count(),
     prisma.project.count({ where: { projectStatus: 'IN_PROGRESS' } }),
     prisma.customer.count(),
-    prisma.maintenanceRecord.count({
-      where: { nextServiceDue: { lte: new Date() } },
-    }),
   ]);
 
   return {
     totalCameras,
-    offlineCameras,
-    activeCameras,
+    totalLocations,
+    assignedLocations,
     totalProjects,
     inProgressProjects,
     totalCustomers,
-    maintenanceDue,
+    maintenanceDue: 0,
   };
 }
 
@@ -48,18 +44,18 @@ export default async function DashboardPage() {
 
   const widgets = [
     {
-      label:    'Total Cameras',
+      label:    'Camera Models',
       value:    stats.totalCameras,
-      sub:      `${stats.activeCameras} active`,
+      sub:      'In catalog',
       icon:     CameraIcon,
       color:    'blue',
     },
     {
-      label:    'Cameras Offline',
-      value:    stats.offlineCameras,
-      sub:      'Requires attention',
+      label:    'Survey Locations',
+      value:    stats.totalLocations,
+      sub:      `${stats.assignedLocations} assigned`,
       icon:     ExclamationTriangleIcon,
-      color:    stats.offlineCameras > 0 ? 'red' : 'green',
+      color:    'indigo',
     },
     {
       label:    'Projects',
@@ -130,7 +126,7 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Quick Actions</h2>
           <div className="space-y-2">
             {[
-              { label: 'Add a new camera',   href: '/cameras/new' },
+              { label: 'Add a camera model',  href: '/cameras' },
               { label: 'Create a project',   href: '/projects/new' },
               { label: 'Add a customer',     href: '/customers/new' },
               { label: 'Log maintenance',    href: '/maintenance/new' },
@@ -152,12 +148,12 @@ export default async function DashboardPage() {
           <h2 className="text-sm font-semibold text-gray-900 mb-3">System Summary</h2>
           <dl className="space-y-2">
             {[
-              { label: 'Total cameras',       value: stats.totalCameras },
-              { label: 'Active cameras',      value: stats.activeCameras },
-              { label: 'Offline cameras',     value: stats.offlineCameras },
-              { label: 'Projects total',      value: stats.totalProjects },
-              { label: 'In-progress projects',value: stats.inProgressProjects },
-              { label: 'Maintenance overdue', value: stats.maintenanceDue },
+              { label: 'Camera models in catalog', value: stats.totalCameras },
+              { label: 'Survey locations',         value: stats.totalLocations },
+              { label: 'Locations w/ camera',      value: stats.assignedLocations },
+              { label: 'Projects total',           value: stats.totalProjects },
+              { label: 'In-progress projects',     value: stats.inProgressProjects },
+              { label: 'Customers',                value: stats.totalCustomers },
             ].map(item => (
               <div key={item.label} className="flex justify-between text-sm">
                 <dt className="text-gray-500">{item.label}</dt>

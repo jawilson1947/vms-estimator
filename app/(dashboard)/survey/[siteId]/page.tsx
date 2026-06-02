@@ -45,14 +45,10 @@ export default async function SurveyPage({ params }: { params: Promise<{ siteId:
           locations: {
             orderBy: { areaName: 'asc' },
             include: {
-              cameras: {
+              cameraModel: {
                 select: {
-                  id: true,
-                  cameraCode: true,
-                  cameraName: true,
-                  status: true,
-                  locationId: true,
-                  model: { select: { manufacturer: true, modelNumber: true, cameraType: true } },
+                  id: true, manufacturer: true, model: true, cameraType: true,
+                  resolution: true, resolutionClass: true, imageUrl: true, ptz: true, indoorOutdoor: true,
                 },
               },
               images: {
@@ -134,7 +130,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ siteId:
           mountingLocation: l.mountingLocation,
           coveragePurpose: l.coveragePurpose,
           surveyedAt:      sf.surveyedAt,
-          cameras:         l.cameras,
+          cameraModel:     l.cameraModel ?? null,
           images: l.images.map(img => ({
             id:        img.id,
             imageUrl:  img.fileUrl ?? '',

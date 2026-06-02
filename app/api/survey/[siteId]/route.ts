@@ -25,10 +25,10 @@ export async function GET(
           locations: {
             orderBy: { areaName: 'asc' },
             include: {
-              cameras: {
+              cameraModel: {
                 select: {
-                  id: true, cameraCode: true, cameraName: true, status: true, locationId: true,
-                  model: { select: { manufacturer: true, modelNumber: true, cameraType: true } },
+                  id: true, manufacturer: true, model: true, cameraType: true,
+                  resolution: true, resolutionClass: true, imageUrl: true, ptz: true, indoorOutdoor: true,
                 },
               },
               images: {

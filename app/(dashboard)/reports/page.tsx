@@ -11,7 +11,7 @@ export const metadata = { title: 'Reports' };
 
 export default async function ReportsPage() {
   const [cameraCount, projectCount, siteCount, sites] = await Promise.all([
-    prisma.camera.count(),
+    prisma.cameraModel.count(),
     prisma.project.count(),
     prisma.site.count(),
     prisma.site.findMany({

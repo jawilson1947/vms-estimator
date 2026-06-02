@@ -140,6 +140,7 @@ model BuildingFloorPlan {
 model CameraLocation {
   id               Int                   @id @default(autoincrement()) @map("location_id")
   buildingId       Int                   @map("building_id")
+  cameraModelId    Int?                  @map("camera_model_id")
   floor            String?               @db.VarChar(50)
   areaName         String?               @map("area_name") @db.VarChar(150)
   mountingLocation String?               @map("mounting_location") @db.VarChar(150)
@@ -149,47 +150,51 @@ model CameraLocation {
   surveyedAt       DateTime?             @map("surveyed_at")
 
   building         Building              @relation(fields: [buildingId], references: [id])
-  cameras          Camera[]
+  cameraModel      CameraModel?          @relation(fields: [cameraModelId], references: [id], onDelete: SetNull)
   images           CameraLocationImage[]
 
   @@map("camera_locations")
 }
 
-// ─── Camera Models ───────────────────────────────────────────────────────────
+// ─── Camera Models (Catalog) ─────────────────────────────────────────────────
 
 model CameraModel {
-  id             Int          @id @default(autoincrement()) @map("model_id")
-  manufacturer   String?      @db.VarChar(100)
-  modelNumber    String?      @map("model_number") @db.VarChar(100)
-  cameraType     CameraType?  @map("camera_type")
-  indoorOutdoor  Environment? @map("indoor_outdoor")
-  resolution     String?      @db.VarChar(50)
-  lensType       String?      @map("lens_type") @db.VarChar(100)
-  focalLength    String?      @map("focal_length") @db.VarChar(100)
-  fieldOfView    String?      @map("field_of_view") @db.VarChar(100)
-  irDistance     String?      @map("ir_distance") @db.VarChar(100)
-  wdr            String?      @db.VarChar(100)
-  lowLightRating String?      @map("low_light_rating") @db.VarChar(100)
-  codecSupport   String?      @map("codec_support") @db.VarChar(150)
-  poeStandard    String?      @map("poe_standard") @db.VarChar(50)
-  maxPowerWatts  Decimal?     @map("max_power_watts") @db.Decimal(6, 2)
-  weatherRating  String?      @map("weather_rating") @db.VarChar(50)
-  vandalRating   String?      @map("vandal_rating") @db.VarChar(50)
-  onvifProfile   String?      @map("onvif_profile") @db.VarChar(100)
-  notes          String?      @db.Text
+  id                  Int          @id @default(autoincrement()) @map("model_id")
+  manufacturer        String?      @db.VarChar(55)
+  model               String?      @db.VarChar(55)
+  cameraType          CameraType?  @map("camera_type")
+  ptz                 Boolean      @default(false)
+  panDegrees          Int?         @map("pan_degrees")
+  zoomX               String?      @map("zoom_x") @db.VarChar(20)
+  audio               Boolean      @default(false)
+  motionDetection     Boolean      @default(false) @map("motion_detection")
+  resolution          String?      @db.VarChar(22)
+  megapixels          Decimal?     @db.Decimal(6, 2)
+  cost                Decimal?     @db.Decimal(10, 2)
+  lensCount           Int?         @map("lens_count")
+  motorizedLens       Boolean      @default(false) @map("motorized_lens")
+  indoorOutdoor       Environment? @map("indoor_outdoor")
+  imageUrl            String?      @map("image_url") @db.VarChar(500)
+  nightVision         Boolean      @default(false) @map("night_vision")
+  microphone          Boolean      @default(false)
+  rangeFt             Int?         @map("range_ft")
+  resolutionClass     String?      @map("resolution_class") @db.VarChar(10)
+  vandalProof         Boolean      @default(false) @map("vandal_proof")
+  url                 String?      @db.VarChar(255)
+  ssd                 Boolean      @default(false)
+  fps                 Int?
+  humanVehicleDetect  Boolean      @default(false) @map("human_vehicle_detect")
+  mount               String?      @db.VarChar(100)
 
-  cameras        Camera[]
+  locations           CameraLocation[]
 
   @@map("camera_models")
 }
 
 enum CameraType {
   DOME    @map("Dome")
-  BULLET  @map("Bullet")
-  TURRET  @map("Turret")
-  PTZ     @map("PTZ")
   FISHEYE @map("Fisheye")
-  LPR     @map("LPR")
+  TURRET  @map("Turret")
   OTHER   @map("Other")
 }
 
@@ -199,64 +204,10 @@ enum Environment {
   BOTH    @map("Both")
 }
 
-// ─── Cameras ─────────────────────────────────────────────────────────────────
-
-model Camera {
-  id                 Int            @id @default(autoincrement()) @map("camera_id")
-  cameraCode         String         @unique @map("camera_code") @db.VarChar(50)
-  cameraName         String         @map("camera_name") @db.VarChar(150)
-  modelId            Int?           @map("model_id")
-  locationId         Int?           @map("location_id")
-  serialNumber       String?        @map("serial_number") @db.VarChar(100)
-  assetTag           String?        @map("asset_tag") @db.VarChar(100)
-  ipAddress          String?        @map("ip_address") @db.VarChar(45)
-  macAddress         String?        @map("mac_address") @db.VarChar(50)
-  vlanId             Int?           @map("vlan_id")
-  switchName         String?        @map("switch_name") @db.VarChar(100)
-  switchPort         String?        @map("switch_port") @db.VarChar(50)
-  nvrName            String?        @map("nvr_name") @db.VarChar(100)
-  recordingMode      RecordingMode? @map("recording_mode")
-  retentionDays      Int?           @map("retention_days")
-  bitrateMbps        Decimal?       @map("bitrate_mbps") @db.Decimal(6, 2)
-  frameRate          Int?           @map("frame_rate")
-  installDate        DateTime?      @map("install_date") @db.Date
-  warrantyExpiration DateTime?      @map("warranty_expiration") @db.Date
-  firmwareVersion    String?        @map("firmware_version") @db.VarChar(100)
-  usernameChanged    Boolean        @default(false) @map("username_changed")
-  httpsEnabled       Boolean        @default(false) @map("https_enabled")
-  privacyMaskEnabled Boolean        @default(false) @map("privacy_mask_enabled")
-  status             CameraStatus   @default(PLANNED)
-  notes              String?        @db.Text
-
-  model              CameraModel?         @relation(fields: [modelId], references: [id])
-  location           CameraLocation?      @relation(fields: [locationId], references: [id])
-  images             CameraLocationImage[]
-  maintenanceRecords MaintenanceRecord[]
-
-  @@map("cameras")
-}
-
-enum RecordingMode {
-  CONTINUOUS @map("Continuous")
-  MOTION     @map("Motion")
-  EVENT      @map("Event")
-  SCHEDULED  @map("Scheduled")
-}
-
-enum CameraStatus {
-  PLANNED      @map("Planned")
-  INSTALLED    @map("Installed")
-  ACTIVE       @map("Active")
-  OFFLINE      @map("Offline")
-  NEEDS_REPAIR @map("Needs Repair")
-  RETIRED      @map("Retired")
-}
-
-// ─── Images ──────────────────────────────────────────────────────────────────
+// ─── Location Images ─────────────────────────────────────────────────────────
 
 model CameraLocationImage {
   id               Int       @id @default(autoincrement()) @map("image_id")
-  cameraId         Int?      @map("camera_id")
   locationId       Int?      @map("location_id")
   imageType        ImageType @default(OTHER) @map("image_type")
   fileName         String    @map("file_name") @db.VarChar(255)
@@ -269,7 +220,6 @@ model CameraLocationImage {
   uploadedBy       String?   @map("uploaded_by") @db.VarChar(100)
   uploadedAt       DateTime  @default(now()) @map("uploaded_at")
 
-  camera           Camera?         @relation(fields: [cameraId], references: [id], onDelete: Cascade)
   location         CameraLocation? @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@map("camera_location_images")
@@ -283,23 +233,6 @@ enum ImageType {
   INSTALLED_CAMERA  @map("Installed Camera")
   MAINTENANCE       @map("Maintenance")
   OTHER             @map("Other")
-}
-
-// ─── Maintenance ─────────────────────────────────────────────────────────────
-
-model MaintenanceRecord {
-  id               Int       @id @default(autoincrement()) @map("maintenance_id")
-  cameraId         Int       @map("camera_id")
-  serviceDate      DateTime  @map("service_date") @db.Date
-  serviceType      String?   @map("service_type") @db.VarChar(100)
-  technician       String?   @db.VarChar(100)
-  issueFound       String?   @map("issue_found") @db.Text
-  correctiveAction String?   @map("corrective_action") @db.Text
-  nextServiceDue   DateTime? @map("next_service_due") @db.Date
-
-  camera           Camera    @relation(fields: [cameraId], references: [id])
-
-  @@map("maintenance_records")
 }
 
 // ─── Project Costs ───────────────────────────────────────────────────────────
@@ -358,7 +291,7 @@ model ProjectFeeSummary {
   @@map("project_fee_summary")
 }
 
-// Audit Log
+// ─── Audit Log ───────────────────────────────────────────────────────────────
 
 model AuditLog {
   id         Int      @id @default(autoincrement()) @map("audit_id")

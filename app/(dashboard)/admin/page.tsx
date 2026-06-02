@@ -28,7 +28,7 @@ export default async function AdminPage() {
     Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
-      prisma.camera.count(),
+      prisma.cameraModel.count(),
       prisma.project.count(),
     ]),
   ]);

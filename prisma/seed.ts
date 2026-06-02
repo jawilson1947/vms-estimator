@@ -4,8 +4,6 @@ import {
   ProjectStatus,
   CameraType,
   Environment,
-  CameraStatus,
-  RecordingMode,
   CostCategory,
 } from '@prisma/client';
 import { hash } from 'bcryptjs';
@@ -147,105 +145,64 @@ async function main() {
 
   console.log('✓ Camera locations created');
 
-  // ── Camera Models ──────────────────────────────────────────────────────────
+  // ── Camera Models (catalog) ────────────────────────────────────────────────
   const domeModel = await prisma.cameraModel.upsert({
     where:  { id: 1 },
     update: {},
     create: {
-      manufacturer:   'Axis',
-      modelNumber:    'P3268-V',
-      cameraType:     CameraType.DOME,
-      indoorOutdoor:  Environment.INDOOR,
-      resolution:     '4K (8MP)',
-      lensType:       'Varifocal',
-      focalLength:    '3–9mm',
-      fieldOfView:    '110° horizontal',
-      irDistance:     '30m',
-      wdr:            '120dB WDR',
-      lowLightRating: '0.08 lux',
-      codecSupport:   'H.265, H.264, MJPEG',
-      poeStandard:    'PoE+ (802.3at)',
-      maxPowerWatts:  25.5,
-      weatherRating:  'IP42',
-      vandalRating:   'IK10',
-      onvifProfile:   'S, G, T',
+      manufacturer:    'Axis',
+      model:           'P3268-V',
+      cameraType:      CameraType.DOME,
+      indoorOutdoor:   Environment.INDOOR,
+      resolution:      '3840x2160',
+      megapixels:      8,
+      resolutionClass: '4K',
+      fps:             15,
+      lensCount:       1,
+      nightVision:     false,
+      vandalProof:     true,
+      ptz:             false,
+      audio:           false,
+      motionDetection: true,
+      cost:            349.00,
+      mount:           '["Ceiling","Wall"]',
     },
   });
 
-  const bulletModel = await prisma.cameraModel.upsert({
+  const turretModel = await prisma.cameraModel.upsert({
     where:  { id: 2 },
     update: {},
     create: {
-      manufacturer:   'Hanwha',
-      modelNumber:    'XNO-8080R',
-      cameraType:     CameraType.BULLET,
-      indoorOutdoor:  Environment.OUTDOOR,
-      resolution:     '5MP',
-      lensType:       'Fixed',
-      focalLength:    '4mm',
-      fieldOfView:    '92° horizontal',
-      irDistance:     '50m',
-      wdr:            '120dB WDR',
-      lowLightRating: '0.03 lux',
-      codecSupport:   'H.265, H.264',
-      poeStandard:    'PoE (802.3af)',
-      maxPowerWatts:  12.95,
-      weatherRating:  'IP66',
-      vandalRating:   'IK10',
-      onvifProfile:   'S, G',
+      manufacturer:    'Hanwha',
+      model:           'QNV-8080R',
+      cameraType:      CameraType.TURRET,
+      indoorOutdoor:   Environment.OUTDOOR,
+      resolution:      '2592x1944',
+      megapixels:      5,
+      fps:             30,
+      lensCount:       1,
+      nightVision:     true,
+      rangeFt:         164,
+      vandalProof:     true,
+      ptz:             false,
+      audio:           false,
+      motionDetection: true,
+      cost:            249.00,
+      mount:           '["Ceiling","Wall"]',
     },
   });
 
-  console.log('✓ Camera models created');
-
-  // ── Cameras ────────────────────────────────────────────────────────────────
-  await prisma.camera.upsert({
-    where:  { cameraCode: 'CAM-001' },
-    update: {},
-    create: {
-      cameraCode:     'CAM-001',
-      cameraName:     'Lobby Front — Camera 1',
-      modelId:        domeModel.id,
-      locationId:     lobbyLocation.id,
-      ipAddress:      '10.20.1.101',
-      vlanId:         20,
-      switchName:     'SW-A1',
-      switchPort:     'Gi0/1',
-      nvrName:        'NVR-01',
-      recordingMode:  RecordingMode.CONTINUOUS,
-      retentionDays:  30,
-      bitrateMbps:    8.0,
-      frameRate:      15,
-      status:         CameraStatus.ACTIVE,
-      httpsEnabled:   true,
-      usernameChanged: true,
-    },
+  // Assign demo camera models to seed locations
+  await prisma.cameraLocation.update({
+    where: { id: lobbyLocation.id },
+    data:  { cameraModelId: domeModel.id },
+  });
+  await prisma.cameraLocation.update({
+    where: { id: parkingLocation.id },
+    data:  { cameraModelId: turretModel.id },
   });
 
-  await prisma.camera.upsert({
-    where:  { cameraCode: 'CAM-002' },
-    update: {},
-    create: {
-      cameraCode:     'CAM-002',
-      cameraName:     'Parking Lot North — Camera 1',
-      modelId:        bulletModel.id,
-      locationId:     parkingLocation.id,
-      ipAddress:      '10.20.1.201',
-      vlanId:         20,
-      switchName:     'SW-EXT1',
-      switchPort:     'Gi0/1',
-      nvrName:        'NVR-01',
-      recordingMode:  RecordingMode.MOTION,
-      retentionDays:  30,
-      bitrateMbps:    4.0,
-      frameRate:      15,
-      status:         CameraStatus.ACTIVE,
-      httpsEnabled:   true,
-      usernameChanged: true,
-    },
-  });
-
-  console.log('✓ Cameras created');
+  console.log('✓ Camera models created and assigned');
 
   // ── Project Costs (lineTotal is DB-generated — do not set it) ─────────────
   const costs = [

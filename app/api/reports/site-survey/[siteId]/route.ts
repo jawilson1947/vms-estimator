@@ -32,9 +32,7 @@ export async function GET(
         include: {
           locations: {
             include: {
-              cameras: {
-                include: { model: true },
-              },
+              cameraModel: true,
             },
           },
         },
@@ -55,22 +53,17 @@ export async function GET(
   const inner  = pageW - margin * 2;
   const date   = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
-  // Flatten cameras
-  const allCameras = site.buildings.flatMap(b =>
-    b.locations.flatMap(l => l.cameras.map(c => ({ ...c, building: b, location: l })))
+  // Flatten locations that have a camera model assigned
+  const allLocations = site.buildings.flatMap(b =>
+    b.locations.map(l => ({ ...l, building: b }))
   );
+  const assignedLocations = allLocations.filter(l => l.cameraModel != null);
 
-  const totalCameras = allCameras.length;
-  const httpsOk  = allCameras.filter(c => c.httpsEnabled).length;
-  const userOk   = allCameras.filter(c => c.usernameChanged).length;
-  const poeTotal = allCameras.reduce((s, c) => s + (c.model?.maxPowerWatts ? Number(c.model.maxPowerWatts) : 0), 0);
-
-  // Storage estimate (GB): bitrate * retention * cameras / 8 / 1000
-  const storageTB = allCameras.reduce((s, c) => {
-    const mbps = c.bitrateMbps ? Number(c.bitrateMbps) : 4;
-    const days = c.retentionDays ?? 30;
-    return s + (mbps * days * 86400) / 8 / 1e9;
-  }, 0);
+  const totalCameras = assignedLocations.length;
+  const httpsOk  = 0;
+  const userOk   = 0;
+  const poeTotal = 0;
+  const storageTB = 0;
 
   // ── Cover header ──────────────────────────────────────────────────────────
   doc.rect(0, 0, pageW, 90).fill(NAVY);
@@ -138,21 +131,21 @@ export async function GET(
   doc.moveTo(margin, y).lineTo(margin + inner, y).strokeColor('#E5E7EB').lineWidth(0.5).stroke();
   y += 14;
 
-  // ── Per-building camera tables ─────────────────────────────────────────────
+  // ── Per-building location tables ──────────────────────────────────────────
   for (const bldg of site.buildings) {
-    const bCams = bldg.locations.flatMap(l => l.cameras.map(c => ({ ...c, location: l })));
-    if (bCams.length === 0) continue;
+    const bLocs = bldg.locations.filter(l => l.cameraModel != null);
+    if (bLocs.length === 0) continue;
 
     // Building header
     doc.rect(margin, y, inner, 20).fill(BLUE);
     doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica-Bold')
-       .text(`${bldg.buildingName}  (${bCams.length} cameras)`, margin + 8, y + 6);
+       .text(`${bldg.buildingName}  (${bLocs.length} locations assigned)`, margin + 8, y + 6);
     y += 20;
 
     // Column headers
-    const cx  = [margin, margin + 90, margin + 190, margin + 270, margin + 340, margin + 400, margin + 440];
-    const cw  = [85,      95,          75,           65,           55,           35,            inner - (440 - margin + 35)];
-    const chs = ['Code', 'Location', 'Model', 'IP Address', 'Status', 'HTTPS', 'Firmware'];
+    const cx  = [margin, margin + 110, margin + 240, margin + 360];
+    const cw  = [105,     125,          115,           inner - 365];
+    const chs = ['Area / Location', 'Manufacturer', 'Model', 'Type / Env'];
 
     doc.rect(margin, y, inner, 16).fill('#EEF2FF');
     doc.fillColor(NAVY).fontSize(7.5).font('Helvetica-Bold');
@@ -160,19 +153,13 @@ export async function GET(
     y += 16;
 
     doc.fillColor('#111827').font('Helvetica').fontSize(7.5);
-    bCams.forEach((cam, ri) => {
+    bLocs.forEach((loc, ri) => {
       if (ri % 2 === 0) doc.rect(margin, y, inner, 14).fill('#F9FAFB');
-      const modelStr = cam.model ? `${cam.model.manufacturer ?? ''} ${cam.model.modelNumber ?? ''}`.trim() : '';
-      doc.fillColor('#111827').text(cam.cameraCode, cx[0] + 3, y + 3, { width: cw[0] });
-      doc.fillColor(GRAY)     .text(cam.location.areaName ?? '', cx[1] + 3, y + 3, { width: cw[1] });
-      doc.fillColor('#111827').text(modelStr.substring(0, 18), cx[2] + 3, y + 3, { width: cw[2] });
-      doc.text(cam.ipAddress ?? '—', cx[3] + 3, y + 3, { width: cw[3] });
-      doc.fillColor(cam.status === 'ACTIVE' ? GREEN : cam.status === 'OFFLINE' ? RED : GRAY)
-         .text(cam.status.replace('_', ' '), cx[4] + 3, y + 3, { width: cw[4] });
-      doc.fillColor(cam.httpsEnabled ? GREEN : RED)
-         .text(cam.httpsEnabled ? 'Yes' : 'No', cx[5] + 3, y + 3, { width: cw[5] });
-      doc.fillColor(GRAY)
-         .text(cam.firmwareVersion ?? '—', cx[6] + 3, y + 3, { width: Math.max(cw[6], 40) });
+      const cm = loc.cameraModel!;
+      doc.fillColor('#111827').text(loc.areaName ?? '—', cx[0] + 3, y + 3, { width: cw[0] });
+      doc.fillColor(GRAY)     .text(cm.manufacturer ?? '—', cx[1] + 3, y + 3, { width: cw[1] });
+      doc.fillColor('#111827').text(cm.model ?? '—', cx[2] + 3, y + 3, { width: cw[2] });
+      doc.fillColor(GRAY)     .text([cm.cameraType, cm.indoorOutdoor].filter(Boolean).join(' / ') || '—', cx[3] + 3, y + 3, { width: cw[3] });
       y += 14;
 
       if (y > doc.page.height - 80) {
