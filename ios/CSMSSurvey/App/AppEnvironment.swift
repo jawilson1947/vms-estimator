@@ -15,7 +15,7 @@ struct AppEnvironment {
             return url
         }
         // Fallback for Simulator when xcconfig is not yet configured
-        return URL(string: "http://localhost:3000")!
+        return URL(string: "http://192.168.0.190:3000")!
     }
 
     /// Claude API key, read from Info.plist (set by xcconfig CLAUDE_API_KEY).

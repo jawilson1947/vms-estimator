@@ -38,7 +38,6 @@ next-env.d.ts
 /public/uploads/
 *.log
 
-<<<<<<< Updated upstream
 # iOS / Xcode
 ios/build/
 ios/*.xcworkspace/xcuserdata/
@@ -50,7 +49,8 @@ ios/*.ipa
 ios/*.dSYM.zip
 ios/*.dSYM
 ios/.DS_Store
-=======
-# iOS development (Mac)
-/ios
->>>>>>> Stashed changes
+# iOS secrets — never commit API keys
+ios/Debug.xcconfig
+ios/Release.xcconfig
+ios/Debug.xcconfig
+ios/Release.xcconfig

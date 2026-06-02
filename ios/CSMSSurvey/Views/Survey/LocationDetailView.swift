@@ -123,8 +123,6 @@ struct LocationDetailView: View {
         }
         .navigationTitle(vm.location.areaName)
         .navigationBarTitleDisplayMode(.large)
-        .toolbarBackground(Theme.surface, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .onAppear {
             notesText = vm.location.surveyNotes ?? ""
             registerVoiceCommands()

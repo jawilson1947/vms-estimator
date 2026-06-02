@@ -65,8 +65,6 @@ struct SiteListView: View {
                 }
             }
             .navigationTitle("Survey Sites")
-            .toolbarBackground(Theme.surface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .navigationDestination(for: Int.self) { siteId in
                 SurveyBoardView(siteId: siteId)
             }

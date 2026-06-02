@@ -37,8 +37,6 @@ struct AddLocationSheet: View {
             }
             .navigationTitle("Add Location")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Theme.surface, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar { toolbarItems }
         }
         .onChange(of: photoItem) { _, item in Task { await loadPhoto(item) } }

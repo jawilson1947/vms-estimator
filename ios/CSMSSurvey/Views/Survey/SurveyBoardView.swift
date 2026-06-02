@@ -117,8 +117,6 @@ struct SurveyBoardView: View {
         }
         .navigationTitle(vm.site?.siteName ?? "Survey")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Theme.surface, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 8) {

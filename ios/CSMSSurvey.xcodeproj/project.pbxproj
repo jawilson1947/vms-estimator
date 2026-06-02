@@ -332,6 +332,7 @@
 			baseConfigurationReference = 60603ABEA715D3E98D41201B /* Release.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				API_BASE_HOST = vms.digitalsupportsystems.com;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -386,6 +387,7 @@
 		};
 		6D4BB47BEF71B4059C180B46 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 56982D25A2319D3D7D57BC5A /* Debug.xcconfig */;
 			buildSettings = {
 				API_BASE_HOST = "$(API_BASE_HOST)";
 				API_BASE_SCHEME = "$(API_BASE_SCHEME)";
@@ -394,7 +396,7 @@
 				CLAUDE_API_KEY = "$(CLAUDE_API_KEY)";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1.2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = VPA64V23J9;
 				INFOPLIST_FILE = CSMSSurvey/Resources/Info.plist;
@@ -417,6 +419,7 @@
 			baseConfigurationReference = 56982D25A2319D3D7D57BC5A /* Debug.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				"API_BASE_HOST[arch=*]" = "192.168.0.190:3000";
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -478,6 +481,7 @@
 		};
 		ABFADB2C6175936E438F7D07 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 60603ABEA715D3E98D41201B /* Release.xcconfig */;
 			buildSettings = {
 				API_BASE_HOST = "$(API_BASE_HOST)";
 				API_BASE_SCHEME = "$(API_BASE_SCHEME)";
@@ -486,7 +490,7 @@
 				CLAUDE_API_KEY = "$(CLAUDE_API_KEY)";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 1.2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = VPA64V23J9;
 				INFOPLIST_FILE = CSMSSurvey/Resources/Info.plist;
@@ -513,7 +517,7 @@
 				2A8C66BC3502996A8BD189EA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
+			defaultConfigurationName = Release;
 		};
 		CF3B37B5879583770DDB88A3 /* Build configuration list for PBXNativeTarget "CSMSSurvey" */ = {
 			isa = XCConfigurationList;
@@ -522,7 +526,7 @@
 				ABFADB2C6175936E438F7D07 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
