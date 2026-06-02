@@ -9,12 +9,7 @@ export default async function WorksheetIndexPage() {
       buildings: {
         include: {
           locations: {
-            include: {
-              cameras: {
-                where: { status: { not: 'RETIRED' } },
-                include: { model: true },
-              },
-            },
+            select: { id: true, cameraModelId: true },
           },
         },
       },
@@ -33,8 +28,7 @@ export default async function WorksheetIndexPage() {
 
       <div className="space-y-3">
         {sites.map(site => {
-          const cameras = site.buildings.flatMap(b => b.locations.flatMap(l => l.cameras));
-          const cameraCount = cameras.length;
+          const cameraCount = site.buildings.flatMap(b => b.locations).filter(l => l.cameraModelId !== null).length;
           return (
             <Link
               key={site.id}
