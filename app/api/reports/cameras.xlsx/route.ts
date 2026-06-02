@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import ExcelJS from 'exceljs';
+import { Environment } from '@prisma/client';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,9 +68,9 @@ export async function GET(_req: NextRequest) {
     ['PTZ Capable',      models.filter(m => m.ptz).length],
     ['Night Vision',     models.filter(m => m.nightVision).length],
     ['Vandal Proof',     models.filter(m => m.vandalProof).length],
-    ['Indoor',           models.filter(m => m.indoorOutdoor === 'Indoor').length],
-    ['Outdoor',          models.filter(m => m.indoorOutdoor === 'Outdoor').length],
-    ['Both',             models.filter(m => m.indoorOutdoor === 'Both').length],
+    ['Indoor',           models.filter(m => m.indoorOutdoor === Environment.INDOOR).length],
+    ['Outdoor',          models.filter(m => m.indoorOutdoor === Environment.OUTDOOR).length],
+    ['Both',             models.filter(m => m.indoorOutdoor === Environment.BOTH).length],
   ];
   let r = 4;
   for (const [label, val] of stats) {
