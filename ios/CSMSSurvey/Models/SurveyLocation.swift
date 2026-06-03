@@ -16,6 +16,12 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
 
     var isDone: Bool { surveyedAt != nil }
 
+    enum CodingKeys: String, CodingKey {
+        case id, buildingId, areaName, floor, surveyNotes, notes
+        case mountingLocation, coveragePurpose, surveyedAt
+        case images, cameras, cameraModel
+    }
+
     // Hashable / Equatable on id only so NavigationStack path works
     static func == (lhs: SurveyLocation, rhs: SurveyLocation) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
