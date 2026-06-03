@@ -11,13 +11,29 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     var coveragePurpose: String?
     var surveyedAt: String?          // ISO-8601 string or nil
     var images: [SurveyPhoto]
-    var cameras: [LocationCamera] = []
+    var cameras: [LocationCamera]
 
     var isDone: Bool { surveyedAt != nil }
 
     // Hashable / Equatable on id only so NavigationStack path works
     static func == (lhs: SurveyLocation, rhs: SurveyLocation) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
+    // Custom decoder so missing `cameras` or `images` arrays don't crash
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id               = try c.decode(Int.self,    forKey: .id)
+        buildingId       = try c.decode(Int.self,    forKey: .buildingId)
+        areaName         = try c.decode(String.self, forKey: .areaName)
+        floor            = try c.decodeIfPresent(String.self, forKey: .floor)
+        surveyNotes      = try c.decodeIfPresent(String.self, forKey: .surveyNotes)
+        notes            = try c.decodeIfPresent(String.self, forKey: .notes)
+        mountingLocation = try c.decodeIfPresent(String.self, forKey: .mountingLocation)
+        coveragePurpose  = try c.decodeIfPresent(String.self, forKey: .coveragePurpose)
+        surveyedAt       = try c.decodeIfPresent(String.self, forKey: .surveyedAt)
+        images           = (try? c.decodeIfPresent([SurveyPhoto].self,    forKey: .images))  ?? []
+        cameras          = (try? c.decodeIfPresent([LocationCamera].self, forKey: .cameras)) ?? []
+    }
 }
 
 // MARK: - Lightweight camera info shown on location
