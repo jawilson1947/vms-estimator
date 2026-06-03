@@ -91,6 +91,24 @@ final class APIClient {
         try await delete(path)
     }
 
+    // MARK: - Camera catalog
+
+    func fetchCameras() async throws -> [CameraModel] {
+        try await get("/api/survey/cameras")
+    }
+
+    // MARK: - Assign / remove camera model on a location
+
+    func assignCamera(locationId: Int, cameraModelId: Int) async throws -> SurveyLocation {
+        let body = CameraAssignBody(cameraModelId: cameraModelId)
+        return try await patch("/api/survey/locations/\(locationId)", body: body)
+    }
+
+    func removeCamera(locationId: Int) async throws -> SurveyLocation {
+        let body = CameraRemoveBody(cameraModelId: nil)
+        return try await patch("/api/survey/locations/\(locationId)", body: body)
+    }
+
     // MARK: - Delete location
 
     func deleteLocation(_ id: Int) async throws {

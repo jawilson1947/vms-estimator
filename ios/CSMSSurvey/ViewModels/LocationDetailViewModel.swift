@@ -67,6 +67,36 @@ final class LocationDetailViewModel: ObservableObject {
         isUploading = false
     }
 
+    // MARK: - Assign camera
+
+    func assignCamera(_ camera: CameraModel) async {
+        isSaving = true
+        errorMsg = nil
+        do {
+            let updated = try await api.assignCamera(locationId: location.id, cameraModelId: camera.id)
+            location = updated
+            onUpdate?(updated)
+        } catch {
+            errorMsg = error.localizedDescription
+        }
+        isSaving = false
+    }
+
+    // MARK: - Remove camera
+
+    func removeCamera() async {
+        isSaving = true
+        errorMsg = nil
+        do {
+            let updated = try await api.removeCamera(locationId: location.id)
+            location = updated
+            onUpdate?(updated)
+        } catch {
+            errorMsg = error.localizedDescription
+        }
+        isSaving = false
+    }
+
     // MARK: - Delete photo
 
     func deletePhoto(_ photo: SurveyPhoto) async {

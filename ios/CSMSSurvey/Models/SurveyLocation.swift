@@ -12,6 +12,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     var surveyedAt: String?          // ISO-8601 string or nil
     var images: [SurveyPhoto]
     var cameras: [LocationCamera]
+    var cameraModel: CameraModel?
 
     var isDone: Bool { surveyedAt != nil }
 
@@ -33,6 +34,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
         surveyedAt       = try c.decodeIfPresent(String.self, forKey: .surveyedAt)
         images           = (try? c.decodeIfPresent([SurveyPhoto].self,    forKey: .images))  ?? []
         cameras          = (try? c.decodeIfPresent([LocationCamera].self, forKey: .cameras)) ?? []
+        cameraModel      = try? c.decodeIfPresent(CameraModel.self,       forKey: .cameraModel)
     }
 }
 
@@ -68,4 +70,12 @@ struct UpdateLocationBody: Encodable {
     var surveyNotes: String?
     var notes: String?
     var markSurveyed: Bool?
+}
+
+struct CameraAssignBody: Encodable {
+    let cameraModelId: Int
+}
+
+struct CameraRemoveBody: Encodable {
+    let cameraModelId: Int?
 }

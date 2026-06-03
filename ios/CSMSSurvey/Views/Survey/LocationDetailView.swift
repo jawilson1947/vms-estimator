@@ -7,9 +7,10 @@ struct LocationDetailView: View {
     private        let speech      = SpeechOutputManager.shared
     @Environment(\.dismiss) private var dismiss
 
-    @State private var notesText   = ""
-    @State private var photoItem:  PhotosPickerItem?
-    @State private var showCamera  = false
+    @State private var notesText        = ""
+    @State private var photoItem:       PhotosPickerItem?
+    @State private var showCamera       = false
+    @State private var showCameraPicker = false
 
     init(location: SurveyLocation, onUpdate: @escaping (SurveyLocation) -> Void) {
         let viewModel = LocationDetailViewModel(location: location)
@@ -42,10 +43,10 @@ struct LocationDetailView: View {
                         Spacer()
                     }
 
-                    // Camera assignment (read-only)
-                    if let cam = vm.location.cameras.first {
-                        VStack(alignment: .leading, spacing: 10) {
-                            DarkSectionHeader(title: "Assigned Camera")
+                    // Camera assignment
+                    VStack(alignment: .leading, spacing: 10) {
+                        DarkSectionHeader(title: "Camera Model")
+                        if let cam = vm.location.cameraModel {
                             HStack(spacing: 12) {
                                 ZStack {
                                     RoundedRectangle(cornerRadius: 8)
@@ -56,16 +57,60 @@ struct LocationDetailView: View {
                                         .foregroundStyle(Theme.accent)
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(cam.cameraName)
+                                    Text(cam.displayName)
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(Theme.textPrimary)
-                                    Text(cam.cameraCode)
-                                        .font(.caption)
-                                        .foregroundStyle(Theme.textSecondary)
+                                    HStack(spacing: 6) {
+                                        if let type = cam.cameraType {
+                                            Text(type)
+                                                .font(.caption)
+                                                .foregroundStyle(Theme.accent)
+                                        }
+                                        if let res = cam.resolutionClass ?? cam.resolution {
+                                            Text("· \(res)")
+                                                .font(.caption)
+                                                .foregroundStyle(Theme.textSecondary)
+                                        }
+                                    }
+                                }
+                                Spacer()
+                                if vm.isSaving {
+                                    ProgressView().tint(Theme.accent)
+                                } else {
+                                    Button {
+                                        Task { await vm.removeCamera() }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(Theme.textSecondary)
+                                            .font(.system(size: 20))
+                                    }
                                 }
                             }
+                            .padding(12)
+                            .background(Theme.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
+                        } else {
+                            Button {
+                                showCameraPicker = true
+                            } label: {
+                                Label("Assign Camera", systemImage: "camera.badge.plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Theme.accent)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(Theme.accentSoft)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+                            }
+                            .disabled(vm.isSaving)
                         }
-                        .darkCard()
+                    }
+                    .darkCard()
+                    .sheet(isPresented: $showCameraPicker) {
+                        CameraPickerSheet { selected in
+                            Task { await vm.assignCamera(selected) }
+                        }
                     }
 
                     // Survey notes
