@@ -24,7 +24,7 @@ struct CameraPickerSheet: View {
                         }
                         .padding()
                     } else if vm.filtered.isEmpty {
-                        Text(vm.searchText.isEmpty ? "No cameras found." : "No results for "\(vm.searchText)".")
+                        Text(vm.searchText.isEmpty ? "No cameras found." : "No results for \"\(vm.searchText)\".")
                             .foregroundStyle(Theme.textSecondary)
                             .font(.subheadline)
                     } else {
