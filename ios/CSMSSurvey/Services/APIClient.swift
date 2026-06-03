@@ -33,7 +33,7 @@ final class APIClient {
 
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
-        e.keyEncodingStrategy = .convertToSnakeCase
+        // Server expects camelCase keys — use default (no conversion)
         return e
     }()
 

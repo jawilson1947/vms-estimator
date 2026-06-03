@@ -131,7 +131,10 @@ final class AuthService: ObservableObject {
     private func hasSesionCookie() -> Bool {
         let storage = session.configuration.httpCookieStorage ?? HTTPCookieStorage.shared
         return storage.cookies?.contains(where: {
-            $0.name.hasPrefix("next-auth") || $0.name == "__Secure-next-auth.session-token"
+            $0.name.hasPrefix("next-auth") ||
+            $0.name == "__Secure-next-auth.session-token" ||
+            $0.name == "__Host-next-auth.csrf-token" ||
+            $0.name == "__Secure-next-auth.callback-url"
         }) ?? false
     }
 }
