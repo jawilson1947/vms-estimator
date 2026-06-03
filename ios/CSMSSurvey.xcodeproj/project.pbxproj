@@ -37,7 +37,10 @@
 		E70BA1A4D7693B62B23D20FA /* PhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */; };
 		EAB71A4B56833661F28A7987 /* CSMSSurveyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7741126F21807C1A269CBB /* CSMSSurveyApp.swift */; };
 		FDDFC9B33E13B3AA9E85F4B3 /* VoiceTestPhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC326890394BC7E47F85CF42 /* VoiceTestPhrases.swift */; };
-/* End PBXBuildFile section */
+		E7909C1C76744BF6BD36AD38 /* CameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343957EACBF746CF828B4A34 /* CameraModel.swift */; };
+		21FADACF8A1D44BF9BDEA295 /* CameraPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21049828024413DB0AFB495 /* CameraPickerSheet.swift */; };
+		239046164BBE40808FF29B23 /* CameraPickerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C3E01DB082D439393B8204E /* CameraPickerViewModel.swift */; };
+		/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		02676A0FF4CB3BED2DDD94EB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -74,13 +77,17 @@
 		E7A617A8243B5C0C1F6AE3B6 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		E7C9D8A65FADBD9CB7DF60EE /* SiteListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteListView.swift; sourceTree = "<group>"; };
 		EFF4CD120FEB81FEE2A7F885 /* LocationDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationDetailViewModel.swift; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+		343957EACBF746CF828B4A34 /* CameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraModel.swift; sourceTree = "<group>"; };
+		A21049828024413DB0AFB495 /* CameraPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerSheet.swift; sourceTree = "<group>"; };
+		0C3E01DB082D439393B8204E /* CameraPickerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerViewModel.swift; sourceTree = "<group>"; };
+		/* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		032FBBA393B750CDF84C7B0F /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
-				EFF4CD120FEB81FEE2A7F885 /* LocationDetailViewModel.swift */,
+				EFF4CD120FEB81FEE2A7F885 /* CameraPickerViewModel.swift */,
+				0C3E01DB082D439393B8204E /* LocationDetailViewModel.swift */,
 				7FA4281ED318EDCD3A5CB074 /* SiteListViewModel.swift */,
 				364D4B0BAFCC0FDA703CB6D0 /* SurveyBoardViewModel.swift */,
 			);
@@ -146,7 +153,8 @@
 		61A2D64C1D562BA5AA06516E /* Survey */ = {
 			isa = PBXGroup;
 			children = (
-				B29387831190F4625E90A0FF /* AddLocationSheet.swift */,
+				B29387831190F4625E90A0FF /* CameraPickerSheet.swift */,
+				A21049828024413DB0AFB495 /* AddLocationSheet.swift */,
 				9AA4CC43236E38D4E1BF452D /* LocationDetailView.swift */,
 				9DC822B1BB0B381E05490493 /* MicButton.swift */,
 				12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */,
@@ -161,7 +169,8 @@
 		977FD40349824C6951A93927 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				4E923DD9F5AFC016FE4D24D9 /* Site.swift */,
+				4E923DD9F5AFC016FE4D24D9 /* CameraModel.swift */,
+				343957EACBF746CF828B4A34 /* Site.swift */,
 				1683B7036003FCAA0C5438BD /* SurveyLocation.swift */,
 				E58E9EA96E559753BFFD35CD /* SurveyPhoto.swift */,
 			);
@@ -295,6 +304,9 @@
 				741E710DE1262C44CD0F2741 /* APIClient.swift in Sources */,
 				10124E705D8F7D073179096E /* AddLocationSheet.swift in Sources */,
 				A1664791041BC815BDF3BF3D /* AppEnvironment.swift in Sources */,
+				239046164BBE40808FF29B23 /* CameraPickerViewModel.swift in Sources */,
+				21FADACF8A1D44BF9BDEA295 /* CameraPickerSheet.swift in Sources */,
+				E7909C1C76744BF6BD36AD38 /* CameraModel.swift in Sources */,
 				33BFCF03F0F395781B9C4655 /* AuthService.swift in Sources */,
 				EAB71A4B56833661F28A7987 /* CSMSSurveyApp.swift in Sources */,
 				E241CD044CF0A538DCA0B5AC /* ClaudeInterviewClient.swift in Sources */,

@@ -36,6 +36,23 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
         cameras          = (try? c.decodeIfPresent([LocationCamera].self, forKey: .cameras)) ?? []
         cameraModel      = try? c.decodeIfPresent(CameraModel.self,       forKey: .cameraModel)
     }
+
+    // Custom encoder required when custom init(from:) is present
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id,               forKey: .id)
+        try c.encode(buildingId,       forKey: .buildingId)
+        try c.encode(areaName,         forKey: .areaName)
+        try c.encodeIfPresent(floor,            forKey: .floor)
+        try c.encodeIfPresent(surveyNotes,      forKey: .surveyNotes)
+        try c.encodeIfPresent(notes,            forKey: .notes)
+        try c.encodeIfPresent(mountingLocation, forKey: .mountingLocation)
+        try c.encodeIfPresent(coveragePurpose,  forKey: .coveragePurpose)
+        try c.encodeIfPresent(surveyedAt,       forKey: .surveyedAt)
+        try c.encode(images,      forKey: .images)
+        try c.encode(cameras,     forKey: .cameras)
+        try c.encodeIfPresent(cameraModel, forKey: .cameraModel)
+    }
 }
 
 // MARK: - Lightweight camera info shown on location

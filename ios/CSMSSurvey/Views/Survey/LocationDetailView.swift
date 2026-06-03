@@ -107,11 +107,6 @@ struct LocationDetailView: View {
                         }
                     }
                     .darkCard()
-                    .sheet(isPresented: $showCameraPicker) {
-                        CameraPickerSheet { selected in
-                            Task { await vm.assignCamera(selected) }
-                        }
-                    }
 
                     // Survey notes
                     VStack(alignment: .leading, spacing: 10) {
@@ -164,6 +159,11 @@ struct LocationDetailView: View {
                     }
                 }
                 .padding(16)
+            }
+        }
+        .sheet(isPresented: $showCameraPicker) {
+            CameraPickerSheet { selected in
+                Task { await vm.assignCamera(selected) }
             }
         }
         .navigationTitle(vm.location.areaName)
