@@ -267,8 +267,23 @@ function CameraFormModal({
   onSave:  (data: Omit<CameraModel, 'id'>) => Promise<void>;
   onClose: () => void;
 }) {
+  // Prisma returns enum keys (DOME, INDOOR); form options use display strings (Dome, Indoor)
+  function normalizeInitial(m: CameraModel): Omit<CameraModel, 'id'> {
+    const typeMap: Record<string, CameraType> = {
+      DOME: 'Dome', FISHEYE: 'Fisheye', TURRET: 'Turret', OTHER: 'Other',
+    };
+    const envMap: Record<string, Environment> = {
+      INDOOR: 'Indoor', OUTDOOR: 'Outdoor', BOTH: 'Both',
+    };
+    return {
+      ...m,
+      cameraType:    m.cameraType    ? (typeMap[m.cameraType]    ?? m.cameraType)    as CameraType    : null,
+      indoorOutdoor: m.indoorOutdoor ? (envMap[m.indoorOutdoor]  ?? m.indoorOutdoor) as Environment : null,
+    };
+  }
+
   const [form, setForm] = useState<Omit<CameraModel, 'id'>>(
-    initial ? { ...initial } : { ...EMPTY_FORM }
+    initial ? normalizeInitial(initial) : { ...EMPTY_FORM }
   );
   const [mounts,      setMounts]      = useState<MountOption[]>(parseMounts(initial?.mount ?? null));
   const [saving,      setSaving]      = useState(false);
@@ -514,14 +529,27 @@ function CameraFormModal({
           {/* ── Features ── */}
           <section>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Features</h3>
-            <div className="grid grid-cols-3 gap-x-6 gap-y-3">
+            <div className="grid grid-cols-3 gap-x-6 gap-y-3 items-start">
               <BoolField label="Audio"                    name="audio"              checked={form.audio}              onChange={v => set('audio', v)} />
               <BoolField label="Microphone"               name="microphone"         checked={form.microphone}         onChange={v => set('microphone', v)} />
               <BoolField label="Motion Detection"         name="motionDetection"    checked={form.motionDetection}    onChange={v => set('motionDetection', v)} />
               <BoolField label="Night Vision"             name="nightVision"        checked={form.nightVision}        onChange={v => set('nightVision', v)} />
               <BoolField label="Human/Vehicle Detection"  name="humanVehicleDetect" checked={form.humanVehicleDetect} onChange={v => set('humanVehicleDetect', v)} />
               <BoolField label="Vandal Proof"             name="vandalProof"        checked={form.vandalProof}        onChange={v => set('vandalProof', v)} />
-              <BoolField label="SSD"                      name="ssd"                checked={form.ssd}                onChange={v => set('ssd', v)} />
+              {/* SSD + Comment on the same row */}
+              <div className="flex items-start pt-0.5">
+                <BoolField label="SSD" name="ssd" checked={form.ssd} onChange={v => set('ssd', v)} />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Comment</label>
+                <textarea
+                  className="form-input w-full resize-none text-sm"
+                  rows={3}
+                  placeholder="Additional comments or follow-up items…"
+                  value={form.comment ?? ''}
+                  onChange={e => set('comment', e.target.value || null)}
+                />
+              </div>
             </div>
           </section>
 
@@ -558,18 +586,6 @@ function CameraFormModal({
                 ))}
               </div>
             </div>
-          </section>
-
-          {/* ── Comment ── */}
-          <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Comment</h3>
-            <textarea
-              className="form-input w-full resize-none"
-              rows={3}
-              placeholder="Additional comments or follow-up items…"
-              value={form.comment ?? ''}
-              onChange={e => set('comment', e.target.value || null)}
-            />
           </section>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -714,6 +730,7 @@ export function CamerasCatalog() {
 
       {/* Grid / Empty */}
       {loading ? (
+
         <div className="card p-12 text-center text-sm text-gray-400">Loading…</div>
       ) : cameras.length === 0 ? (
         <div className="card p-12 text-center">
