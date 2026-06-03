@@ -185,6 +185,7 @@ model CameraModel {
   fps                 Int?
   humanVehicleDetect  Boolean      @default(false) @map("human_vehicle_detect")
   mount               String?      @db.VarChar(100)
+  comment             String?      @db.Text
 
   locations           CameraLocation[]
 

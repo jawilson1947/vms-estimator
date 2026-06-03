@@ -23,6 +23,7 @@ interface FormData {
   recordingMode: string; retentionDays: string; bitrateMbps: string; frameRate: string;
   usernameChanged: boolean; httpsEnabled: boolean; privacyMaskEnabled: boolean;
   notes: string;
+  comment: string;
 }
 
 const empty: FormData = {
@@ -30,7 +31,7 @@ const empty: FormData = {
   serialNumber: '', assetTag: '', firmwareVersion: '', installDate: '', warrantyExpiration: '',
   ipAddress: '', macAddress: '', vlanId: '', switchName: '', switchPort: '', nvrName: '',
   recordingMode: '', retentionDays: '', bitrateMbps: '', frameRate: '',
-  usernameChanged: false, httpsEnabled: false, privacyMaskEnabled: false, notes: '',
+  usernameChanged: false, httpsEnabled: false, privacyMaskEnabled: false, notes: '', comment: '',
 };
 
 const tabs = ['Identification', 'Network', 'Recording', 'Security'] as const;
@@ -173,6 +174,13 @@ export function CameraForm({ models, locations, initialData, cameraId }: Props) 
             <label className="form-label">Notes</label>
             <textarea name="notes" value={form.notes} onChange={handleChange}
               rows={3} className="form-input resize-none" />
+          </div>
+
+          <div>
+            <label className="form-label">Comment</label>
+            <textarea name="comment" value={form.comment} onChange={handleChange}
+              rows={3} placeholder="Additional comments or follow-up items…"
+              className="form-input resize-none" />
           </div>
         </div>
       )}

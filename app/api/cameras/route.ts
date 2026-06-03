@@ -107,5 +107,6 @@ export function buildData(b: Record<string, unknown>) {
     fps:                b.fps         ? Number(b.fps)         : null,
     humanVehicleDetect: !!b.humanVehicleDetect,
     mount:              Array.isArray(b.mount) ? JSON.stringify(b.mount) : (str(b.mount)),
+    comment:            str(b.comment),
   };
 }
