@@ -11,7 +11,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     var coveragePurpose: String?
     var surveyedAt: String?          // ISO-8601 string or nil
     var images: [SurveyPhoto]
-    var cameras: [LocationCamera]
+    var cameras: [LocationCamera] = []
 
     var isDone: Bool { surveyedAt != nil }
 
