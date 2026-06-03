@@ -14,6 +14,7 @@ struct CSMSSurveyApp: App {
             ContentView()
                 .environmentObject(auth)
                 .environmentObject(voice)
+                .preferredColorScheme(.dark)
                 .task {
                     // Restore existing session on launch
                     await auth.checkSession()
