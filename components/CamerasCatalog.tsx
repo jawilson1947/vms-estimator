@@ -48,6 +48,7 @@ interface CameraModel {
   fps:                number | null;
   humanVehicleDetect: boolean;
   mount:              string | null; // JSON array string
+  comment:            string | null;
 }
 
 const EMPTY_FORM: Omit<CameraModel, 'id'> = {
@@ -60,7 +61,7 @@ const EMPTY_FORM: Omit<CameraModel, 'id'> = {
   microphone: false,      rangeFt: null,      resolutionClass: '',
   vandalProof: false,     url: '',            ssd: false,
   fps: null,              humanVehicleDetect: false,
-  mount: null,
+  mount: null,            comment: null,
 };
 
 const MOUNT_OPTIONS: MountOption[] = ['Wall', 'Ceiling', 'Recessed'];
@@ -557,6 +558,18 @@ function CameraFormModal({
                 ))}
               </div>
             </div>
+          </section>
+
+          {/* ── Comment ── */}
+          <section>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">Comment</h3>
+            <textarea
+              className="form-input w-full resize-none"
+              rows={3}
+              placeholder="Additional comments or follow-up items…"
+              value={form.comment ?? ''}
+              onChange={e => set('comment', e.target.value || null)}
+            />
           </section>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
