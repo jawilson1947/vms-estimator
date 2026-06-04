@@ -13,8 +13,8 @@ final class CameraPickerViewModel: ObservableObject {
         guard !searchText.isEmpty else { return cameras }
         let q = searchText.lowercased()
         return cameras.filter {
-            $0.manufacturer.lowercased().contains(q) ||
-            $0.model.lowercased().contains(q) ||
+            ($0.manufacturer?.lowercased().contains(q) ?? false) ||
+            ($0.model?.lowercased().contains(q) ?? false) ||
             ($0.cameraType?.lowercased().contains(q) ?? false)
         }
     }
