@@ -16,7 +16,8 @@ struct AddLocationSheet: View {
     @State private var surveyNotes  = ""
     @State private var selectedBuilding: SurveyBuilding?
     @State private var pendingPhotos: [UIImage] = []
-    @State private var photoItem:   PhotosPickerItem?
+    @State private var photoItem:    PhotosPickerItem?
+    @State private var showCamera    = false
     @State private var isSaving     = false
     @State private var errorMsg:    String?
     @State private var voiceField:  String?   // highlights active field
@@ -139,15 +140,37 @@ struct AddLocationSheet: View {
             .darkCard()
         }
         if pendingPhotos.count < maxPhotos {
-            PhotosPicker(selection: $photoItem, matching: .images) {
-                Label("Add Photo", systemImage: "camera.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Theme.accent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Theme.accentSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+            HStack(spacing: 10) {
+                Button {
+                    showCamera = true
+                } label: {
+                    Label("Take Photo", systemImage: "camera.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Theme.accentSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+                }
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    Label("Library", systemImage: "photo.on.rectangle")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Theme.surfaceElevated)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 1))
+                }
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraCapture { image in
+                    if pendingPhotos.count < maxPhotos {
+                        pendingPhotos.append(image)
+                    }
+                }
+                .ignoresSafeArea()
             }
         }
     }

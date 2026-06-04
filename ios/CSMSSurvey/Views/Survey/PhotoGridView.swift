@@ -1,16 +1,19 @@
 import SwiftUI
 import PhotosUI
+import UIKit
 
 struct PhotoGridView: View {
-    let photos:       [SurveyPhoto]
-    let isUploading:  Bool
-    let atLimit:      Bool
-    let onDelete:     (SurveyPhoto) -> Void
-    let onPickerItem: (PhotosPickerItem?) -> Void
+    let photos:        [SurveyPhoto]
+    let isUploading:   Bool
+    let atLimit:       Bool
+    let onDelete:      (SurveyPhoto) -> Void
+    let onPickerItem:  (PhotosPickerItem?) -> Void
+    let onCameraImage: (UIImage) -> Void
 
-    @State private var pickerItem:   PhotosPickerItem?
-    @State private var deleteTarget: SurveyPhoto?
+    @State private var pickerItem:    PhotosPickerItem?
+    @State private var deleteTarget:  SurveyPhoto?
     @State private var expandedPhoto: SurveyPhoto?
+    @State private var showCamera:    Bool = false
 
     private let columns = [GridItem(.adaptive(minimum: 90), spacing: 8)]
 
@@ -80,17 +83,32 @@ struct PhotoGridView: View {
                 }
             }
 
-            // Add photo picker
+            // Photo capture / library buttons
             if !atLimit && !isUploading {
-                PhotosPicker(selection: $pickerItem, matching: .images) {
-                    Label("Add Photo", systemImage: "camera.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Theme.accent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(Theme.accentSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+                HStack(spacing: 10) {
+                    Button {
+                        showCamera = true
+                    } label: {
+                        Label("Take Photo", systemImage: "camera.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.accent)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Theme.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+                    }
+
+                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                        Label("Library", systemImage: "photo.on.rectangle")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.textSecondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Theme.surfaceElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.border, lineWidth: 1))
+                    }
                 }
             }
         }
@@ -113,6 +131,12 @@ struct PhotoGridView: View {
             PhotoExpandedView(photo: photo, allPhotos: photos) {
                 expandedPhoto = nil
             }
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraCapture { image in
+                onCameraImage(image)
+            }
+            .ignoresSafeArea()
         }
     }
 }

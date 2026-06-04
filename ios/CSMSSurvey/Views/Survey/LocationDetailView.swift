@@ -110,7 +110,29 @@ struct LocationDetailView: View {
 
                     // Survey notes
                     VStack(alignment: .leading, spacing: 10) {
-                        DarkSectionHeader(title: "Survey Notes")
+                        HStack {
+                            DarkSectionHeader(title: "Survey Notes")
+                            Spacer()
+                            if notesText != (vm.location.surveyNotes ?? "") {
+                                Button {
+                                    Task { await vm.saveNotes(notesText) }
+                                } label: {
+                                    if vm.isSaving {
+                                        ProgressView().tint(Theme.accent).scaleEffect(0.8)
+                                    } else {
+                                        Text("Save")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Theme.accent)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 5)
+                                            .background(Theme.accentSoft)
+                                            .clipShape(Capsule())
+                                            .overlay(Capsule().stroke(Theme.accent.opacity(0.3), lineWidth: 1))
+                                    }
+                                }
+                                .disabled(vm.isSaving)
+                            }
+                        }
                         TextEditor(text: $notesText)
                             .frame(minHeight: 90)
                             .foregroundStyle(Theme.textPrimary)
@@ -128,7 +150,8 @@ struct LocationDetailView: View {
                         isUploading: vm.isUploading,
                         atLimit: vm.atPhotoLimit,
                         onDelete: { photo in Task { await vm.deletePhoto(photo) } },
-                        onPickerItem: { item in Task { await loadPhoto(item) } }
+                        onPickerItem: { item in Task { await loadPhoto(item) } },
+                        onCameraImage: { image in Task { await vm.uploadPhoto(image) } }
                     )
 
                     // Error

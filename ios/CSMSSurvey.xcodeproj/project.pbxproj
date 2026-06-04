@@ -40,6 +40,7 @@
 		E7909C1C76744BF6BD36AD38 /* CameraModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343957EACBF746CF828B4A34 /* CameraModel.swift */; };
 		21FADACF8A1D44BF9BDEA295 /* CameraPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21049828024413DB0AFB495 /* CameraPickerSheet.swift */; };
 		239046164BBE40808FF29B23 /* CameraPickerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C3E01DB082D439393B8204E /* CameraPickerViewModel.swift */; };
+				ADA1BE1A9D584BC48FC4F41C /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4BA60D7420A4750948EBB69 /* CameraCapture.swift */; };
 		/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -80,6 +81,7 @@
 		343957EACBF746CF828B4A34 /* CameraModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraModel.swift; sourceTree = "<group>"; };
 		A21049828024413DB0AFB495 /* CameraPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerSheet.swift; sourceTree = "<group>"; };
 		0C3E01DB082D439393B8204E /* CameraPickerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerViewModel.swift; sourceTree = "<group>"; };
+				A4BA60D7420A4750948EBB69 /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
 		/* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -154,7 +156,8 @@
 			isa = PBXGroup;
 			children = (
 				B29387831190F4625E90A0FF /* CameraPickerSheet.swift */,
-				A21049828024413DB0AFB495 /* AddLocationSheet.swift */,
+				A21049828024413DB0AFB495 /* CameraCapture.swift */,
+				A4BA60D7420A4750948EBB69 /* AddLocationSheet.swift */,
 				9AA4CC43236E38D4E1BF452D /* LocationDetailView.swift */,
 				9DC822B1BB0B381E05490493 /* MicButton.swift */,
 				12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */,
@@ -304,6 +307,7 @@
 				741E710DE1262C44CD0F2741 /* APIClient.swift in Sources */,
 				10124E705D8F7D073179096E /* AddLocationSheet.swift in Sources */,
 				A1664791041BC815BDF3BF3D /* AppEnvironment.swift in Sources */,
+				ADA1BE1A9D584BC48FC4F41C /* CameraCapture.swift in Sources */,
 				239046164BBE40808FF29B23 /* CameraPickerViewModel.swift in Sources */,
 				21FADACF8A1D44BF9BDEA295 /* CameraPickerSheet.swift in Sources */,
 				E7909C1C76744BF6BD36AD38 /* CameraModel.swift in Sources */,
