@@ -2,13 +2,13 @@ import Foundation
 
 struct CameraModel: Codable, Identifiable, Hashable {
     let id: Int
-    let manufacturer: String
-    let model: String
+    let manufacturer: String?
+    let model: String?
     let cameraType: String?
     let ptz: Bool?
     let resolution: String?
     let resolutionClass: String?
-    let megapixels: Double?
+    let megapixels: String?    // Prisma Decimal serializes as string
     let indoorOutdoor: String?
     let imageUrl: String?
     let nightVision: Bool?
@@ -16,9 +16,9 @@ struct CameraModel: Codable, Identifiable, Hashable {
     let audio: Bool?
     let humanVehicleDetect: Bool?
     let mount: String?
-    let cost: Double?
+    let cost: String?          // Prisma Decimal serializes as string
 
-    var displayName: String { "\(manufacturer) \(model)" }
+    var displayName: String { "\(manufacturer ?? "") \(model ?? "")".trimmingCharacters(in: .whitespaces) }
 
     var typeLabel: String {
         guard let t = cameraType else { return "Camera" }
