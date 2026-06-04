@@ -102,6 +102,22 @@ struct VoiceInterviewView: View {
                 Text("Listening…")
                     .font(.title3.weight(.medium))
                     .foregroundStyle(Theme.textPrimary)
+                Text("Say \"stop\" or tap Done when finished")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
+                Button {
+                    manager.manualDone()
+                } label: {
+                    Label("Done", systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Theme.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
             }
 
         case .processing(let field):
@@ -136,6 +152,21 @@ struct VoiceInterviewView: View {
                 Text("Say \"yes\" to confirm or \"no\" to try again")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
+                if manager.isListening {
+                    Button {
+                        manager.manualDone()
+                    } label: {
+                        Label("Done", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+                }
             }
 
         case .reviewing:
@@ -157,6 +188,21 @@ struct VoiceInterviewView: View {
                 Text("Say \"save\", \"save and next\", or \"cancel\"")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
+                if manager.isListening {
+                    Button {
+                        manager.manualDone()
+                    } label: {
+                        Label("Done", systemImage: "checkmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Theme.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
+                }
             }
 
         case .saving:
