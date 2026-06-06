@@ -10,7 +10,10 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
     where:   { id: Number(projectId) },
     include: {
       customer:   { select: { customerName: true } },
-      costs:      { orderBy: [{ costCategory: 'asc' }, { id: 'asc' }] },
+      costs:      {
+        orderBy: [{ category: { sortOrder: 'asc' } }, { id: 'asc' }],
+        include: { category: true },
+      },
       feeSummary: true,
     },
   });
@@ -42,16 +45,17 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         projectId={project.id}
         overheadRateDefault={project.overheadRatePercent ? Number(project.overheadRatePercent) : 15}
         initialCosts={project.costs.map(c => ({
-          id:           c.id,
-          costCategory: c.costCategory,
-          description:  c.description  ?? '',
-          quantity:     Number(c.quantity),
-          unitCost:     Number(c.unitCost),
-          markupPercent:Number(c.markupPercent),
-          lineTotal:    Number(c.lineTotal ?? 0),
-          vendor:       c.vendor   ?? '',
-          billable:     c.billable,
-          notes:        c.notes    ?? '',
+          id:            c.id,
+          categoryId:    c.categoryId,
+          categoryName:  c.category.name,
+          description:   c.description  ?? '',
+          quantity:      Number(c.quantity),
+          unitCost:      Number(c.unitCost),
+          markupPercent: Number(c.markupPercent),
+          lineTotal:     Number(c.lineTotal ?? 0),
+          vendor:        c.vendor   ?? '',
+          billable:      c.billable,
+          notes:         c.notes    ?? '',
         }))}
         initialSummary={project.feeSummary ? {
           overheadPercent:      Number(project.feeSummary.overheadPercent),

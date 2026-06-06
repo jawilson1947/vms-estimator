@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         orderBy: { siteName: 'asc' },
         include: { buildings: { include: { _count: { select: { locations: true } } } } },
       },
-      costs:      { orderBy: { costCategory: 'asc' } },
+      costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
       feeSummary: true,
     },
   });

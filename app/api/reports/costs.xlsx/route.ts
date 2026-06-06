@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest) {
   const projects = await prisma.project.findMany({
     include: {
       customer:   { select: { customerName: true } },
-      costs:      { orderBy: [{ costCategory: 'asc' }, { id: 'asc' }] },
+      costs:      { orderBy: [{ category: { sortOrder: 'asc' } }, { id: 'asc' }], include: { category: true } },
       feeSummary: true,
     },
     orderBy: { projectName: 'asc' },
@@ -165,7 +165,7 @@ export async function GET(_req: NextRequest) {
     project.costs.forEach((c, i) => {
       const row = ws.getRow(5 + i);
       const vals: any[] = [
-        c.costCategory.replace('_', ' '),
+        c.category.name,
         c.description ?? '',
         c.vendor ?? '',
         Number(c.quantity),

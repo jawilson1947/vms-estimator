@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { CostCategory } from '@prisma/client';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -17,12 +16,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
   await prisma.projectCost.update({
     where: { id: Number(id) },
     data:  {
-      costCategory:  b.costCategory as CostCategory,
+      categoryId:    Number(b.categoryId),
       description:   b.description  || null,
       quantity:      b.quantity     ? Number(b.quantity)      : 1,
       unitCost:      b.unitCost     ? Number(b.unitCost)      : 0,
       markupPercent: b.markupPercent? Number(b.markupPercent) : 0,
-      // lineTotal is DB-generated — omitted
       vendor:        b.vendor       || null,
       costDate:      b.costDate     ? new Date(b.costDate)    : null,
       billable:      b.billable !== undefined ? !!b.billable  : true,
@@ -30,8 +28,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
     },
   });
 
-  // Re-read to return the fresh DB-computed lineTotal
-  const fresh = await prisma.projectCost.findUnique({ where: { id: Number(id) } });
+  // Re-read to return the fresh DB-computed lineTotal and category relation
+  const fresh = await prisma.projectCost.findUnique({
+    where:   { id: Number(id) },
+    include: { category: true },
+  });
   return NextResponse.json(fresh);
 }
 

@@ -21,15 +21,6 @@ const statusLabels: Record<string, string> = {
   COMPLETED: 'Completed', ON_HOLD: 'On Hold', CANCELLED: 'Cancelled',
 };
 
-const costCategoryLabels: Record<string, string> = {
-  CAMERA_EQUIPMENT:   'Camera Equipment',  NETWORK_EQUIPMENT: 'Network Equipment',
-  CABLING:            'Cabling',           MOUNTING_HARDWARE: 'Mounting Hardware',
-  LICENSING:          'Licensing',         LABOR:             'Labor',
-  CONSULTING:         'Consulting',        PROJECT_MANAGEMENT:'Project Management',
-  OVERHEAD:           'Overhead',          TRAVEL:            'Travel',
-  PERMITS:            'Permits',           CONTINGENCY:       'Contingency',
-  OTHER:              'Other',
-};
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,7 +29,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     include: {
       customer:   { select: { id: true, customerName: true } },
       sites:      { orderBy: { siteName: 'asc' }, include: { buildings: true } },
-      costs:      { orderBy: { costCategory: 'asc' } },
+      costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
       feeSummary: true,
     },
   });
@@ -211,7 +202,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5">
                     <span className="badge bg-gray-100 text-gray-600 text-xs">
-                      {costCategoryLabels[c.costCategory]}
+                      {c.category.name}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-gray-700">{c.description ?? '—'}</td>

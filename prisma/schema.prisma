@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -236,41 +235,38 @@ enum ImageType {
   OTHER             @map("Other")
 }
 
+// ─── Line Item Categories ─────────────────────────────────────────────────────
+
+model LineItemCategory {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique
+  sortOrder Int           @default(0) @map("sort_order")
+  active    Boolean       @default(true)
+  costs     ProjectCost[]
+
+  @@map("line_item_categories")
+}
+
 // ─── Project Costs ───────────────────────────────────────────────────────────
 
 model ProjectCost {
-  id            Int          @id @default(autoincrement()) @map("cost_id")
-  projectId     Int          @map("project_id")
-  costCategory  CostCategory @map("cost_category")
-  description   String?      @db.VarChar(255)
-  quantity      Decimal      @default(1) @db.Decimal(10, 2)
-  unitCost      Decimal      @default(0) @map("unit_cost") @db.Decimal(10, 2)
-  markupPercent Decimal      @default(0) @map("markup_percent") @db.Decimal(5, 2)
-  lineTotal     Decimal?     @map("line_total") @db.Decimal(12, 2)
-  vendor        String?      @db.VarChar(150)
-  costDate      DateTime?    @map("cost_date") @db.Date
-  billable      Boolean      @default(true)
-  notes         String?      @db.Text
+  id            Int              @id @default(autoincrement()) @map("cost_id")
+  projectId     Int              @map("project_id")
+  categoryId    Int              @map("category_id")
+  description   String?          @db.VarChar(255)
+  quantity      Decimal          @default(1) @db.Decimal(10, 2)
+  unitCost      Decimal          @default(0) @map("unit_cost") @db.Decimal(10, 2)
+  markupPercent Decimal          @default(0) @map("markup_percent") @db.Decimal(5, 2)
+  lineTotal     Decimal?         @map("line_total") @db.Decimal(12, 2)
+  vendor        String?          @db.VarChar(150)
+  costDate      DateTime?        @map("cost_date") @db.Date
+  billable      Boolean          @default(true)
+  notes         String?          @db.Text
 
-  project       Project      @relation(fields: [projectId], references: [id])
+  project       Project          @relation(fields: [projectId], references: [id])
+  category      LineItemCategory @relation(fields: [categoryId], references: [id])
 
   @@map("project_costs")
-}
-
-enum CostCategory {
-  CAMERA_EQUIPMENT   @map("Camera Equipment")
-  NETWORK_EQUIPMENT  @map("Network Equipment")
-  CABLING            @map("Cabling")
-  MOUNTING_HARDWARE  @map("Mounting Hardware")
-  LICENSING          @map("Licensing")
-  LABOR              @map("Labor")
-  CONSULTING         @map("Consulting")
-  PROJECT_MANAGEMENT @map("Project Management")
-  OVERHEAD           @map("Overhead")
-  TRAVEL             @map("Travel")
-  PERMITS            @map("Permits")
-  CONTINGENCY        @map("Contingency")
-  OTHER              @map("Other")
 }
 
 // ─── Project Fee Summary ─────────────────────────────────────────────────────

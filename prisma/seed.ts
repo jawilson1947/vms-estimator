@@ -4,7 +4,6 @@ import {
   ProjectStatus,
   CameraType,
   Environment,
-  CostCategory,
 } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
@@ -205,23 +204,26 @@ async function main() {
   console.log('✓ Camera models created and assigned');
 
   // ── Project Costs (lineTotal is DB-generated — do not set it) ─────────────
+  const categoryMap = await prisma.lineItemCategory.findMany()
+    .then(cats => Object.fromEntries(cats.map(c => [c.name, c.id])));
+
   const costs = [
-    { costCategory: CostCategory.CAMERA_EQUIPMENT,   description: 'Axis P3268-V Dome Cameras (x8)',       quantity: 8,  unitCost: 649,  markupPercent: 20 },
-    { costCategory: CostCategory.CAMERA_EQUIPMENT,   description: 'Hanwha XNO-8080R Bullet Cameras (x6)', quantity: 6,  unitCost: 425,  markupPercent: 20 },
-    { costCategory: CostCategory.NETWORK_EQUIPMENT,  description: 'PoE+ Switch 24-port',                  quantity: 2,  unitCost: 1200, markupPercent: 15 },
-    { costCategory: CostCategory.CABLING,            description: 'Cat6A cable (1000ft)',                  quantity: 3,  unitCost: 280,  markupPercent: 15 },
-    { costCategory: CostCategory.MOUNTING_HARDWARE,  description: 'Ceiling mount brackets',               quantity: 14, unitCost: 45,   markupPercent: 10 },
-    { costCategory: CostCategory.LABOR,              description: 'Installation labor (hours)',            quantity: 40, unitCost: 95,   markupPercent: 0  },
-    { costCategory: CostCategory.PROJECT_MANAGEMENT, description: 'Project management (hours)',            quantity: 8,  unitCost: 125,  markupPercent: 0  },
-    { costCategory: CostCategory.PERMITS,            description: 'Building permits',                     quantity: 1,  unitCost: 350,  markupPercent: 0  },
-    { costCategory: CostCategory.CONTINGENCY,        description: '5% contingency reserve',               quantity: 1,  unitCost: 950,  markupPercent: 0  },
+    { category: 'Camera Equipment',   description: 'Axis P3268-V Dome Cameras (x8)',       quantity: 8,  unitCost: 649,  markupPercent: 20 },
+    { category: 'Camera Equipment',   description: 'Hanwha XNO-8080R Bullet Cameras (x6)', quantity: 6,  unitCost: 425,  markupPercent: 20 },
+    { category: 'Network Equipment',  description: 'PoE+ Switch 24-port',                  quantity: 2,  unitCost: 1200, markupPercent: 15 },
+    { category: 'Cabling',            description: 'Cat6A cable (1000ft)',                  quantity: 3,  unitCost: 280,  markupPercent: 15 },
+    { category: 'Mounting Hardware',  description: 'Ceiling mount brackets',               quantity: 14, unitCost: 45,   markupPercent: 10 },
+    { category: 'Labor',              description: 'Installation labor (hours)',            quantity: 40, unitCost: 95,   markupPercent: 0  },
+    { category: 'Project Management', description: 'Project management (hours)',            quantity: 8,  unitCost: 125,  markupPercent: 0  },
+    { category: 'Permits',            description: 'Building permits',                     quantity: 1,  unitCost: 350,  markupPercent: 0  },
+    { category: 'Contingency',        description: '5% contingency reserve',               quantity: 1,  unitCost: 950,  markupPercent: 0  },
   ];
 
   for (const cost of costs) {
     await prisma.projectCost.create({
       data: {
         projectId:    project.id,
-        costCategory: cost.costCategory,
+        categoryId:   categoryMap[cost.category],
         description:  cost.description,
         quantity:     cost.quantity,
         unitCost:     cost.unitCost,

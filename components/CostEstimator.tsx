@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { PlusIcon, TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -9,17 +9,23 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+interface CategoryOption {
+  id:   number;
+  name: string;
+}
+
 interface CostLine {
-  id:           number;
-  costCategory: string;
-  description:  string;
-  quantity:     number;
-  unitCost:     number;
-  markupPercent:number;
-  lineTotal:    number;
-  vendor:       string;
-  billable:     boolean;
-  notes:        string;
+  id:            number;
+  categoryId:    number;
+  categoryName:  string;
+  description:   string;
+  quantity:      number;
+  unitCost:      number;
+  markupPercent: number;
+  lineTotal:     number;
+  vendor:        string;
+  billable:      boolean;
+  notes:         string;
 }
 
 interface FeeSummary {
@@ -41,26 +47,10 @@ interface Props {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const CATEGORIES = [
-  'CAMERA_EQUIPMENT','NETWORK_EQUIPMENT','CABLING','MOUNTING_HARDWARE',
-  'LICENSING','LABOR','CONSULTING','PROJECT_MANAGEMENT',
-  'OVERHEAD','TRAVEL','PERMITS','CONTINGENCY','OTHER',
-];
-
-const CAT_LABELS: Record<string, string> = {
-  CAMERA_EQUIPMENT: 'Camera Equipment',  NETWORK_EQUIPMENT: 'Network Equipment',
-  CABLING: 'Cabling',                    MOUNTING_HARDWARE: 'Mounting Hardware',
-  LICENSING: 'Licensing',               LABOR: 'Labor',
-  CONSULTING: 'Consulting',             PROJECT_MANAGEMENT: 'Project Management',
-  OVERHEAD: 'Overhead',                 TRAVEL: 'Travel',
-  PERMITS: 'Permits',                   CONTINGENCY: 'Contingency',
-  OTHER: 'Other',
-};
-
 const PIE_COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16','#ec4899','#6366f1','#14b8a6','#a855f7','#64748b'];
 
 const emptyLine = {
-  costCategory: 'CAMERA_EQUIPMENT', description: '', quantity: 1,
+  categoryId: 0, description: '', quantity: 1,
   unitCost: 0, markupPercent: 0, vendor: '', billable: true, notes: '',
 };
 
@@ -75,6 +65,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const [summary, setSummary]     = useState<FeeSummary | null>(initialSummary);
   const [editId, setEditId]       = useState<number | 'new' | null>(null);
   const [lineForm, setLineForm]   = useState(emptyLine);
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [fees, setFees]           = useState({
     overheadPercent:      initialSummary?.overheadPercent      ?? overheadRateDefault,
     consultingFee:        initialSummary?.consultingFee        ?? 0,
@@ -85,6 +76,13 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const [savingFees, setSavingFees] = useState(false);
   const [savingLine, setSavingLine] = useState(false);
   const [activeTab, setActiveTab]   = useState<'items'|'chart'>('items');
+
+  useEffect(() => {
+    fetch('/api/line-item-categories')
+      .then(r => r.json())
+      .then((data: CategoryOption[]) => setCategories(data))
+      .catch(() => {});
+  }, []);
 
   // ── Derived totals ──────────────────────────────────────────────────────────
   const directTotal = useMemo(() => costs.reduce((s, c) => s + c.lineTotal, 0), [costs]);
@@ -97,17 +95,17 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   // ── Category totals for charts ──────────────────────────────────────────────
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    costs.forEach(c => { map[c.costCategory] = (map[c.costCategory] ?? 0) + c.lineTotal; });
+    costs.forEach(c => { map[c.categoryName] = (map[c.categoryName] ?? 0) + c.lineTotal; });
     return Object.entries(map)
-      .map(([cat, total]) => ({ name: CAT_LABELS[cat] ?? cat, total }))
+      .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total);
   }, [costs]);
 
   // ── Line item CRUD ──────────────────────────────────────────────────────────
-  function startNew()        { setLineForm(emptyLine); setEditId('new'); }
+  function startNew()        { setLineForm({ ...emptyLine, categoryId: categories[0]?.id ?? 0 }); setEditId('new'); }
   function startEdit(c: CostLine) {
     setLineForm({
-      costCategory: c.costCategory, description: c.description, quantity: c.quantity,
+      categoryId: c.categoryId, description: c.description, quantity: c.quantity,
       unitCost: c.unitCost, markupPercent: c.markupPercent,
       vendor: c.vendor, billable: c.billable, notes: c.notes,
     });
@@ -119,7 +117,9 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     const { name, type, value } = e.target;
     setLineForm(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked
+            : name === 'categoryId' ? Number(value)
+            : value,
     }));
   }
 
@@ -134,7 +134,20 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     });
     setSavingLine(false);
     if (!res.ok) return;
-    const saved: CostLine = await res.json();
+    const raw = await res.json();
+    const saved: CostLine = {
+      id:            raw.id,
+      categoryId:    raw.categoryId,
+      categoryName:  raw.category?.name ?? '',
+      description:   raw.description   ?? '',
+      quantity:      Number(raw.quantity),
+      unitCost:      Number(raw.unitCost),
+      markupPercent: Number(raw.markupPercent),
+      lineTotal:     Number(raw.lineTotal ?? 0),
+      vendor:        raw.vendor   ?? '',
+      billable:      raw.billable,
+      notes:         raw.notes    ?? '',
+    };
     setCosts(prev => isNew ? [...prev, saved] : prev.map(c => c.id === saved.id ? saved : c));
     setEditId(null);
   }
@@ -217,12 +230,13 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                     {costs.map(c => (
                       editId === c.id ? (
                         <EditRow key={c.id} form={lineForm} onChange={handleLineChange}
-                          onSave={saveLine} onCancel={cancelEdit} saving={savingLine} />
+                          onSave={saveLine} onCancel={cancelEdit} saving={savingLine}
+                          categories={categories} />
                       ) : (
                         <tr key={c.id} className="hover:bg-gray-50">
                           <td className="px-3 py-2">
                             <span className="badge bg-gray-100 text-gray-600 text-xs whitespace-nowrap">
-                              {CAT_LABELS[c.costCategory]}
+                              {c.categoryName}
                             </span>
                           </td>
                           <td className="px-3 py-2 text-gray-700">{c.description || '—'}</td>
@@ -246,7 +260,8 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
 
                     {editId === 'new' && (
                       <EditRow form={lineForm} onChange={handleLineChange}
-                        onSave={saveLine} onCancel={cancelEdit} saving={savingLine} />
+                        onSave={saveLine} onCancel={cancelEdit} saving={savingLine}
+                        categories={categories} />
                     )}
                   </tbody>
                   <tfoot>
@@ -419,20 +434,23 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
 // ─── Inline edit row ──────────────────────────────────────────────────────────
 
 function EditRow({
-  form, onChange, onSave, onCancel, saving,
+  form, onChange, onSave, onCancel, saving, categories,
 }: {
-  form: typeof emptyLine;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  onSave: () => void;
-  onCancel: () => void;
-  saving: boolean;
+  form:       typeof emptyLine;
+  onChange:   (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onSave:     () => void;
+  onCancel:   () => void;
+  saving:     boolean;
+  categories: CategoryOption[];
 }) {
   return (
     <tr className="bg-blue-50/60">
       <td className="px-2 py-2">
-        <select name="costCategory" value={form.costCategory} onChange={onChange}
+        <select name="categoryId" value={form.categoryId} onChange={onChange}
           className="form-select text-xs py-1.5 w-full">
-          {CATEGORIES.map(c => <option key={c} value={c}>{CAT_LABELS[c]}</option>)}
+          {categories.map(cat => (
+            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          ))}
         </select>
       </td>
       <td className="px-2 py-2">
