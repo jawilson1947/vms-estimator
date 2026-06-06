@@ -360,37 +360,31 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
       {
         keywords: ['name'],
         action: () => {
-          speak('Say the area name');
           setVoiceField('areaName');
           waitForValue('Name', (val) => {
             setAreaName(val);
             setVoiceField(null);
-            speak(`Name set to ${val}`);
-          });
+          }, { promptText: 'What is the name?', captureText: (v) => `Name set to ${v}.` });
         },
       },
       {
         keywords: ['floor'],
         action: () => {
-          speak('Say the floor');
           setVoiceField('floor');
           waitForValue('Floor', (val) => {
             setFloor(val);
             setVoiceField(null);
-            speak(`Floor ${val}`);
-          });
+          }, { promptText: 'Which floor?', captureText: (v) => `Floor set to ${v}.` });
         },
       },
       {
         keywords: ['notes', 'note'],
         action: () => {
-          speak('Say your notes');
           setVoiceField('notes');
           waitForValue('Notes', (val) => {
             setSurveyNotes(val);
             setVoiceField(null);
-            speak('Notes recorded');
-          });
+          }, { promptText: 'Go ahead with your notes.', captureText: 'Notes saved.' });
         },
       },
       {
@@ -399,7 +393,7 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
           if (atLimit) {
             speak('Photo limit reached. Five photos maximum.');
           } else {
-            speak('Tap the screen to capture a photo');
+            speak('Ready for photo.');
             setPhotoPrompted(true);
           }
         },
@@ -414,7 +408,7 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
       },
       {
         keywords: ['exit', 'cancel', 'close'],
-        action: () => { speak('Closing'); onClose(); },
+        action: () => { speak('Closing.'); onClose(); },
       },
     ]);
     return unregister;
@@ -452,7 +446,6 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
       areaRef.current?.focus();
       return;
     }
-    speak('Saving location');
     setSaving(true);
     try {
       // 1. Create the location
@@ -495,7 +488,7 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
       onSave({ ...loc, images: uploaded });
 
       if (andNext) {
-        speak(`${areaName.trim()} saved. Ready for next location.`);
+        speak('Saved. Ready for next location.');
         setAreaName('');
         setFloor('');
         setSurveyNotes('');
@@ -505,7 +498,7 @@ function QuickAddSheet({ siteId, buildings, defaultBuildingId, onSave, onClose }
         setPendingCameraObj(null);
         setTimeout(() => areaRef.current?.focus(), 50);
       } else {
-        speak(`${areaName.trim()} saved`);
+        speak('Location saved.');
         onClose();
       }
     } finally {
@@ -1557,11 +1550,12 @@ export function SurveyBoard({ initialSite }: Props) {
     const unregister = registerCommands('survey-board', [
       {
         keywords: ['add location', 'new location'],
-        action: () => { speak('Opening add location'); setShowAdd(true); },
+        ack: 'Adding new location.',
+        action: () => { setShowAdd(true); },
       },
     ]);
     return unregister;
-  }, [registerCommands, speak]);
+  }, [registerCommands]);
 
   const allLocations = site.buildings.flatMap(b => b.locations);
   const doneCount = allLocations.filter(isDone).length;

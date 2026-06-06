@@ -1,11 +1,11 @@
 'use client';
 
 import { useVoice } from '@/context/VoiceContext';
-import { MicrophoneIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { MicrophoneIcon, XMarkIcon, SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
 import { useEffect, useState } from 'react';
 
 export function VoiceMic() {
-  const { supported, enabled, setEnabled, mode, activeField, lastHeard, listening } = useVoice();
+  const { supported, isTTSSupported, enabled, setEnabled, muted, setMuted, mode, activeField, lastHeard, listening } = useVoice();
   const [flash, setFlash] = useState(false);
 
   // Flash green briefly when a command is recognized
@@ -27,6 +27,21 @@ export function VoiceMic() {
 
   return (
     <div className="flex items-center gap-2">
+      {/* Mute toggle — only when voice is enabled and TTS is available */}
+      {enabled && isTTSSupported && (
+        <button
+          onClick={() => setMuted(!muted)}
+          title={muted ? 'Unmute voice responses' : 'Mute voice responses'}
+          className="flex items-center justify-center w-7 h-7 rounded-full transition-colors"
+          aria-label={muted ? 'Unmute voice responses' : 'Mute voice responses'}
+        >
+          {muted
+            ? <SpeakerXMarkIcon className="w-4 h-4 text-gray-400" />
+            : <SpeakerWaveIcon  className="w-4 h-4 text-gray-500" />
+          }
+        </button>
+      )}
+
       {/* Status label */}
       {enabled && (
         <div className="hidden sm:flex items-center gap-1.5 max-w-[180px]">

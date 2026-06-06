@@ -2,7 +2,7 @@
 
 import {
   createContext, useContext, useState, useCallback,
-  useRef, ReactNode,
+  useEffect, useRef, ReactNode,
 } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
@@ -20,20 +20,25 @@ export interface VoiceSite {
 
 export interface VoiceCommand {
   keywords: string[];
+  /** Spoken aloud automatically after the action fires (if TTS is not muted). */
+  ack?: string;
   action: (remainder: string) => void;
 }
 
 interface VoiceContextValue {
   supported: boolean;
+  isTTSSupported: boolean;
   enabled: boolean;
   setEnabled: (v: boolean) => void;
+  muted: boolean;
+  setMuted: (v: boolean) => void;
   mode: VoiceMode;
   activeField: string | null;
   lastHeard: string;
   listening: boolean;
   registerCommands: (id: string, commands: VoiceCommand[]) => () => void;
   setSites: (sites: VoiceSite[]) => void;
-  /** Speak a confirmation aloud. Pauses recognition while speaking. */
+  /** Speak a confirmation aloud. Pauses recognition while speaking. No-op when muted. */
   speak: (text: string) => void;
 }
 
@@ -116,10 +121,25 @@ const SURVEY_CMD_RE = /^(?:(?:start|open|launch)\s+survey|survey)\s+(?:for\s+)?(
 export function VoiceProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [enabled, setEnabled]         = useState(true);
+  const [muted, setMutedState]        = useState(false);
   const [mode, setMode]               = useState<VoiceMode>('idle');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [lastHeard, setLastHeard]     = useState('');
   const [sites, setSites]             = useState<VoiceSite[]>([]);
+
+  // Init muted from localStorage after mount; avoid SSR mismatch by starting false.
+  useEffect(() => {
+    try { setMutedState(localStorage.getItem('voiceMuted') === 'true'); } catch {}
+  }, []);
+  // Persist muted state.
+  useEffect(() => {
+    try { localStorage.setItem('voiceMuted', String(muted)); } catch {}
+  }, [muted]);
+
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
+
+  const setMuted = useCallback((v: boolean) => setMutedState(v), []);
 
   const commandsRef      = useRef<Map<string, VoiceCommand[]>>(new Map());
   const valueCallbackRef = useRef<((value: string) => void) | null>(null);
@@ -138,11 +158,25 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     if (timedOut) speakRef.current('Timed out. Try again.');
   }
 
-  const waitForValue = useCallback((fieldName: string, onValue: (v: string) => void) => {
+  const waitForValue = useCallback((
+    fieldName: string,
+    onValue: (v: string) => void,
+    opts?: { promptText?: string; captureText?: string | ((v: string) => string) },
+  ) => {
     if (valueTimerRef.current) clearTimeout(valueTimerRef.current);
     setMode('waitingForValue');
     setActiveField(fieldName);
-    valueCallbackRef.current = onValue;
+    valueCallbackRef.current = (val: string) => {
+      onValue(val);
+      if (opts?.captureText) {
+        const text = typeof opts.captureText === 'function'
+          ? opts.captureText(val)
+          : opts.captureText;
+        speakRef.current(text);
+      }
+    };
+    // Speak the prompt AFTER setting up capture mode; useSpeak handles mic pause/resume.
+    if (opts?.promptText) speakRef.current(opts.promptText);
     valueTimerRef.current = setTimeout(() => clearValueMode(true), VALUE_TIMEOUT_MS);
   }, []);
 
@@ -190,6 +224,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       for (const kw of cmd.keywords) {
         if (text === kw || text.startsWith(kw + ' ')) {
           cmd.action(text.slice(kw.length).trim());
+          if (cmd.ack) speakRef.current(cmd.ack);
           return;
         }
       }
@@ -199,7 +234,13 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const { supported, listening, pause, resume } = useSpeechRecognition(handleTranscript, enabled);
-  const speak = useSpeak(pause, resume);
+  const { speak: rawSpeak, isTTSSupported } = useSpeak(pause, resume);
+
+  // Wrap rawSpeak so it becomes a no-op while muted.
+  const speak = useCallback((text: string) => {
+    if (mutedRef.current) return;
+    rawSpeak(text);
+  }, [rawSpeak]);
   speakRef.current = speak;
 
   const waitForValueRef = useRef(waitForValue);
@@ -207,8 +248,11 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
 
   const contextValue: VoiceContextValue = {
     supported,
+    isTTSSupported,
     enabled,
     setEnabled,
+    muted,
+    setMuted,
     mode,
     activeField,
     lastHeard,
@@ -232,5 +276,9 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
 export function useWaitForValue() {
   const ctx = useContext(VoiceContext) as any;
   if (!ctx) throw new Error('useWaitForValue must be used inside VoiceProvider');
-  return ctx._waitForValue.current as (fieldName: string, onValue: (v: string) => void) => void;
+  return ctx._waitForValue.current as (
+    fieldName: string,
+    onValue: (v: string) => void,
+    opts?: { promptText?: string; captureText?: string | ((v: string) => string) },
+  ) => void;
 }

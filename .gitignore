@@ -39,18 +39,18 @@ next-env.d.ts
 *.log
 
 # iOS / Xcode
-ios/build/
-ios/*.xcworkspace/xcuserdata/
-ios/*.xcodeproj/xcuserdata/
-ios/*.xcodeproj/project.xcworkspace/xcuserdata/
-ios/DerivedData/
-ios/Pods/
-ios/*.ipa
-ios/*.dSYM.zip
-ios/*.dSYM
-ios/.DS_Store
+/ios/build/
+/ios/*.xcworkspace/xcuserdata/
+/ios/*.xcodeproj/xcuserdata/
+/ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+/ios/DerivedData/
+/ios/Pods/
+/ios/*.ipa
+/ios/*.dSYM.zip
+/ios/*.dSYM
+/ios/.DS_Store
 # iOS secrets — never commit API keys
-ios/Debug.xcconfig
-ios/Release.xcconfig
-ios/Debug.xcconfig
-ios/Release.xcconfig
+/ios/Debug.xcconfig
+/ios/Release.xcconfig
+/ios/Debug.xcconfig
+/ios/Release.xcconfig
