@@ -54,8 +54,8 @@ const emptyLine = {
   unitCost: 0, markupPercent: 0, vendor: '', billable: true, notes: '',
 };
 
-function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+function fmt(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -470,7 +470,7 @@ function EditRow({
           className="form-input text-xs py-1.5 w-16 text-right" />
       </td>
       <td className="px-2 py-2 text-right text-xs font-semibold text-gray-600">
-        {(Number(form.quantity) * Number(form.unitCost) * (1 + Number(form.markupPercent)/100)).toLocaleString('en-US', { style:'currency', currency:'USD', minimumFractionDigits:2 })}
+        {fmt(Number(form.quantity) * Number(form.unitCost) * (1 + Number(form.markupPercent)/100))}
       </td>
       <td className="px-2 py-2">
         <div className="flex justify-end gap-1">

@@ -7,6 +7,10 @@ import {
 
 type Params = { params: { siteId: string } };
 
+function fmt(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 export default async function WorksheetPage({ params }: Params) {
   const site = await prisma.site.findUnique({
     where: { id: Number(params.siteId) },
@@ -84,7 +88,7 @@ export default async function WorksheetPage({ params }: Params) {
         </div>
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-violet-700">
-            {totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+            {totalCost > 0 ? fmt(totalCost) : '—'}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">Equipment Cost</p>
         </div>
@@ -102,7 +106,7 @@ export default async function WorksheetPage({ params }: Params) {
               <h2 className="font-semibold text-gray-900">{building.buildingName}</h2>
               <div className="flex gap-5 text-sm text-gray-500">
                 <span>{bAssigned.length}/{bLocs.length} assigned</span>
-                {bCost > 0 && <span>${bCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
+                {bCost > 0 && <span>{fmt(bCost)}</span>}
               </div>
             </div>
 
@@ -134,7 +138,7 @@ export default async function WorksheetPage({ params }: Params) {
                           <td className="px-4 py-2.5 text-gray-600 text-xs">{cm.cameraType ?? '—'}</td>
                           <td className="px-4 py-2.5 text-right text-gray-600 text-xs font-mono">{cm.resolution ?? '—'}</td>
                           <td className="px-4 py-2.5 text-right text-gray-600 text-xs">
-                            {cm.cost != null ? `$${Number(cm.cost).toFixed(2)}` : '—'}
+                            {cm.cost != null ? fmt(Number(cm.cost)) : '—'}
                           </td>
                         </>
                       ) : (
@@ -167,7 +171,7 @@ export default async function WorksheetPage({ params }: Params) {
           <div>
             <p className="text-xs text-gray-400 mb-0.5">Equipment Cost</p>
             <p className="text-lg font-bold text-violet-700">
-              {totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
+              {totalCost > 0 ? fmt(totalCost) : '—'}
             </p>
           </div>
         </div>

@@ -7,6 +7,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { AddSiteButton } from '@/components/AddSiteButton';
 
+function fmt(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 const statusColors: Record<string, string> = {
   PROPOSED:    'bg-gray-100 text-gray-600',
   APPROVED:    'bg-blue-50 text-blue-700',
@@ -79,7 +83,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             {[
               ['Start Date',       project.startDate      ? new Date(project.startDate).toLocaleDateString()      : '—'],
               ['Completion Date',  project.completionDate ? new Date(project.completionDate).toLocaleDateString()  : '—'],
-              ['Consulting Rate',  project.consultingRate      ? `$${Number(project.consultingRate).toFixed(2)}/hr`      : '—'],
+              ['Consulting Rate',  project.consultingRate      ? `${fmt(Number(project.consultingRate))}/hr`            : '—'],
               ['Overhead Rate',    project.overheadRatePercent ? `${Number(project.overheadRatePercent).toFixed(1)}%`   : '—'],
             ].map(([label, value]) => (
               <div key={label} className="flex justify-between">
@@ -116,13 +120,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               ).map(([label, val]) => (
                 <div key={String(label)} className="flex justify-between">
                   <dt className="text-gray-500">{label}</dt>
-                  <dd className="text-gray-900">${Number(val).toLocaleString('en-US', { minimumFractionDigits: 2 })}</dd>
+                  <dd className="text-gray-900">{fmt(Number(val))}</dd>
                 </div>
               ))}
               <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold">
                 <dt>Grand Total</dt>
                 <dd className="text-blue-700">
-                  ${Number(project.feeSummary.grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {fmt(Number(project.feeSummary.grandTotal))}
                 </dd>
               </div>
             </dl>
@@ -131,7 +135,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               <CurrencyDollarIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
               <p className="text-sm text-gray-400">No cost summary yet.</p>
               <p className="text-xs text-gray-400 mt-1">
-                Total from line items: <strong>${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                Total from line items: <strong>{fmt(totalCost)}</strong>
               </p>
             </div>
           )}
@@ -208,11 +212,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   <td className="px-4 py-2.5 text-gray-700">{c.description ?? '—'}</td>
                   <td className="px-4 py-2.5 text-right text-gray-600">{Number(c.quantity)}</td>
                   <td className="px-4 py-2.5 text-right text-gray-600">
-                    ${Number(c.unitCost).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {fmt(Number(c.unitCost))}
                   </td>
                   <td className="px-4 py-2.5 text-right text-gray-600">{Number(c.markupPercent)}%</td>
                   <td className="px-4 py-2.5 text-right font-medium text-gray-900">
-                    ${Number(c.lineTotal ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    {fmt(Number(c.lineTotal ?? 0))}
                   </td>
                 </tr>
               ))}
@@ -223,7 +227,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   Total
                 </td>
                 <td className="px-4 py-3 text-right font-bold text-blue-700">
-                  ${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {fmt(totalCost)}
                 </td>
               </tr>
            
