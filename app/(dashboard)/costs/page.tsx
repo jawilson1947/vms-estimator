@@ -13,7 +13,7 @@ const statusLabels: Record<string, string> = {
 };
 
 function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default async function CostsPage() {

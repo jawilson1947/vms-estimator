@@ -84,7 +84,7 @@ export default async function WorksheetPage({ params }: Params) {
         </div>
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-violet-700">
-            {totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+            {totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">Equipment Cost</p>
         </div>
@@ -102,7 +102,7 @@ export default async function WorksheetPage({ params }: Params) {
               <h2 className="font-semibold text-gray-900">{building.buildingName}</h2>
               <div className="flex gap-5 text-sm text-gray-500">
                 <span>{bAssigned.length}/{bLocs.length} assigned</span>
-                {bCost > 0 && <span>${bCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>}
+                {bCost > 0 && <span>${bCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
               </div>
             </div>
 
@@ -167,7 +167,7 @@ export default async function WorksheetPage({ params }: Params) {
           <div>
             <p className="text-xs text-gray-400 mb-0.5">Equipment Cost</p>
             <p className="text-lg font-bold text-violet-700">
-              {totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '—'}
+              {totalCost > 0 ? `$${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
             </p>
           </div>
         </div>

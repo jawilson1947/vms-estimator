@@ -12,7 +12,7 @@ const GRAY  = '#6B7280';
 const LGRAY = '#F3F4F6';
 
 function fmt(n: number) {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function pct(n: number) {
