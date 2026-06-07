@@ -89,7 +89,7 @@ async function main() {
     update: {},
     create: {
       customerId: customer.id,
-      projectId:  project.id,
+      projects:   { connect: { id: project.id } },
       siteName:   'Acme HQ Campus',
       address:    '100 Main Street',
       city:       'Springfield',

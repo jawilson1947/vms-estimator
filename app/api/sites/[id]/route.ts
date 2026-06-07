@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 type Params = { params: Promise<{ id: string }> };
+
+interface ProjectRow { id: number; projectName: string; }
 
 // GET /api/sites/[id]
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -11,40 +14,49 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const site = await prisma.site.findUnique({
-    where:   { id: Number(id) },
-    include: {
-      customer:  { select: { id: true, customerName: true } },
-      project:   { select: { id: true, projectName: true } },
-      buildings: {
-        orderBy: { buildingName: 'asc' },
-        include: {
-          _count:    { select: { locations: true } },
-          locations: {
-            orderBy: { areaName: 'asc' },
-            select: {
-              id: true, areaName: true, floor: true,
-              mountingLocation: true, coveragePurpose: true,
-              cameraModelId: true,
+  const siteId = Number(id);
+
+  const [site, projects] = await Promise.all([
+    prisma.site.findUnique({
+      where:   { id: siteId },
+      include: {
+        customer:  { select: { id: true, customerName: true } },
+        buildings: {
+          orderBy: { buildingName: 'asc' },
+          include: {
+            _count:    { select: { locations: true } },
+            locations: {
+              orderBy: { areaName: 'asc' },
+              select: {
+                id: true, areaName: true, floor: true,
+                mountingLocation: true, coveragePurpose: true,
+                cameraModelId: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.$queryRaw<ProjectRow[]>(
+      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName
+                 FROM projects p
+                 JOIN _SiteProjects sp ON sp.A = p.project_id
+                 WHERE sp.B = ${siteId}`
+    ).catch(() => [] as ProjectRow[]),
+  ]);
 
   if (!site) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(site);
+  return NextResponse.json({ ...site, projects });
 }
 
-// PUT /api/sites/[id]
+// PUT /api/sites/[id]  — updates site fields only (project links managed via /api/projects/[id]/sites)
 export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { siteName, customerId, projectId, address, city, state, notes } = body;
+  const { siteName, customerId, address, city, state, notes } = body;
 
   if (!siteName?.trim()) return NextResponse.json({ error: 'Site name is required' }, { status: 400 });
 
@@ -53,7 +65,6 @@ export async function PUT(req: NextRequest, { params }: Params) {
     data:  {
       siteName,
       customerId: customerId ? Number(customerId) : null,
-      projectId:  projectId  ? Number(projectId)  : null,
       address:    address    || null,
       city:       city       || null,
       state:      state      || null,

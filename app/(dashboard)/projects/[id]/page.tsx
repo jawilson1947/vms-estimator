@@ -9,6 +9,7 @@ import { AddSiteButton } from '@/components/AddSiteButton';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
+import { RemoveSiteButton } from '@/components/RemoveSiteButton';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -183,22 +184,28 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         ) : (
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {project.sites.map(s => (
-              <Link
+              <div
                 key={s.id}
-                href={`/sites/${s.id}`}
-                className="flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm"
+                className="relative flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm group"
               >
-                <MapPinIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-gray-900">{s.siteName}</p>
-                  {(s.city || s.state) && (
-                    <p className="text-xs text-gray-500">{[s.city, s.state].filter(Boolean).join(', ')}</p>
-                  )}
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {s.buildings.length} building{s.buildings.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
-              </Link>
+                <Link href={`/sites/${s.id}`} className="flex items-start gap-2 flex-1 min-w-0">
+                  <MapPinIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-gray-900">{s.siteName}</p>
+                    {(s.city || s.state) && (
+                      <p className="text-xs text-gray-500">{[s.city, s.state].filter(Boolean).join(', ')}</p>
+                    )}
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {s.buildings.length} building{s.buildings.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+                </Link>
+                <RemoveSiteButton
+                  projectId={project.id}
+                  siteId={s.id}
+                  siteName={s.siteName}
+                />
+              </div>
             ))}
           </div>
         )}

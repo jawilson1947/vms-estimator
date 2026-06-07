@@ -9,7 +9,7 @@ async function getSites(search: string) {
       : undefined,
     include: {
       customer:  { select: { id: true, customerName: true } },
-      project:   { select: { id: true, projectName: true } },
+      projects:  { select: { id: true, projectName: true } },
       _count:    { select: { buildings: true } },
     },
     orderBy: { siteName: 'asc' },
@@ -80,9 +80,12 @@ export default async function SitesPage({ searchParams }: { searchParams: { sear
                       : '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {s.project
-                      ? <Link href={`/projects/${s.project.id}`} className="hover:underline">{s.project.projectName}</Link>
-                      : '—'}
+                    {s.projects.length === 0 ? '—' : s.projects.map((p, i) => (
+                      <span key={p.id}>
+                        {i > 0 && ', '}
+                        <Link href={`/projects/${p.id}`} className="hover:underline">{p.projectName}</Link>
+                      </span>
+                    ))}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span className="badge bg-gray-100 text-gray-600">{s._count.buildings}</span>

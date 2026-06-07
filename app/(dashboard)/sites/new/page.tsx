@@ -6,12 +6,13 @@ import { SiteForm } from '@/components/SiteForm';
 export default async function NewSitePage({
   searchParams,
 }: {
-  searchParams: { projectId?: string; customerId?: string };
+  searchParams: Promise<{ projectId?: string; customerId?: string }>;
 }) {
-  const [customers, projects] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { customerName: 'asc' }, select: { id: true, customerName: true } }),
-    prisma.project.findMany({  orderBy: { projectName:  'asc' }, select: { id: true, projectName:  true } }),
-  ]);
+  const sp = await searchParams;
+  const customers = await prisma.customer.findMany({
+    orderBy: { customerName: 'asc' },
+    select:  { id: true, customerName: true },
+  });
 
   return (
     <div>
@@ -23,10 +24,8 @@ export default async function NewSitePage({
       <h1 className="text-xl font-bold text-gray-900 mb-6">Add Site</h1>
       <SiteForm
         customers={customers}
-        projects={projects}
         initialData={{
-          customerId: searchParams.customerId ?? '',
-          projectId:  searchParams.projectId  ?? '',
+          customerId: sp.customerId ?? '',
         }}
       />
     </div>

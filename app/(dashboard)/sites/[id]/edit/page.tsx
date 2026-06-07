@@ -6,10 +6,9 @@ import { SiteForm } from '@/components/SiteForm';
 
 export default async function EditSitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [site, customers, projects] = await Promise.all([
+  const [site, customers] = await Promise.all([
     prisma.site.findUnique({ where: { id: Number(id) } }),
     prisma.customer.findMany({ orderBy: { customerName: 'asc' }, select: { id: true, customerName: true } }),
-    prisma.project.findMany({  orderBy: { projectName:  'asc' }, select: { id: true, projectName:  true } }),
   ]);
 
   if (!site) notFound();
@@ -28,12 +27,10 @@ export default async function EditSitePage({ params }: { params: Promise<{ id: s
 
       <SiteForm
         customers={customers}
-        projects={projects}
         siteId={site.id}
         initialData={{
           siteName:   site.siteName,
           customerId: site.customerId ? String(site.customerId) : '',
-          projectId:  site.projectId  ? String(site.projectId)  : '',
           address:    site.address    ?? '',
           city:       site.city       ?? '',
           state:      site.state      ?? '',

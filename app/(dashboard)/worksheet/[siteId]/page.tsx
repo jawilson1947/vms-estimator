@@ -16,7 +16,7 @@ export default async function WorksheetPage({ params }: Params) {
     where: { id: Number(params.siteId) },
     include: {
       customer: true,
-      project:  { select: { id: true, projectName: true, projectNumber: true } },
+      projects: { select: { id: true, projectName: true, projectNumber: true } },
       buildings: {
         include: {
           locations: {
@@ -57,12 +57,12 @@ export default async function WorksheetPage({ params }: Params) {
           <h1 className="text-xl font-bold text-gray-900">{site.siteName}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {site.customer?.customerName}
-            {site.project && (
-              <Link href={`/projects/${site.project.id}`} className="ml-2 text-blue-600 hover:underline">
-                {site.project.projectName}
-                {site.project.projectNumber && ` (${site.project.projectNumber})`}
+            {site.projects.map(p => (
+              <Link key={p.id} href={`/projects/${p.id}`} className="ml-2 text-blue-600 hover:underline">
+                {p.projectName}
+                {p.projectNumber && ` (${p.projectNumber})`}
               </Link>
-            )}
+            ))}
           </p>
           {(site.address || site.city) && (
             <p className="text-sm text-gray-400 mt-0.5">

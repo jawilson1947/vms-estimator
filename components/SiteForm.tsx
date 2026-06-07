@@ -4,12 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Customer { id: number; customerName: string; }
-interface Project  { id: number; projectName:  string; }
 
 interface SiteFormData {
   siteName:   string;
   customerId: string;
-  projectId:  string;
   address:    string;
   city:       string;
   state:      string;
@@ -18,17 +16,16 @@ interface SiteFormData {
 
 interface Props {
   customers:    Customer[];
-  projects:     Project[];
   initialData?: Partial<SiteFormData>;
   siteId?:      number;
 }
 
 const empty: SiteFormData = {
-  siteName: '', customerId: '', projectId: '',
+  siteName: '', customerId: '',
   address: '', city: '', state: '', notes: '',
 };
 
-export function SiteForm({ customers, projects, initialData, siteId }: Props) {
+export function SiteForm({ customers, initialData, siteId }: Props) {
   const router  = useRouter();
   const isEdit  = !!siteId;
   const [form, setForm]     = useState<SiteFormData>({ ...empty, ...initialData });
@@ -85,21 +82,15 @@ export function SiteForm({ customers, projects, initialData, siteId }: Props) {
         />
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="customerId" className="form-label">Customer</label>
-          <select id="customerId" name="customerId" value={form.customerId} onChange={handleChange} className="form-select">
-            <option value="">— Select customer —</option>
-            {customers.map(c => <option key={c.id} value={c.id}>{c.customerName}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="projectId" className="form-label">Project</label>
-          <select id="projectId" name="projectId" value={form.projectId} onChange={handleChange} className="form-select">
-            <option value="">— Select project —</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.projectName}</option>)}
-          </select>
-        </div>
+      <div>
+        <label htmlFor="customerId" className="form-label">Customer</label>
+        <select id="customerId" name="customerId" value={form.customerId} onChange={handleChange} className="form-select">
+          <option value="">— Select customer —</option>
+          {customers.map(c => <option key={c.id} value={c.id}>{c.customerName}</option>)}
+        </select>
+        <p className="mt-1 text-xs text-gray-400">
+          To link this site to a project, use the &ldquo;Add Existing Site&rdquo; button on the project page.
+        </p>
       </div>
 
       <div>

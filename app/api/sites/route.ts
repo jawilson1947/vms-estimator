@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 
 // GET /api/sites
 export async function GET(req: NextRequest) {
@@ -13,16 +14,23 @@ export async function GET(req: NextRequest) {
   const customerId = searchParams.get('customerId');
   const search     = searchParams.get('search') ?? '';
 
+  let projectSiteIds: number[] | null = null;
+  if (projectId) {
+    const rows = await prisma.$queryRaw<{ B: number }[]>(
+      Prisma.sql`SELECT B FROM _SiteProjects WHERE A = ${Number(projectId)}`
+    ).catch(() => []);
+    projectSiteIds = rows.map(r => Number(r.B));
+  }
+
   const sites = await prisma.site.findMany({
     where: {
-      ...(projectId  ? { projectId:  Number(projectId)  } : {}),
+      ...(projectSiteIds !== null ? { id: { in: projectSiteIds } } : {}),
       ...(customerId ? { customerId: Number(customerId) } : {}),
       ...(search     ? { OR: [{ siteName: { contains: search } }, { city: { contains: search } }] } : {}),
     },
     include: {
-      customer:  { select: { id: true, customerName: true } },
-      project:   { select: { id: true, projectName: true } },
-      _count:    { select: { buildings: true } },
+      customer: { select: { id: true, customerName: true } },
+      _count:   { select: { buildings: true } },
     },
     orderBy: { siteName: 'asc' },
   });
@@ -44,13 +52,18 @@ export async function POST(req: NextRequest) {
     data: {
       siteName,
       customerId: customerId ? Number(customerId) : null,
-      projectId:  projectId  ? Number(projectId)  : null,
       address:    address    || null,
       city:       city       || null,
       state:      state      || null,
       notes:      notes      || null,
     },
   });
+
+  if (projectId) {
+    await prisma.$executeRaw(
+      Prisma.sql`INSERT IGNORE INTO _SiteProjects (A, B) VALUES (${Number(projectId)}, ${site.id})`
+    ).catch(() => null);
+  }
 
   return NextResponse.json(site, { status: 201 });
 }

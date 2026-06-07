@@ -34,7 +34,7 @@ export function AddSiteButton({ projectId, excludeIds }: Props) {
     setLoading(true);
     setSelected(null);
     setSearch('');
-    // Fetch all sites with no project assigned
+    // Fetch all sites, excluding those already on this project
     fetch('/api/sites')
       .then(r => r.json())
       .then((all: Site[]) => {
@@ -57,13 +57,10 @@ export function AddSiteButton({ projectId, excludeIds }: Props) {
     if (selected === null) return;
     setSaving(true);
     try {
-      // Fetch the full site first so we don't clobber other fields
-      const siteRes = await fetch(`/api/sites/${selected}`);
-      const site = await siteRes.json();
-      await fetch(`/api/sites/${selected}`, {
-        method: 'PUT',
+      await fetch(`/api/projects/${projectId}/sites`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...site, projectId }),
+        body: JSON.stringify({ siteId: selected }),
       });
       setOpen(false);
       router.refresh();

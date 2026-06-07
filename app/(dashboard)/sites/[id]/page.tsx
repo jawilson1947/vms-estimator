@@ -1,37 +1,49 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
-  ChevronRightIcon, PencilSquareIcon, PlusIcon,
+  ChevronRightIcon, PencilSquareIcon,
   BuildingOffice2Icon, MapPinIcon, CameraIcon,
 } from '@heroicons/react/24/outline';
 import { AddBuildingForm } from '@/components/AddBuildingForm';
 import { BuildingActions } from '@/components/BuildingActions';
 import { BuildingFloorPlans } from '@/components/BuildingFloorPlans';
 
+interface ProjectRow { id: number; projectName: string; }
+
 export default async function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const site = await prisma.site.findUnique({
-    where:   { id: Number(id) },
-    include: {
-      customer: { select: { id: true, customerName: true } },
-      project:  { select: { id: true, projectName:  true } },
-      buildings: {
-        orderBy: { buildingName: 'asc' },
-        include: {
-          locations: {
-            orderBy: { areaName: 'asc' },
-            select: {
-              id: true, areaName: true, floor: true,
-              mountingLocation: true, coveragePurpose: true,
-              cameraModelId: true,
+  const siteId = Number(id);
+
+  const [site, linkedProjects] = await Promise.all([
+    prisma.site.findUnique({
+      where:   { id: siteId },
+      include: {
+        customer: { select: { id: true, customerName: true } },
+        buildings: {
+          orderBy: { buildingName: 'asc' },
+          include: {
+            locations: {
+              orderBy: { areaName: 'asc' },
+              select: {
+                id: true, areaName: true, floor: true,
+                mountingLocation: true, coveragePurpose: true,
+                cameraModelId: true,
+              },
             },
+            _count: { select: { locations: true } },
           },
-          _count: { select: { locations: true } },
         },
       },
-    },
-  });
+    }),
+    prisma.$queryRaw<ProjectRow[]>(
+      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName
+                 FROM projects p
+                 JOIN _SiteProjects sp ON sp.A = p.project_id
+                 WHERE sp.B = ${siteId}`
+    ).catch(() => [] as ProjectRow[]),
+  ]);
 
   if (!site) notFound();
 
@@ -88,25 +100,23 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
         </div>
       </div>
 
-      {/* Links */}
-      <div className="flex gap-3 text-sm mb-6">
+      {/* Project links */}
+      <div className="flex flex-wrap gap-3 text-sm mb-6">
         {site.customer && (
           <Link href={`/customers/${site.customer.id}`} className="text-blue-600 hover:underline">
             ← {site.customer.customerName}
           </Link>
         )}
-        {site.project && (
-          <Link href={`/projects/${site.project.id}`} className="text-blue-600 hover:underline">
-            ← {site.project.projectName}
+        {linkedProjects.map(p => (
+          <Link key={p.id} href={`/projects/${p.id}`} className="text-blue-600 hover:underline">
+            ← {p.projectName}
           </Link>
-        )}
+        ))}
       </div>
 
       {/* Buildings */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">Buildings</h2>
-        </div>
+        <h2 className="text-base font-semibold text-gray-900">Buildings</h2>
 
         {site.buildings.map(building => (
           <div key={building.id} className="card overflow-hidden">
@@ -120,16 +130,12 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
               </div>
               <div className="flex items-center gap-3">
                 <BuildingActions buildingId={building.id} buildingName={building.buildingName} />
-                <Link
-                  href={`/cameras?buildingId=${building.id}`}
-                  className="text-xs text-blue-600 hover:underline"
-                >
+                <Link href={`/cameras?buildingId=${building.id}`} className="text-xs text-blue-600 hover:underline">
                   View cameras
                 </Link>
               </div>
             </div>
 
-            {/* Floor plans */}
             <div className="px-5 py-3 border-b border-gray-100">
               <BuildingFloorPlans buildingId={building.id} />
             </div>
@@ -165,9 +171,9 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
           </div>
         ))}
 
-        {/* Add building form */}
         <AddBuildingForm siteId={site.id} />
       </div>
+
       {site.notes && (
         <div className="card p-5 mt-4">
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Notes</h3>
