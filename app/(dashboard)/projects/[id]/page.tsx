@@ -2,13 +2,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import {
-  ChevronRightIcon, PencilSquareIcon, PlusIcon,
-  MapPinIcon, CurrencyDollarIcon, BuildingOffice2Icon,
+  ChevronRightIcon, PencilSquareIcon,
+  MapPinIcon, CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { AddSiteButton } from '@/components/AddSiteButton';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
-import { LinkedDescription } from '@/components/LinkedDescription';
+import { ProjectScopePanel } from '@/components/ProjectScopePanel';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -35,7 +35,24 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     where:   { id: Number(id) },
     include: {
       customer:   { select: { id: true, customerName: true } },
-      sites:      { orderBy: { siteName: 'asc' }, include: { buildings: true } },
+      sites: {
+        orderBy: { siteName: 'asc' },
+        include: {
+          buildings: {
+            orderBy: { buildingName: 'asc' },
+            include: {
+              locations: {
+                orderBy: { areaName: 'asc' },
+                include: {
+                  cameraModel: {
+                    select: { id: true, manufacturer: true, model: true, cost: true, cameraType: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
       feeSummary: true,
     },
@@ -187,64 +204,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         )}
       </div>
 
-      {/* Cost line items */}
-      {project.costs.length > 0 && (
-        <div className="card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-            <h2 className="text-sm font-semibold text-gray-900">Cost Line Items</h2>
-            <Link href={`/costs?projectId=${project.id}`} className="btn-secondary text-xs py-1 px-2.5">
-              <PlusIcon className="w-3.5 h-3.5" /> Add Cost
-            </Link>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Category</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Description</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Qty</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Unit Cost</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Markup</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-600">Line Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {project.costs.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5">
-                    <span className="badge bg-gray-100 text-gray-600 text-xs">
-                      {c.category.name}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2.5 text-gray-700">
-                    <LinkedDescription
-                      description={c.description}
-                      url={(c as Record<string, unknown>).url as string | null}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-gray-600">{Number(c.quantity)}</td>
-                  <td className="px-4 py-2.5 text-right text-gray-600">
-                    {fmt(Number(c.unitCost))}
-                  </td>
-                  <td className="px-4 py-2.5 text-right text-gray-600">{Number(c.markupPercent)}%</td>
-                  <td className="px-4 py-2.5 text-right font-medium text-gray-900">
-                    {fmt(Number(c.lineTotal ?? 0))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-200 bg-gray-50">
-                <td colSpan={5} className="px-4 py-3 text-sm font-semibold text-gray-700 text-right">
-                  Total
-                </td>
-                <td className="px-4 py-3 text-right font-bold text-blue-700">
-                  {fmt(totalCost)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      )}
+      {/* Project Scope — survey locations + cost line items */}
+      <ProjectScopePanel
+        projectId={project.id}
+        sites={project.sites}
+        manualCosts={project.costs}
+      />
 
       {/* Proposal History */}
       <ProposalHistory projectId={project.id} projectName={project.projectName} />
