@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { PlusIcon, TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { LinkedDescription } from '@/components/LinkedDescription';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -24,6 +25,7 @@ interface CostLine {
   markupPercent: number;
   lineTotal:     number;
   vendor:        string;
+  url:           string;
   billable:      boolean;
   notes:         string;
 }
@@ -51,7 +53,7 @@ const PIE_COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4',
 
 const emptyLine = {
   categoryId: 0, description: '', quantity: 1,
-  unitCost: 0, markupPercent: 0, vendor: '', billable: true, notes: '',
+  unitCost: 0, markupPercent: 0, vendor: '', url: '', billable: true, notes: '',
 };
 
 function fmt(n: number): string {
@@ -117,7 +119,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     setLineForm({
       categoryId: c.categoryId, description: c.description, quantity: c.quantity,
       unitCost: c.unitCost, markupPercent: c.markupPercent,
-      vendor: c.vendor, billable: c.billable, notes: c.notes,
+      vendor: c.vendor, url: c.url, billable: c.billable, notes: c.notes,
     });
     setEditId(c.id);
   }
@@ -155,6 +157,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       markupPercent: Number(raw.markupPercent),
       lineTotal:     Number(raw.lineTotal ?? 0),
       vendor:        raw.vendor   ?? '',
+      url:           raw.url      ?? '',
       billable:      raw.billable,
       notes:         raw.notes    ?? '',
     };
@@ -249,7 +252,9 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                               {c.categoryName}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-gray-700">{c.description || '—'}</td>
+                          <td className="px-3 py-2 text-gray-700">
+                            <LinkedDescription description={c.description} url={c.url} />
+                          </td>
                           <td className="px-3 py-2 text-right text-gray-600">{c.quantity}</td>
                           <td className="px-3 py-2 text-right text-gray-600">{fmt(c.unitCost)}</td>
                           <td className="px-3 py-2 text-right text-gray-500">{c.markupPercent}%</td>
@@ -453,6 +458,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
         </div>
       </div>
     </div>
+
   );
 }
 
@@ -481,6 +487,8 @@ function EditRow({
       <td className="px-2 py-2">
         <input name="description" value={form.description} onChange={onChange}
           placeholder="Description" className="form-input text-xs py-1.5 w-full" />
+        <input name="url" type="url" value={form.url} onChange={onChange}
+          placeholder="https:// (optional link)" className="form-input text-xs py-1 w-full mt-1 text-blue-600 placeholder:text-gray-400" />
       </td>
       <td className="px-2 py-2">
         <input name="quantity" type="number" min="0" step="any" value={form.quantity} onChange={onChange}

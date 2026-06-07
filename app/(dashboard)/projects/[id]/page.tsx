@@ -8,6 +8,7 @@ import {
 import { AddSiteButton } from '@/components/AddSiteButton';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
+import { LinkedDescription } from '@/components/LinkedDescription';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -214,7 +215,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                       {c.category.name}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-700">{c.description ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-gray-700">
+                    <LinkedDescription
+                      description={c.description}
+                      url={(c as Record<string, unknown>).url as string | null}
+                    />
+                  </td>
                   <td className="px-4 py-2.5 text-right text-gray-600">{Number(c.quantity)}</td>
                   <td className="px-4 py-2.5 text-right text-gray-600">
                     {fmt(Number(c.unitCost))}
@@ -235,16 +241,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   {fmt(totalCost)}
                 </td>
               </tr>
-           
             </tfoot>
           </table>
         </div>
       )}
 
       {/* Proposal History */}
-      <div className="mt-4">
-        <ProposalHistory projectId={project.id} projectName={project.projectName} />
-      </div>
+      <ProposalHistory projectId={project.id} projectName={project.projectName} />
+
     </div>
   );
 }

@@ -54,6 +54,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
           markupPercent: Number(c.markupPercent),
           lineTotal:     Number(c.lineTotal ?? 0),
           vendor:        c.vendor   ?? '',
+          url:           (c as Record<string, unknown>).url as string ?? '',
           billable:      c.billable,
           notes:         c.notes    ?? '',
         }))}

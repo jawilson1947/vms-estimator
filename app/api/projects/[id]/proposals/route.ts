@@ -16,7 +16,7 @@ export async function GET(
     where:   { projectId: Number(id) },
     orderBy: { createdAt: 'desc' },
     select: {
-      id: true, title: true, tone: true, status: true,
+      id: true, title: true, tone: true, template: true, status: true,
       validUntil: true, createdAt: true, updatedAt: true,
       // exclude heavy content from list
     },
@@ -35,7 +35,7 @@ export async function POST(
 
   const { id } = await params;
   const body = await req.json();
-  const { title, content, tone, validUntil } = body;
+  const { title, content, tone, template, validUntil } = body;
 
   if (!content) return NextResponse.json({ error: 'content is required' }, { status: 400 });
 
@@ -44,7 +44,8 @@ export async function POST(
       projectId:  Number(id),
       title:      title || 'Proposal',
       content,
-      tone:       tone || 'professional',
+      tone:       tone     || 'professional',
+      template:   template || 'classic',
       status:     'draft',
       validUntil: validUntil ? new Date(validUntil) : null,
     },

@@ -9,16 +9,28 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ProposalStatus = 'draft' | 'sent' | 'accepted' | 'rejected';
+type ProposalStatus   = 'draft' | 'sent' | 'accepted' | 'rejected';
+type ProposalTemplate = 'classic' | 'executive' | 'modern' | 'bold' | 'minimal';
 
 interface ProposalSummary {
   id:         number;
   title:      string;
   tone:       string;
+  template:   ProposalTemplate;
   status:     ProposalStatus;
   validUntil: string | null;
   createdAt:  string;
 }
+
+const TEMPLATE_SWATCHES: Record<ProposalTemplate, { color: string; label: string }> = {
+  classic:   { color: '#1E3A5F', label: 'Classic'   },
+  executive: { color: '#1E293B', label: 'Executive' },
+  modern:    { color: '#0F766E', label: 'Modern'    },
+  bold:      { color: '#4C1D95', label: 'Bold'      },
+  minimal:   { color: '#374151', label: 'Minimal'   },
+};
+
+const TEMPLATE_OPTIONS: ProposalTemplate[] = ['classic', 'executive', 'modern', 'bold', 'minimal'];
 
 const STATUS_COLORS: Record<ProposalStatus, string> = {
   draft:    'bg-gray-100 text-gray-600',
@@ -74,6 +86,15 @@ export function ProposalHistory({ projectId, projectName, refreshKey, onReopen }
     setProposals(prev => prev.map(p => p.id === id ? { ...p, status } : p));
   }
 
+  async function updateTemplate(id: number, template: ProposalTemplate) {
+    await fetch(`/api/projects/${projectId}/proposals/${id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ template }),
+    });
+    setProposals(prev => prev.map(p => p.id === id ? { ...p, template } : p));
+  }
+
   async function deleteProposal(id: number) {
     if (!confirm('Delete this proposal?')) return;
     await fetch(`/api/projects/${projectId}/proposals/${id}`, { method: 'DELETE' });
@@ -82,14 +103,19 @@ export function ProposalHistory({ projectId, projectName, refreshKey, onReopen }
 
   async function downloadPdf(id: number) {
     setPdfLoading(id);
+    const proposal = proposals.find(p => p.id === id);
     try {
-      const res = await fetch(`/api/projects/${projectId}/proposals/${id}/pdf`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${projectId}/proposals/${id}/docx`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ template: proposal?.template ?? 'classic' }),
+      });
       if (!res.ok) return;
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = `proposal-${projectName.toLowerCase().replace(/\s+/g, '-')}-v${id}.pdf`;
+      a.download = `proposal-${projectName.toLowerCase().replace(/\s+/g, '-')}-v${id}.docx`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -151,6 +177,23 @@ export function ProposalHistory({ projectId, projectName, refreshKey, onReopen }
                         <span>Valid until {new Date(p.validUntil).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                       )}
                     </div>
+                  </div>
+
+                  {/* Template selector */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div
+                      className="w-3 h-3 rounded-sm shrink-0"
+                      style={{ backgroundColor: TEMPLATE_SWATCHES[p.template ?? 'classic'].color }}
+                    />
+                    <select
+                      value={p.template ?? 'classic'}
+                      onChange={e => updateTemplate(p.id, e.target.value as ProposalTemplate)}
+                      className="form-select text-xs py-1 pr-7 w-28"
+                    >
+                      {TEMPLATE_OPTIONS.map(t => (
+                        <option key={t} value={t}>{TEMPLATE_SWATCHES[t].label}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Status selector */}

@@ -6,6 +6,7 @@ import { InternetCheck } from '@/components/settings/InternetCheck';
 import { SpeechApiTest } from '@/components/settings/SpeechApiTest';
 import { UserManager } from '@/components/admin/UserManager';
 import { LineItemCategoryManager } from '@/components/settings/LineItemCategoryManager';
+import { CompanySettings } from '@/components/settings/CompanySettings';
 import { Cog6ToothIcon } from '@heroicons/react/24/outline';
 
 export default async function SettingsPage() {
@@ -42,6 +43,10 @@ export default async function SettingsPage() {
 
       <div className="card p-4">
         <SpeechApiTest />
+      </div>
+
+      <div className="card p-4">
+        <CompanySettings />
       </div>
     </div>
   );

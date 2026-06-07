@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { generateProposalPdf } from '@/lib/generate-proposal-pdf';
+import { generateProposalDocx } from '@/lib/generate-proposal-docx';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 
-// POST /api/projects/[id]/proposals/[proposalId]/pdf
+// POST /api/projects/[id]/proposals/[proposalId]/docx
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; proposalId: string }> }
@@ -15,10 +15,12 @@ export async function POST(
 
   const { id, proposalId } = await params;
 
-  // template may be sent in the body so we don't rely on stale Prisma client types
-  const body = await req.json().catch(() => ({})) as { template?: string };
+  // template/siteName may be passed in the body to bypass stale Prisma client
+  const body = await req.json().catch(() => ({})) as { template?: string; siteName?: string | null };
 
-  const [proposal, project] = await Promise.all([
+  const userId = Number((session.user as { id?: string | number }).id ?? 0);
+
+  const [proposal, project, userSettings] = await Promise.all([
     prisma.proposal.findUnique({ where: { id: Number(proposalId) } }),
     prisma.project.findUnique({
       where:   { id: Number(id) },
@@ -28,17 +30,31 @@ export async function POST(
         costs:      { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
       },
     }),
+    prisma.user.findUnique({
+      where:  { id: userId },
+      select: {
+        companyName: true, companyTagline: true, logoUrl: true,
+        companyPhone: true, companyAddress: true, companyWebsite: true,
+        defaultProjectManager: true,
+      },
+    }),
   ]);
 
   if (!proposal || !project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const content    = proposal.content as unknown as ProposalContent;
-  // Prefer template from request body; fall back to DB field; default to 'classic'
   const templateId = body.template
     ?? (proposal as { template?: string }).template
     ?? 'classic';
 
-  const buf = await generateProposalPdf(content, project, templateId, proposal.validUntil);
+  const buf = await generateProposalDocx(
+    content,
+    project,
+    templateId,
+    proposal.validUntil,
+    userSettings ?? {},
+    body.siteName ?? null,
+  );
 
   const slug    = project.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
   const dateStr = new Date().toISOString().slice(0, 10);
@@ -46,8 +62,8 @@ export async function POST(
   return new NextResponse(buf as unknown as BodyInit, {
     status: 200,
     headers: {
-      'Content-Type':        'application/pdf',
-      'Content-Disposition': `attachment; filename="proposal-${slug}-${dateStr}.pdf"`,
+      'Content-Type':        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Content-Disposition': `attachment; filename="proposal-${slug}-${dateStr}.docx"`,
     },
   });
 }

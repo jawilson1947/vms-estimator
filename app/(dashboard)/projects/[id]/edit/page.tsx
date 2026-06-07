@@ -42,7 +42,8 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
           projectManager:      project.projectManager      ?? '',
           consultingRate:      project.consultingRate      ? String(project.consultingRate)      : '',
           overheadRatePercent: project.overheadRatePercent ? String(project.overheadRatePercent) : '',
-          notes:               project.notes               ?? '',
+          notes
+:               project.notes               ?? '',
         }}
       />
     </div>

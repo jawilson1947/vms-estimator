@@ -28,7 +28,7 @@ export async function PATCH(
 
   const { proposalId } = await params;
   const body = await req.json();
-  const { status, title, content, validUntil } = body;
+  const { status, title, content, template, validUntil } = body;
 
   const validStatuses = ['draft', 'sent', 'accepted', 'rejected'];
   if (status && !validStatuses.includes(status)) {
@@ -39,6 +39,7 @@ export async function PATCH(
     where: { id: Number(proposalId) },
     data: {
       ...(status     !== undefined && { status }),
+      ...(template   !== undefined && { template }),
       ...(title      !== undefined && { title }),
       ...(content    !== undefined && { content }),
       ...(validUntil !== undefined && { validUntil: validUntil ? new Date(validUntil) : null }),

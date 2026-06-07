@@ -16,7 +16,14 @@ model User {
   username     String    @unique @db.VarChar(100)
   email        String    @unique @db.VarChar(150)
   passwordHash String    @map("password_hash") @db.VarChar(255)
-  phone        String?   @db.VarChar(30)
+  phone                 String?   @db.VarChar(30)
+  companyName           String?   @map("company_name")            @db.VarChar(200)
+  companyTagline        String?   @map("company_tagline")         @db.VarChar(300)
+  logoUrl               String?   @map("logo_url")                @db.VarChar(500)
+  companyPhone          String?   @map("company_phone")           @db.VarChar(50)
+  companyAddress        String?   @map("company_address")         @db.VarChar(500)
+  companyWebsite        String?   @map("company_website")         @db.VarChar(500)
+  defaultProjectManager String?   @map("default_project_manager") @db.VarChar(150)
   role         UserRole? @default(VIEWER)
   isActive     Boolean   @default(true) @map("is_active")
   lastLogin    DateTime? @map("last_login")
@@ -261,6 +268,7 @@ model ProjectCost {
   markupPercent Decimal          @default(0) @map("markup_percent") @db.Decimal(5, 2)
   lineTotal     Decimal?         @map("line_total") @db.Decimal(12, 2)
   vendor        String?          @db.VarChar(150)
+  url           String?          @db.VarChar(500)
   costDate      DateTime?        @map("cost_date") @db.Date
   billable      Boolean          @default(true)
   notes         String?          @db.Text
@@ -311,7 +319,7 @@ model AuditLog {
   @@map("audit_log")
 }
 
-// ─── Proposals ───────────────────────────────────────────────────────────────
+// ─── Proposals ──────────────────────────────────────────────
 
 model Proposal {
   id          Int       @id @default(autoincrement()) @map("proposal_id")
@@ -319,6 +327,7 @@ model Proposal {
   title       String    @db.VarChar(200)
   content     Json
   tone        String    @default("professional") @db.VarChar(50)
+  template    String    @default("classic") @db.VarChar(50)
   status      String    @default("draft") @db.VarChar(50)
   validUntil  DateTime? @map("valid_until") @db.Date
   createdAt   DateTime  @default(now()) @map("created_at")

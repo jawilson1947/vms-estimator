@@ -39,6 +39,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       unitCost:     b.unitCost     ? Number(b.unitCost)      : 0,
       markupPercent:b.markupPercent? Number(b.markupPercent) : 0,
       vendor:       b.vendor       || null,
+      url:          b.url          || null,
       costDate:     b.costDate     ? new Date(b.costDate)    : null,
       billable:     b.billable !== undefined ? !!b.billable  : true,
       notes:        b.notes        || null,

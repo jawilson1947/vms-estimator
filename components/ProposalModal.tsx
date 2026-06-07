@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   XMarkIcon, ArrowRightIcon, ArrowLeftIcon,
   SparklesIcon, ArrowDownTrayIcon, ClipboardDocumentIcon,
@@ -8,11 +8,14 @@ import {
   BookmarkIcon,
 } from '@heroicons/react/24/outline';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
+import { CostBreakdownTable, type CostItem, type FeeSummaryData } from '@/components/CostBreakdownTable';
+import { ProposalDocumentPreview } from '@/components/ProposalDocumentPreview';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Tone = 'professional' | 'consultative' | 'friendly';
-type Step = 'configure' | 'generate' | 'preview' | 'export';
+type Tone     = 'professional' | 'consultative' | 'friendly';
+type Template = 'classic' | 'executive' | 'modern' | 'bold' | 'minimal';
+type Step     = 'configure' | 'generate' | 'preview' | 'export';
 
 interface Section {
   key:   keyof ProposalContent;
@@ -34,6 +37,14 @@ const TONE_OPTIONS: { value: Tone; label: string; description: string }[] = [
   { value: 'friendly',      label: 'Friendly',      description: 'Warm and plain-language — great for smaller clients'     },
 ];
 
+const TEMPLATE_OPTIONS: { value: Template; label: string; description: string; swatch: string }[] = [
+  { value: 'classic',   label: 'Classic',   description: 'Bold navy cover',        swatch: '#1E3A5F' },
+  { value: 'executive', label: 'Executive', description: 'Slate charcoal, precise', swatch: '#1E293B' },
+  { value: 'modern',    label: 'Modern',    description: 'Teal, contemporary',      swatch: '#0F766E' },
+  { value: 'bold',      label: 'Bold',      description: 'Deep purple, high impact', swatch: '#4C1D95' },
+  { value: 'minimal',   label: 'Minimal',   description: 'Monochrome, typographic', swatch: '#374151' },
+];
+
 interface Props {
   projectId:   number;
   projectName: string;
@@ -46,6 +57,7 @@ interface Props {
 export function ProposalModal({ projectId, projectName, onClose, onSaved }: Props) {
   // Configuration
   const [tone, setTone]                   = useState<Tone>('professional');
+  const [template, setTemplate]           = useState<Template>('classic');
   const [includedKeys, setIncludedKeys]   = useState<Set<keyof ProposalContent>>(
     new Set(SECTIONS.map(s => s.key))
   );
@@ -63,12 +75,73 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
   const [editDraft, setEditDraft]   = useState('');
   const [regenKey, setRegenKey]     = useState<keyof ProposalContent | null>(null);
 
+  // Project cost data (for the Investment Summary table)
+  const [projectCosts, setProjectCosts]             = useState<CostItem[]>([]);
+  const [projectFeeSummary, setProjectFeeSummary]   = useState<FeeSummaryData | null>(null);
+  const [projectCustomerName, setProjectCustomerName] = useState('');
+  const [projectNumber, setProjectNumber]           = useState('');
+  const [projectManager, setProjectManager]         = useState('');
+  const [projectSites, setProjectSites]             = useState<{ id: number; siteName: string }[]>([]);
+  const [selectedSiteId, setSelectedSiteId]         = useState<number | null>(null);
+  const [companySettings, setCompanySettings]       = useState<{
+    companyName: string; companyTagline: string; logoUrl: string;
+    companyPhone: string; companyAddress: string; companyWebsite: string;
+  }>({ companyName: 'CSMS', companyTagline: '', logoUrl: '', companyPhone: '', companyAddress: '', companyWebsite: '' });
+  const [showDocPreview, setShowDocPreview]         = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (!d) return;
+        setProjectCustomerName(d.customer?.customerName ?? '');
+        setProjectNumber(d.projectNumber ?? '');
+        setProjectManager(d.projectManager ?? '');
+        const sites = (d.sites ?? []) as { id: number; siteName: string }[];
+        setProjectSites(sites);
+        if (sites.length === 1) setSelectedSiteId(sites[0].id);
+        // Also fetch company settings
+        fetch('/api/user/settings').then(r => r.ok ? r.json() : {}).then((s: Record<string, string | null>) => {
+          setCompanySettings({
+            companyName:    s.companyName    ?? 'CSMS',
+            companyTagline: s.companyTagline ?? '',
+            logoUrl:        s.logoUrl        ?? '',
+            companyPhone:   s.companyPhone   ?? '',
+            companyAddress: s.companyAddress ?? '',
+            companyWebsite: s.companyWebsite ?? '',
+          });
+        });
+        setProjectCosts((d.costs ?? []).map((c: Record<string, unknown>) => ({
+          id:          c.id,
+          description: c.description as string | null,
+          quantity:    Number(c.quantity),
+          unitCost:    Number(c.unitCost),
+          lineTotal:   Number(c.lineTotal ?? 0),
+          category:    { name: (c.category as Record<string, unknown>)?.name as string ?? '' },
+        })));
+        if (d.feeSummary) {
+          const fs = d.feeSummary as Record<string, unknown>;
+          setProjectFeeSummary({
+            directCostTotal:      Number(fs.directCostTotal),
+            overheadPercent:      Number(fs.overheadPercent),
+            overheadAmount:       Number(fs.overheadAmount),
+            consultingFee:        Number(fs.consultingFee),
+            projectManagementFee: Number(fs.projectManagementFee),
+            contingencyAmount:    Number(fs.contingencyAmount),
+            taxAmount:            Number(fs.taxAmount),
+            grandTotal:           Number(fs.grandTotal),
+          });
+        }
+      });
+  }, [projectId]);
+
   // Export state
   const [saving, setSaving]       = useState(false);
   const [savedId, setSavedId]     = useState<number | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [copied, setCopied]       = useState(false);
   const [proposalTitle, setProposalTitle] = useState(`${projectName} Proposal`);
+
 
   // ── Section toggle ──────────────────────────────────────────────────────────
   function toggleSection(key: keyof ProposalContent) {
@@ -150,6 +223,7 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
           title:      proposalTitle,
           content,
           tone,
+          template,
           validUntil: validUntil || null,
         }),
       });
@@ -165,7 +239,7 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
     }
   }
 
-  // ── Download PDF ────────────────────────────────────────────────────────────
+  // ── Download Word document ──────────────────────────────────────────────────
   async function downloadPdf() {
     setPdfLoading(true);
     try {
@@ -173,13 +247,18 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
       if (!id) id = await saveProposal();
       if (!id) return;
 
-      const res = await fetch(`/api/projects/${projectId}/proposals/${id}/pdf`, { method: 'POST' });
-      if (!res.ok) throw new Error('PDF failed');
+      const selectedSite = projectSites.find(s => s.id === selectedSiteId);
+      const res = await fetch(`/api/projects/${projectId}/proposals/${id}/docx`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ template, siteName: selectedSite?.siteName ?? null }),
+      });
+      if (!res.ok) throw new Error('Word generation failed');
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href     = url;
-      a.download = `proposal-${projectName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      a.download = `proposal-${projectName.toLowerCase().replace(/\s+/g, '-')}.docx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -218,6 +297,7 @@ Best regards,
   const steps: Step[] = ['configure', 'generate', 'preview', 'export'];
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
@@ -308,6 +388,31 @@ Best regards,
                 />
               </div>
 
+              {/* Template */}
+              <div>
+                <label className="form-label">Design Template</label>
+                <div className="grid grid-cols-5 gap-2 mt-1">
+                  {TEMPLATE_OPTIONS.map(t => (
+                    <button
+                      key={t.value}
+                      onClick={() => setTemplate(t.value)}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        template === t.value
+                          ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div
+                        className="w-full h-6 rounded mb-1.5"
+                        style={{ backgroundColor: t.swatch }}
+                      />
+                      <div className="text-xs font-semibold text-gray-900">{t.label}</div>
+                      <div className="text-xs text-gray-400 mt-0.5 leading-tight">{t.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Valid until */}
               <div>
                 <label className="form-label">Proposal Valid Until <span className="text-gray-400 font-normal">(optional — defaults to 30 days)</span></label>
@@ -318,6 +423,23 @@ Best regards,
                   className="form-input mt-1"
                 />
               </div>
+
+              {/* Site */}
+              {projectSites.length > 0 && (
+                <div>
+                  <label className="form-label">Project Site <span className="text-gray-400 font-normal">(shown on cover page)</span></label>
+                  <select
+                    value={selectedSiteId ?? ''}
+                    onChange={e => setSelectedSiteId(e.target.value ? Number(e.target.value) : null)}
+                    className="form-input mt-1"
+                  >
+                    <option value="">— Not specified —</option>
+                    {projectSites.map(s => (
+                      <option key={s.id} value={s.id}>{s.siteName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -348,14 +470,23 @@ Best regards,
           {/* ── Step 3: Preview & Edit ────────────────────────────────────── */}
           {step === 'preview' && content && (
             <div className="space-y-5">
-              <div>
-                <label className="form-label">Proposal Title</label>
-                <input
-                  type="text"
-                  value={proposalTitle}
-                  onChange={e => setProposalTitle(e.target.value)}
-                  className="form-input mt-1"
-                />
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="form-label">Proposal Title</label>
+                  <input
+                    type="text"
+                    value={proposalTitle}
+                    onChange={e => setProposalTitle(e.target.value)}
+                    className="form-input mt-1"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDocPreview(true)}
+                  className="btn-secondary shrink-0 mt-5"
+                >
+                  👁 Preview Document
+                </button>
               </div>
 
               {SECTIONS.filter(s => includedKeys.has(s.key) && content[s.key]).map(s => (
@@ -391,6 +522,10 @@ Best regards,
                         className="form-input resize-y w-full text-sm"
                         autoFocus
                       />
+                    ) : s.key === 'costBreakdown' ? (
+                      regenKey === s.key
+                        ? <span className="text-gray-400 italic">Regenerating…</span>
+                        : <CostBreakdownTable costs={projectCosts} feeSummary={projectFeeSummary} templateId={template} />
                     ) : (
                       <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                         {regenKey === s.key
@@ -408,7 +543,7 @@ Best regards,
           {step === 'export' && (
             <div className="space-y-5">
               <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-800">
-                ✓ Proposal is ready. Download the PDF, save as draft, or copy a covering email.
+                ✓ Proposal is ready. Download as a Word document, save as draft, or copy a covering email.
               </div>
 
               <div className="grid grid-cols-1 gap-3">
@@ -418,9 +553,8 @@ Best regards,
                   className="btn-primary justify-center py-3 gap-2"
                 >
                   <ArrowDownTrayIcon className="w-5 h-5" />
-                  {pdfLoading ? 'Generating PDF…' : 'Download PDF'}
+                  {pdfLoading ? 'Generating…' : 'Download Word Document'}
                 </button>
-
                 <button
                   onClick={async () => { await saveProposal(); }}
                   disabled={saving || !!savedId}
@@ -452,7 +586,7 @@ Best regards,
         <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 shrink-0">
           <button
             onClick={() => {
-              if (step === 'preview') setStep('configure');
+              if (step === 'preview') { setStep('configure'); setShowDocPreview(false); }
               else if (step === 'export') setStep('preview');
             }}
             className={`btn-secondary gap-1.5 ${step === 'configure' || step === 'generate' ? 'invisible' : ''}`}
@@ -485,5 +619,30 @@ Best regards,
 
       </div>
     </div>
+
+    {/* Document preview overlay */}
+    {showDocPreview && content && (
+      <ProposalDocumentPreview
+        content={content}
+        templateId={template}
+        projectName={projectName}
+        customerName={projectCustomerName || 'Client'}
+        projectNumber={projectNumber}
+        projectManager={projectManager}
+        siteName={projectSites.find(s => s.id === selectedSiteId)?.siteName}
+        validUntil={validUntil || '30 days from date of issue'}
+        date={new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+        companyName={companySettings.companyName}
+        companyTagline={companySettings.companyTagline}
+        logoUrl={companySettings.logoUrl}
+        companyPhone={companySettings.companyPhone}
+        companyAddress={companySettings.companyAddress}
+        companyWebsite={companySettings.companyWebsite}
+        costs={projectCosts}
+        feeSummary={projectFeeSummary}
+        onClose={() => setShowDocPreview(false)}
+      />
+    )}
+    </>
   );
 }

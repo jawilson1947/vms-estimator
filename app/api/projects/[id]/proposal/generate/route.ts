@@ -23,6 +23,59 @@ export interface GenerateRequest {
   additionalContext?: string;
 }
 
+function fmt(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+}
+
+function buildCostBreakdownText(project: Awaited<ReturnType<typeof prisma.project.findUnique>> & object): string {
+  const costs      = (project as Record<string, unknown>).costs as Array<Record<string, unknown>>;
+  const feeSummary = (project as Record<string, unknown>).feeSummary as Record<string, unknown> | null;
+
+  if (!costs?.length) return '';
+
+  // Group by category
+  const grouped = new Map<string, Array<Record<string, unknown>>>();
+  for (const c of costs) {
+    const cat = (c.category as Record<string, unknown>)?.name as string ?? 'Uncategorised';
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(c);
+  }
+
+  const lines: string[] = [];
+
+  for (const [catName, items] of grouped) {
+    lines.push(catName);
+    const subtotal = items.reduce((s, c) => s + Number(c.lineTotal ?? 0), 0);
+    for (const c of items) {
+      const desc = (c.description as string | null) ?? '—';
+      const qty  = Number(c.quantity);
+      const unit = Number(c.unitCost);
+      const tot  = Number(c.lineTotal ?? 0);
+      lines.push(`  ${desc}  (${qty} × ${fmt(unit)})  ${fmt(tot)}`);
+    }
+    lines.push(`  Subtotal: ${fmt(subtotal)}`);
+    lines.push('');
+  }
+
+  if (feeSummary) {
+    const fs = feeSummary;
+    const feeRows: [string, number][] = [
+      ['Direct Cost Total',      Number(fs.directCostTotal)],
+      [`Overhead (${Number(fs.overheadPercent).toFixed(1)}%)`, Number(fs.overheadAmount)],
+      ['Consulting Fee',         Number(fs.consultingFee)],
+      ['Project Management Fee', Number(fs.projectManagementFee)],
+      ['Contingency',            Number(fs.contingencyAmount)],
+      ['Tax',                    Number(fs.taxAmount)],
+    ].filter(([, v]) => (v as number) > 0) as [string, number][];
+
+    for (const [label, val] of feeRows) lines.push(`${label}: ${fmt(val)}`);
+    lines.push('');
+    lines.push(`Grand Total: ${fmt(Number(fs.grandTotal))}`);
+  }
+
+  return lines.join('\n');
+}
+
 function buildSystemPrompt(tone: ProposalTone): string {
   const toneGuide = {
     professional:  'formal, precise, and authoritative. Use industry terminology. Avoid contractions.',
@@ -48,7 +101,7 @@ Always return valid JSON matching exactly this shape:
 
 If a section key is absent from the includeSections list, set its value to an empty string "".
 
-For costBreakdown: write descriptive prose explaining the cost structure. Do NOT reproduce the raw numbers verbatim — summarise and justify them. The actual figures will be shown in a separate table.
+For costBreakdown: always set this field to an empty string "". The cost breakdown is generated programmatically from live project data and does not require AI content.
 
 For termsAndConditions: include standard clauses for payment terms (net 30), change orders, warranty (1 year parts and labour), limitation of liability, and proposal validity.
 
@@ -144,6 +197,11 @@ export async function POST(
       content = JSON.parse(cleaned);
     } catch {
       return NextResponse.json({ error: 'AI returned invalid JSON', raw: text }, { status: 502 });
+    }
+
+    // Always inject programmatic cost breakdown when the section was requested
+    if (sections.includes('costBreakdown')) {
+      content.costBreakdown = buildCostBreakdownText(project as Parameters<typeof buildCostBreakdownText>[0]);
     }
 
     return NextResponse.json({ content });
