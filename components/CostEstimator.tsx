@@ -58,6 +58,10 @@ function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
+function fmtNum(n: number): string {
+  return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary }: Props) {
@@ -72,6 +76,12 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     projectManagementFee: initialSummary?.projectManagementFee ?? 0,
     contingencyAmount:    initialSummary?.contingencyAmount    ?? 0,
     taxAmount:            initialSummary?.taxAmount            ?? 0,
+  });
+  const [feeDisplayValues, setFeeDisplayValues] = useState<Record<string, string>>({
+    consultingFee:        fmtNum(initialSummary?.consultingFee        ?? 0),
+    projectManagementFee: fmtNum(initialSummary?.projectManagementFee ?? 0),
+    contingencyAmount:    fmtNum(initialSummary?.contingencyAmount    ?? 0),
+    taxAmount:            fmtNum(initialSummary?.taxAmount            ?? 0),
   });
   const [savingFees, setSavingFees] = useState(false);
   const [savingLine, setSavingLine] = useState(false);
@@ -374,12 +384,27 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                   <label className="form-label text-xs">{label}</label>
                   <div className="relative">
                     {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{prefix}</span>}
-                    <input
-                      type="number" min="0" step="0.01"
-                      value={fees[key as keyof typeof fees]}
-                      onChange={e => setFees(prev => ({ ...prev, [key]: Number(e.target.value) }))}
-                      className={`form-input ${prefix ? 'pl-6' : ''} ${suffix ? 'pr-7' : ''}`}
-                    />
+                    {prefix ? (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={feeDisplayValues[key]}
+                        onChange={e => setFeeDisplayValues(prev => ({ ...prev, [key]: e.target.value }))}
+                        onBlur={e => {
+                          const num = parseFloat(e.target.value.replace(/[^0-9.]/g, '')) || 0;
+                          setFees(prev => ({ ...prev, [key]: num }));
+                          setFeeDisplayValues(prev => ({ ...prev, [key]: fmtNum(num) }));
+                        }}
+                        className="form-input pl-6"
+                      />
+                    ) : (
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={fees[key as keyof typeof fees]}
+                        onChange={e => setFees(prev => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className={`form-input ${suffix ? 'pr-7' : ''}`}
+                      />
+                    )}
                     {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{suffix}</span>}
                   </div>
                 </div>

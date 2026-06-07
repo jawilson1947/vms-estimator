@@ -72,6 +72,7 @@ model Project {
   sites               Site[]
   costs               ProjectCost[]
   feeSummary          ProjectFeeSummary?
+  proposals           Proposal[]
 
   @@map("projects")
 }
@@ -308,4 +309,23 @@ model AuditLog {
   @@index([createdAt])
   @@index([entityType, entityId])
   @@map("audit_log")
+}
+
+// ─── Proposals ───────────────────────────────────────────────────────────────
+
+model Proposal {
+  id          Int       @id @default(autoincrement()) @map("proposal_id")
+  projectId   Int       @map("project_id")
+  title       String    @db.VarChar(200)
+  content     Json
+  tone        String    @default("professional") @db.VarChar(50)
+  status      String    @default("draft") @db.VarChar(50)
+  validUntil  DateTime? @map("valid_until") @db.Date
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("proposals")
 }

@@ -23,6 +23,7 @@ import {
   ArrowRightStartOnRectangleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  DocumentPlusIcon,
 } from '@heroicons/react/24/outline';
 
 const nav = [
@@ -37,6 +38,7 @@ const nav = [
   { label: 'Worksheet',   href: '/worksheet',   icon: DocumentTextIcon,      color: 'text-sky-500'     },
   { label: 'Compliance',  href: '/compliance',  icon: ShieldCheckIcon,       color: 'text-emerald-500' },
   { label: 'Costs',       href: '/costs',       icon: CurrencyDollarIcon,    color: 'text-lime-600'    },
+  { label: 'Proposals',  href: '/proposals',   icon: DocumentPlusIcon,      color: 'text-rose-500'    },
   { label: 'Reports',     href: '/reports',     icon: DocumentChartBarIcon,  color: 'text-purple-500'  },
   { label: 'Settings',    href: '/settings',    icon: Cog6ToothIcon,         color: 'text-gray-400'    },
 ];

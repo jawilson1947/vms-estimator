@@ -6,6 +6,8 @@ import {
   MapPinIcon, CurrencyDollarIcon, BuildingOffice2Icon,
 } from '@heroicons/react/24/outline';
 import { AddSiteButton } from '@/components/AddSiteButton';
+import { ProjectProposalButton } from '@/components/ProjectProposalButton';
+import { ProposalHistory } from '@/components/ProposalHistory';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -70,9 +72,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             {project.projectManager && <span>PM: {project.projectManager}</span>}
           </div>
         </div>
-        <Link href={`/projects/${project.id}/edit`} className="btn-secondary">
-          <PencilSquareIcon className="w-4 h-4" /> Edit
-        </Link>
+        <div className="flex items-center gap-2">
+          <ProjectProposalButton projectId={project.id} projectName={project.projectName} />
+          <Link href={`/projects/${project.id}/edit`} className="btn-secondary">
+            <PencilSquareIcon className="w-4 h-4" /> Edit
+          </Link>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -235,6 +240,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           </table>
         </div>
       )}
+
+      {/* Proposal History */}
+      <div className="mt-4">
+        <ProposalHistory projectId={project.id} projectName={project.projectName} />
+      </div>
     </div>
   );
 }
