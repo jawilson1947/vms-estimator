@@ -142,9 +142,11 @@ function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
   // ── Company block ────────────────────────────────────────────────────────
   if (opts.logoBuffer) {
     try {
-      // Scale to fit within 160×60 while preserving aspect ratio
-      doc.image(opts.logoBuffer, x, y, { width: 160, align: 'center', valign: 'center', fit: [160, 60] });
-      y += 68;
+      const logoW = 160;
+      const logoH = 60;
+      const logoX = (pageW - logoW) / 2;
+      doc.image(opts.logoBuffer, logoX, y, { fit: [logoW, logoH] });
+      y += logoH + 10;
     } catch { /* skip bad image */ }
   }
 

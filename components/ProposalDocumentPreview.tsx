@@ -109,8 +109,8 @@ export function ProposalDocumentPreview({
 
             {/* Logo */}
             {logoUrl && (
-              <div style={{ ...center, marginBottom: 16 }}>
-                <img src={logoUrl} alt={companyName} style={{ maxHeight: 60, maxWidth: 200, objectFit: 'contain' }} />
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+                <img src={logoUrl} alt={companyName} style={{ maxHeight: 64, maxWidth: 220, objectFit: 'contain' }} />
               </div>
             )}
 
