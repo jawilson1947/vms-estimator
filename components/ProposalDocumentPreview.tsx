@@ -1,6 +1,6 @@
 'use client';
 
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { CostBreakdownTable, type CostItem, type FeeSummaryData } from './CostBreakdownTable';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 
@@ -25,6 +25,8 @@ interface Props {
   costs:           CostItem[];
   feeSummary:      FeeSummaryData | null;
   onClose:         () => void;
+  onExport?:        () => void;
+  exporting?:       boolean;
 }
 
 // ── Template palette ──────────────────────────────────────────────────────────
@@ -74,7 +76,7 @@ export function ProposalDocumentPreview({
   content, templateId, projectName, customerName, projectManager,
   validUntil, date, companyName, companyTagline,
   logoUrl, companyPhone, companyAddress, companyWebsite,
-  projectNumber, siteName, costs, feeSummary, onClose,
+  projectNumber, siteName, costs, feeSummary, onClose, onExport, exporting,
 }: Props) {
   const pal = PALETTE[templateId] ?? PALETTE.classic;
 
@@ -95,9 +97,21 @@ export function ProposalDocumentPreview({
           <span className="text-sm font-semibold text-gray-900">Document Preview</span>
           <span className="text-xs text-gray-400 capitalize">{templateId} template</span>
         </div>
-        <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
-          <XMarkIcon className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {onExport && (
+            <button
+              onClick={onExport}
+              disabled={exporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              <ArrowDownTrayIcon className="w-4 h-4" />
+              {exporting ? 'Generating…' : 'Export Document'}
+            </button>
+          )}
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* Scrollable paper area */}

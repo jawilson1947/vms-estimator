@@ -255,10 +255,31 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
       });
       if (!res.ok) throw new Error('Word generation failed');
       const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
+      const filename = `proposal-${projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.docx`;
+
+      // Use native save dialog if available (Chromium), otherwise fallback
+      if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+        try {
+          const handle = await (window as Window & { showSaveFilePicker: (opts: object) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{ description: 'Word Document', accept: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          return;
+        } catch (e) {
+          // User cancelled picker — abort silently
+          if ((e as { name?: string }).name === 'AbortError') return;
+          // Fall through to standard download
+        }
+      }
+
+      // Fallback: standard anchor download
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
       a.href     = url;
-      a.download = `proposal-${projectName.toLowerCase().replace(/\s+/g, '-')}.docx`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -641,6 +662,8 @@ Best regards,
         costs={projectCosts}
         feeSummary={projectFeeSummary}
         onClose={() => setShowDocPreview(false)}
+        onExport={downloadPdf}
+        exporting={pdfLoading}
       />
     )}
     </>
