@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { BuildingOffice2Icon } from '@heroicons/react/24/outline';
+import { useState, useEffect, useRef } from 'react';
+import { BuildingOffice2Icon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 
 interface CompanyProfile {
   companyName:           string;
@@ -20,11 +20,14 @@ const EMPTY: CompanyProfile = {
 };
 
 export function CompanySettings() {
-  const [form, setForm]       = useState<CompanyProfile>(EMPTY);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const [error, setError]     = useState('');
+  const [form, setForm]         = useState<CompanyProfile>(EMPTY);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [error, setError]       = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch('/api/user/settings')
@@ -44,6 +47,27 @@ export function CompanySettings() {
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
     setSaved(false);
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError('');
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/user/logo', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed');
+      setForm(prev => ({ ...prev, logoUrl: data.logoUrl }));
+      setSaved(false);
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -96,13 +120,35 @@ export function CompanySettings() {
       {/* Row 2: Logo + Website */}
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="form-label">Logo URL <span className="text-gray-400 font-normal">(https://…)</span></label>
-          <input name="logoUrl" type="url" value={form.logoUrl}
-            onChange={handleChange} className="form-input mt-1" placeholder="https://example.com/logo.png" />
-          {form.logoUrl && (
-            <img src={form.logoUrl} alt="Logo preview"
-              className="mt-2 h-10 object-contain rounded border border-gray-200 p-1 bg-white" />
-          )}
+          <label className="form-label">Company Logo</label>
+          <div className="mt-1 flex items-center gap-3">
+            {form.logoUrl && (
+              <img src={form.logoUrl} alt="Logo preview"
+                className="h-10 w-auto object-contain rounded border border-gray-200 p-1 bg-white" />
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+            <button
+              type="button"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-secondary text-xs"
+            >
+              <ArrowUpTrayIcon className="w-3.5 h-3.5 mr-1.5 inline-block" />
+              {uploading ? 'Uploading…' : form.logoUrl ? 'Replace Logo' : 'Upload Logo'}
+            </button>
+            {form.logoUrl && (
+              <button type="button" onClick={() => setForm(prev => ({ ...prev, logoUrl: '' }))}
+                className="text-xs text-red-500 hover:text-red-700">Remove</button>
+            )}
+          </div>
+          {uploadError && <p className="mt-1 text-xs text-red-500">{uploadError}</p>}
+          <p className="mt-1 text-xs text-gray-400">PNG, JPG, SVG, WebP — max 2 MB</p>
         </div>
         <div>
           <label className="form-label">Website</label>

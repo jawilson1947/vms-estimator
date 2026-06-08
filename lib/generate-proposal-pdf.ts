@@ -14,6 +14,7 @@ export interface ProposalCompanyInfo {
   companyAddress?: string | null;
   companyPhone?:   string | null;
   companyWebsite?: string | null;
+  logoUrl?:        string | null;
 }
 
 export interface ProposalProjectData {
@@ -52,7 +53,7 @@ function n(v: number | string | { toString(): string } | null | undefined): numb
 }
 
 const SECTION_LABELS: Record<keyof ProposalContent, string> = {
-  coverLetter:        'Cover Letter',
+  coverLetter:        'Introduction',
   executiveSummary:   'Executive Summary',
   scopeOfWork:        'Scope of Work',
   costBreakdown:      'Investment Summary',
@@ -122,6 +123,20 @@ export async function generateProposalPdf(
     ? fmt(n(project.feeSummary.grandTotal))
     : undefined;
 
+  // Fetch logo buffer
+  let logoBuffer: Buffer | null = null;
+  if (company.logoUrl) {
+    try {
+      const res = await fetch(company.logoUrl, { signal: AbortSignal.timeout(5000) });
+      if (res.ok) logoBuffer = Buffer.from(await res.arrayBuffer());
+    } catch { /* ignore */ }
+  }
+
+  // First paragraph of executive summary → project summary on cover
+  const projectSummary = content.executiveSummary
+    ? (content.executiveSummary.split(/\n\n+/).find(p => p.trim()) ?? '').trim().slice(0, 400) || undefined
+    : undefined;
+
   tmpl.cover(doc, {
     pageW,
     pageH:           doc.page.height,
@@ -134,6 +149,9 @@ export async function generateProposalPdf(
     date,
     validUntil:      validUntilStr,
     grandTotal:      grandTotalStr,
+    projectSummary,
+    logoBuffer:      logoBuffer ?? undefined,
+    siteName:        (project as { siteName?: string | null }).siteName,
     companyName:     company.companyName,
     companyTagline:  company.companyTagline,
     companyAddress:  company.companyAddress,
@@ -244,7 +262,6 @@ export async function generateProposalPdf(
           doc.fillColor(tmpl.tc.dimText).fontSize(8).font('Helvetica')
              .text(label, margin + inner - 180, feeY, { width: 130, align: 'right' });
           doc.fillColor(tmpl.tc.bodyText)
-             .text(fmt(val), margin + inner - 46, feeY, { width: 46, align: 'right' });
           doc.y = feeY + doc.currentLineHeight() + 3;
         }
 
@@ -253,7 +270,7 @@ export async function generateProposalPdf(
         const gtY = doc.y + 4;
         doc.rect(margin + inner - 230, gtY, 230, 24).fill(tmpl.tc.totalBar);
         doc.fillColor(tmpl.tc.totalText).fontSize(9).font('Helvetica-Bold')
-           .text('GRAND TOTAL', margin + inner- 112, gtY + 6, { width: 108, align: 'right' });
+           .text('GRAND TOTAL', margin + inner - 112, gtY + 6, { width: 108, align: 'right' });
         doc.y = gtY + 30;
       }
     }
@@ -315,7 +332,7 @@ export async function generateProposalPdf(
 
     // Table header
     const aC = [margin, margin + 30, margin + 300];
-    const aW = [28,  268, inner - 300];
+    const aW = [28, 268, inner - 300];
     const hdrY = doc.y;
     doc.rect(margin, hdrY, inner, 16).fill(tmpl.tc.tableHdr);
     doc.fillColor(tmpl.tc.tableHdrText).fontSize(7.5).font('Helvetica-Bold');

@@ -8,11 +8,7 @@ import type { ProposalCompanyInfo } from '@/lib/generate-proposal-pdf';
 
 /**
  * POST /api/projects/[id]/proposals/preview-pdf
- *
- * Stateless preview endpoint — generates a PDF from content supplied in the
- * request body without writing anything to the database. Used by the modal's
- * live PDF preview tab.
- *
+ * Stateless preview — generates PDF from body content without saving to DB.
  * Body: { content: ProposalContent, template?: string, validUntil?: string | null }
  */
 export async function POST(
@@ -44,7 +40,7 @@ export async function POST(
     }),
     prisma.user.findUnique({
       where:  { id: userId },
-      select: { companyName: true, companyTagline: true, companyAddress: true, companyPhone: true, companyWebsite: true },
+      select: { companyName: true, companyTagline: true, companyAddress: true, companyPhone: true, companyWebsite: true, logoUrl: true },
     }),
   ]);
 

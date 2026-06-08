@@ -34,6 +34,9 @@ export interface CoverOpts {
   companyAddress?: string | null;
   companyPhone?:   string | null;
   companyWebsite?: string | null;
+  projectSummary?: string | null;
+  siteName?:       string | null;
+  logoBuffer?:     Buffer;
 }
 
 export interface HeaderOpts {
@@ -107,8 +110,10 @@ function coverDetail(
 //   "PROPOSAL"  (section label, primary color)
 //   Customer · Project name · Project number
 //   ── rule ──
-//   "PREPARED BY"  (section label)
-//   Project manager
+//   "PREPARED FOR"  (section label)
+//   Customer name
+//   "PROJECT SUMMARY"  (section label)
+//   Summary text
 //   ── rule ──
 //   "DATE"  (section label)
 //   Date · Valid until
@@ -135,6 +140,14 @@ function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
   let y   = 52;
 
   // ── Company block ────────────────────────────────────────────────────────
+  if (opts.logoBuffer) {
+    try {
+      // Scale to fit within 160×60 while preserving aspect ratio
+      doc.image(opts.logoBuffer, x, y, { width: 160, align: 'center', valign: 'center', fit: [160, 60] });
+      y += 68;
+    } catch { /* skip bad image */ }
+  }
+
   const cName = opts.companyName ?? 'CSMS';
   doc.fillColor(c.primary).fontSize(13).font('Helvetica-Bold')
      .text(cName, x, y, { width: inner, align: 'center' });
@@ -175,6 +188,12 @@ function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
      .text(opts.customerName, x, y, { width: inner, align: 'center' });
   y += 26;
 
+  if (opts.siteName) {
+    doc.fillColor(c.dim).fontSize(11).font('Helvetica')
+       .text(opts.siteName, x, y, { width: inner, align: 'center' });
+    y += 16;
+  }
+
   doc.fillColor(c.body).fontSize(12).font('Helvetica-Bold')
      .text(opts.projectName, x, y, { width: inner, align: 'center' });
   y += 18;
@@ -189,9 +208,9 @@ function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
   hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
   y += 20;
 
-  // ── Prepared by ──────────────────────────────────────────────────────────
+  // ── Prepared for ─────────────────────────────────────────────────────────
   doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
-     .text('PREPARED BY', x, y, { width: inner, align: 'center' });
+     .text('PREPARED FOR', x, y, { width: inner, align: 'center' });
   y += 16;
 
   doc.fillColor(c.body).fontSize(12).font('Helvetica-Bold')
@@ -201,6 +220,21 @@ function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
   y += 10;
   hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
   y += 20;
+
+  // ── Project summary ───────────────────────────────────────────────────────
+  if (opts.projectSummary) {
+    doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
+       .text('PROJECT SUMMARY', x, y, { width: inner, align: 'center' });
+    y += 16;
+
+    doc.fillColor(c.dim).fontSize(9).font('Helvetica')
+       .text(opts.projectSummary, x, y, { width: inner, align: 'center', lineGap: 2 });
+    y += doc.heightOfString(opts.projectSummary, { width: inner }) + 8;
+
+    y += 10;
+    hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
+    y += 20;
+  }
 
   // ── Date ─────────────────────────────────────────────────────────────────
   doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')

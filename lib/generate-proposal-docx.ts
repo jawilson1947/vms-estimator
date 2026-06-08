@@ -6,7 +6,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, BorderStyle, WidthType, ShadingType,
-  PageNumber, PageBreak, HeadingLevel, ImageRun, ExternalHyperlink,
+  PageNumber, PageBreak, ImageRun, ExternalHyperlink,
   TabStopType, TabStopPosition,
 } from 'docx';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
@@ -343,7 +343,7 @@ function bodyParagraphs(text: string): Paragraph[] {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 const SECTION_LABELS: Record<keyof ProposalContent, string> = {
-  coverLetter:        'Cover Letter',
+  coverLetter:        'Introduction',
   executiveSummary:   'Executive Summary',
   scopeOfWork:        'Scope of Work',
   costBreakdown:      'Cost Breakdown',
@@ -443,6 +443,7 @@ export async function generateProposalDocx(
   coverChildren.push(
     cPara('Proposal', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
     cPara(project.customer.customerName, { size: 36, bold: true, color: '111827', spacingAfter: 80 }),
+    ...(siteName ? [cPara(siteName, { size: 22, color: '374151', spacingAfter: 60 })] : []),
     cPara(project.projectName, { size: 24, bold: true, color: '111827', spacingAfter: 80 }),
   );
   if (project.projectNumber) {
@@ -451,13 +452,29 @@ export async function generateProposalDocx(
 
   coverChildren.push(cRule(160, 200));
 
-  // ── Prepared by section ───────────────────────────────────────────────────────
+  // ── Prepared for section ─────────────────────────────────────────────────────
   coverChildren.push(
-    cPara('Prepared by:', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
+    cPara('Prepared for:', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
     cPara(pm, { size: 24, bold: true, color: '111827', spacingAfter: 80 }),
   );
 
   coverChildren.push(cRule(160, 200));
+
+  // ── Project summary section ───────────────────────────────────────────────────
+  const projectSummaryText = content.executiveSummary
+    ? (content.executiveSummary.split(/\n\n+/).find((p: string) => p.trim()) ?? '').trim().slice(0, 400)
+    : '';
+  if (projectSummaryText) {
+    coverChildren.push(
+      cPara('Project Summary', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing:   { before: 0, after: 160 },
+        children:  [new TextRun({ text: projectSummaryText, color: '6B7280', size: 17, font: 'Arial' })],
+      }),
+    );
+    coverChildren.push(cRule(160, 200));
+  }
 
   // ── Date section ──────────────────────────────────────────────────────────────
   coverChildren.push(
@@ -607,7 +624,6 @@ export async function generateProposalDocx(
       }),
     );
 
-    // Appendix table
     const APP_COL = { num: 360, desc: 3600, url: CONTENT_W - 360 - 3600 };
     const appRows: TableRow[] = [
       new TableRow({
@@ -660,54 +676,56 @@ export async function generateProposalDocx(
   }
 
   // ── Header / Footer ───────────────────────────────────────────────────────────
+  const companyLine = [companyName, tagline].filter(Boolean).join('  ·  ');
+
   const header = new Header({
     children: [new Paragraph({
-      tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
-      border:   { bottom: { style: BorderStyle.SINGLE, size: 4, color: tmpl.primary, space: 1 } },
+      border:    { bottom: { style: BorderStyle.SINGLE, size: 4, color: tmpl.accent, space: 4 } },
+      spacing:   { before: 0, after: 120 },
       children: [
-        new TextRun({ text: companyName, bold: true, color: tmpl.primary, size: 18, font: 'Arial' }),
-        new TextRun({ text: `	${dateStr}`, color: '6B7280', size: 16, font: 'Arial' }),
+        new TextRun({ text: companyLine, bold: true, color: tmpl.primary, size: 16, font: 'Arial' }),
+        new TextRun({ text: `\t${dateStr}`, color: '9CA3AF', size: 14, font: 'Arial' }),
       ],
     })],
   });
 
   const footer = new Footer({
     children: [new Paragraph({
-      tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
-      border:   { top: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB', space: 1 } },
+      border:    { top: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 4 } },
+      spacing:   { before: 120, after: 0 },
       children: [
-        new TextRun({ text: `${project.projectName} — Confidential`, color: '9CA3AF', size: 16, font: 'Arial' }),
-        new TextRun({ text: '\tPage ', color: '9CA3AF', size: 16, font: 'Arial' }),
-        new TextRun({ children: [PageNumber.CURRENT], color: '9CA3AF', size: 16, font: 'Arial' }),
+        new TextRun({ text: `${project.projectName}  —  Confidential`, color: '9CA3AF', size: 14, font: 'Arial' }),
+        new TextRun({ text: '\t', color: '9CA3AF', size: 14, font: 'Arial' }),
+        new TextRun({
+          children: ['Page ', PageNumber.CURRENT],
+          color: '9CA3AF', size: 14, font: 'Arial',
+        }),
       ],
     })],
   });
 
-  // ── Document ──────────────────────────────────────────────────────────────────
+  // ── Assemble document ─────────────────────────────────────────────────────────
   const doc = new Document({
     styles: {
-      default: {
-        document: { run: { font: 'Arial', size: 20 } },
-      },
+      paragraphStyles: [{
+        id:   'Hyperlink',
+        name: 'Hyperlink',
+        run:  { color: '2563EB', underline: { type: undefined } },
+      }],
     },
     sections: [
-      // Cover section (no header/footer)
+      // Cover page — no header/footer
       {
         properties: {
-          page: {
-            size:   { width: PAGE_W, height: PAGE_H },
-            margin: { top: MARGIN, right: MARGIN, bottom: MARGIN, left: MARGIN },
-          },
+          page: { size: { width: PAGE_W, height: PAGE_H }, margin: { top: MARGIN, bottom: MARGIN, left: MARGIN, right: MARGIN } },
         },
         children: coverChildren,
       },
-      // Content section (with header/footer)
+      // Content pages — with header/footer
       {
         properties: {
-          page: {
-            size:   { width: PAGE_W, height: PAGE_H },
-            margin: { top: 1200, right: MARGIN, bottom: 1200, left: MARGIN },
-          },
+          page: { size: { width: PAGE_W, height: PAGE_H }, margin: { top: MARGIN + 360, bottom: MARGIN + 360, left: MARGIN, right: MARGIN } },
+          titlePage: false,
         },
         headers: { default: header },
         footers: { default: footer },
@@ -716,5 +734,5 @@ export async function generateProposalDocx(
     ],
   });
 
-  return Packer.toBuffer(doc);
+  return Buffer.from(await Packer.toBuffer(doc));
 }

@@ -32,7 +32,7 @@ export async function POST(
     }),
     prisma.user.findUnique({
       where:  { id: userId },
-      select: { companyName: true, companyTagline: true, companyAddress: true, companyPhone: true, companyWebsite: true },
+      select: { companyName: true, companyTagline: true, companyAddress: true, companyPhone: true, companyWebsite: true, logoUrl: true },
     }),
   ]);
 
