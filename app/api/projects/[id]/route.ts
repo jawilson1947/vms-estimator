@@ -16,8 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     where:   { id: Number(id) },
     include: {
       customer:   { select: { id: true, customerName: true } },
-      sites: {
-        orderBy: { siteName: 'asc' },
+      site: {
         include: { buildings: { include: { _count: { select: { locations: true } } } } },
       },
       costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },

@@ -118,10 +118,10 @@ function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest
     completionDate:  project.completionDate,
     status:          project.projectStatus,
     notes:           project.notes,
-    sites:           (project.sites as Array<Record<string, unknown>>)?.map((s) => ({
-      name: s.siteName, city: s.city, state: s.state,
-      buildings: (s.buildings as Array<Record<string, unknown>>)?.length,
-    })),
+    sites:           project.site ? (() => {
+      const s = project.site as unknown as { siteName: string; city: string | null; state: string | null; buildings: { id: number }[] };
+      return [{ name: s.siteName, city: s.city, state: s.state, buildings: s.buildings?.length ?? 0 }];
+    })() : [],
     costSummary: project.feeSummary ? {
       directCosts:         Number((project.feeSummary as Record<string, unknown>).directCostTotal),
       overhead:            Number((project.feeSummary as Record<string, unknown>).overheadAmount),
@@ -161,7 +161,7 @@ export async function POST(
     where:   { id: projectId },
     include: {
       customer:   { select: { customerName: true } },
-      sites:      { include: { buildings: { select: { id: true } } } },
+      site:       { select: { siteName: true, city: true, state: true, buildings: { select: { id: true } } } },
       costs:      { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
       feeSummary: true,
     },

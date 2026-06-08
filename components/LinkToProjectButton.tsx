@@ -187,4 +187,29 @@ export function LinkToProjectButton({ siteId, excludeIds }: Props) {
           >
             {saving ? 'Linking...' : 'Link to Project'}
           </button>
-          <button type="
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="btn-secondary flex-1 text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="btn-secondary flex items-center gap-1.5 text-sm"
+      >
+        <PlusIcon className="h-4 w-4" />
+        Link to Project
+      </button>
+      {mounted && open && createPortal(modal, document.body)}
+    </>
+  );
+}
