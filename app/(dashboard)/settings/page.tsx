@@ -22,6 +22,10 @@ export default async function SettingsPage() {
         <h1 className="text-base font-semibold text-gray-900">Settings</h1>
       </div>
 
+      <div className="card p-4">
+        <CompanySettings />
+      </div>
+
       {isAdmin && (
         <UserManager currentUserId={currentUserId} />
       )}
@@ -43,10 +47,6 @@ export default async function SettingsPage() {
 
       <div className="card p-4">
         <SpeechApiTest />
-      </div>
-
-      <div className="card p-4">
-        <CompanySettings />
       </div>
     </div>
   );

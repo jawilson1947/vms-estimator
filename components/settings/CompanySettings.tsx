@@ -152,8 +152,8 @@ export function CompanySettings() {
         </div>
         <div>
           <label className="form-label">Website</label>
-          <input name="companyWebsite" type="url" value={form.companyWebsite}
-            onChange={handleChange} className="form-input mt-1" placeholder="https://www.example.com" />
+          <input name="companyWebsite" type="text" value={form.companyWebsite}
+            onChange={handleChange} className="form-input mt-1" placeholder="www.example.com" />
         </div>
       </div>
 
