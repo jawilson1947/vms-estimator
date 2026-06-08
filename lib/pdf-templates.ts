@@ -28,6 +28,12 @@ export interface CoverOpts {
   date: string;
   validUntil: string;
   grandTotal?: string;
+  // Company branding
+  companyName?:    string | null;
+  companyTagline?: string | null;
+  companyAddress?: string | null;
+  companyPhone?:   string | null;
+  companyWebsite?: string | null;
 }
 
 export interface HeaderOpts {
@@ -93,6 +99,146 @@ function coverDetail(
      .text(value, valueX, y, { width: valueW });
 }
 
+// ── Shared centered cover layout (used by all five templates) ─────────────────
+//
+// Structure (matches reference document):
+//   Company name / tagline / address / phone+web   (centered, top)
+//   ── rule ──
+//   "PROPOSAL"  (section label, primary color)
+//   Customer · Project name · Project number
+//   ── rule ──
+//   "PREPARED BY"  (section label)
+//   Project manager
+//   ── rule ──
+//   "DATE"  (section label)
+//   Date · Valid until
+//   ── rule ──  [if grandTotal]
+//   "INVESTMENT TOTAL"  (section label)
+//   Grand total
+//   ── rule ──  (near bottom)
+//   "CONFIDENTIALITY STATEMENT"  (section label)
+//   Boilerplate text
+
+interface CoverColors {
+  primary: string;  // section labels + grand total
+  body:    string;  // customer / project / PM names
+  dim:     string;  // address, date, sub-labels
+}
+
+function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
+  const { pageW, pageH, margin, inner } = opts;
+
+  // White background
+  doc.rect(0, 0, pageW, pageH).fill('#FFFFFF');
+
+  const x = margin;
+  let y   = 52;
+
+  // ── Company block ────────────────────────────────────────────────────────
+  const cName = opts.companyName ?? 'CSMS';
+  doc.fillColor(c.primary).fontSize(13).font('Helvetica-Bold')
+     .text(cName, x, y, { width: inner, align: 'center' });
+  y += 18;
+
+  if (opts.companyTagline) {
+    doc.fillColor(c.dim).fontSize(9).font('Helvetica')
+       .text(opts.companyTagline, x, y, { width: inner, align: 'center' });
+    y += 14;
+  }
+
+  if (opts.companyAddress) {
+    const lines = opts.companyAddress.split(/\n/).map(s => s.trim()).filter(Boolean).slice(0, 3);
+    for (const line of lines) {
+      doc.fillColor(c.dim).fontSize(8.5).font('Helvetica')
+         .text(line, x, y, { width: inner, align: 'center' });
+      y += 12;
+    }
+  }
+
+  const phoneWeb = [opts.companyPhone, opts.companyWebsite].filter(Boolean).join('  |  ');
+  if (phoneWeb) {
+    doc.fillColor(c.dim).fontSize(8.5).font('Helvetica')
+       .text(phoneWeb, x, y, { width: inner, align: 'center' });
+    y += 12;
+  }
+
+  y += 14;
+  hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
+  y += 20;
+
+  // ── Proposal section ─────────────────────────────────────────────────────
+  doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
+     .text('PROPOSAL', x, y, { width: inner, align: 'center' });
+  y += 16;
+
+  doc.fillColor(c.body).fontSize(18).font('Helvetica-Bold')
+     .text(opts.customerName, x, y, { width: inner, align: 'center' });
+  y += 26;
+
+  doc.fillColor(c.body).fontSize(12).font('Helvetica-Bold')
+     .text(opts.projectName, x, y, { width: inner, align: 'center' });
+  y += 18;
+
+  if (opts.projectNumber) {
+    doc.fillColor(c.dim).fontSize(9).font('Helvetica')
+       .text(`Project No. ${opts.projectNumber}`, x, y, { width: inner, align: 'center' });
+    y += 14;
+  }
+
+  y += 10;
+  hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
+  y += 20;
+
+  // ── Prepared by ──────────────────────────────────────────────────────────
+  doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
+     .text('PREPARED BY', x, y, { width: inner, align: 'center' });
+  y += 16;
+
+  doc.fillColor(c.body).fontSize(12).font('Helvetica-Bold')
+     .text(opts.projectManager ?? '—', x, y, { width: inner, align: 'center' });
+  y += 18;
+
+  y += 10;
+  hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
+  y += 20;
+
+  // ── Date ─────────────────────────────────────────────────────────────────
+  doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
+     .text('DATE', x, y, { width: inner, align: 'center' });
+  y += 16;
+
+  doc.fillColor(c.body).fontSize(10).font('Helvetica')
+     .text(opts.date, x, y, { width: inner, align: 'center' });
+  y += 14;
+
+  doc.fillColor(c.dim).fontSize(9).font('Helvetica')
+     .text(`Valid Until: ${opts.validUntil}`, x, y, { width: inner, align: 'center' });
+  y += 14;
+
+  // ── Investment total ──────────────────────────────────────────────────────
+  if (opts.grandTotal) {
+    y += 6;
+    hRule(doc, margin + 60, y, pageW - margin - 60, '#D1D5DB', 0.5);
+    y += 20;
+
+    doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
+       .text('INVESTMENT TOTAL', x, y, { width: inner, align: 'center' });
+    y += 16;
+
+    doc.fillColor(c.primary).fontSize(24).font('Helvetica-Bold')
+       .text(opts.grandTotal, x, y, { width: inner, align: 'center' });
+  }
+
+  // ── Confidentiality statement ─────────────────────────────────────────────
+  const confText = 'This proposal contains confidential and proprietary information intended solely for the use of the named recipient. No part of this document may be reproduced, distributed, or disclosed without the written consent of the principal investigator.';
+  const confY = pageH - 100;
+  hRule(doc, margin, confY - 10, pageW - margin, '#D1D5DB', 0.5);
+  doc.fillColor(c.primary).fontSize(8).font('Helvetica-Bold')
+     .text('CONFIDENTIALITY STATEMENT', x, confY, { width: inner, align: 'center' });
+  doc.fillColor(c.dim).fontSize(8).font('Helvetica')
+     .text(confText, x, confY + 14, { width: inner, align: 'center', lineGap: 2 });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. CLASSIC — Bold navy, the original house style
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,40 +253,8 @@ const classic: PdfTemplate = {
     bodyText: '#111827', dimText: '#6B7280',
   },
 
-  cover(doc, { pageW, pageH, margin, inner, projectName, projectNumber,
-               projectManager, customerName, date, validUntil, grandTotal }) {
-    doc.rect(0, 0, pageW, pageH).fill('#1E3A5F');
-
-    doc.fillColor('#FFFFFF').fontSize(28).font('Helvetica-Bold')
-       .text('PROPOSAL', margin, 160, { width: inner });
-    doc.fillColor('#93C5FD').fontSize(16).font('Helvetica')
-       .text(projectName, margin, 204, { width: inner });
-    doc.fillColor('#CBD5E1').fontSize(11).font('Helvetica')
-       .text(customerName, margin, 232, { width: inner });
-
-    const boxY = 288;
-    doc.rect(margin, boxY, inner, 130).fillAndStroke('#FFFFFF11', '#FFFFFF33');
-    const rows: [string, string][] = [
-      ['Prepared For',    customerName],
-      ['Project',         projectName + (projectNumber ? ` (${projectNumber})` : '')],
-      ['Project Manager', projectManager ?? '—'],
-      ['Date',            date],
-      ['Valid Until',     validUntil],
-    ];
-    rows.forEach(([lbl, val], i) => {
-      const ry = boxY + 14 + i * 22;
-      doc.fillColor('#93C5FD').fontSize(7.5).font('Helvetica-Bold').text(lbl.toUpperCase(), margin + 16, ry);
-      doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica').text(val, margin + 136, ry, { width: inner - 152 });
-    });
-
-    if (grandTotal) {
-      const ty = boxY + 150;
-      doc.rect(margin, ty, inner, 50).fill('#2563EB');
-      doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica')
-         .text('INVESTMENT TOTAL', margin + 16, ty + 10, { width: inner - 32 });
-      doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold')
-         .text(grandTotal, margin + 16, ty + 23, { width: inner - 32 });
-    }
+  cover(doc, opts) {
+    drawCenteredCover(doc, opts, { primary: '#1E3A5F', body: '#111827', dim: '#6B7280' });
   },
 
   pageHeader(doc, { pageW, margin, date }) {
@@ -183,60 +297,8 @@ const executive: PdfTemplate = {
     bodyText: '#0F172A', dimText: '#64748B',
   },
 
-  cover(doc, { pageW, pageH, margin, inner, projectName, projectNumber,
-               projectManager, customerName, date, validUntil, grandTotal }) {
-    // White background with slate accent panel on left
-    const stripW = 6;
-    doc.rect(0, 0, stripW, pageH).fill('#0F172A');
-    doc.rect(stripW, 0, pageW - stripW, pageH).fill('#FFFFFF');
-
-    // Company name block
-    doc.fillColor('#0F172A').fontSize(13).font('Helvetica-Bold')
-       .text('CSMS', margin, 60, { width: inner });
-    doc.fillColor('#64748B').fontSize(9).font('Helvetica')
-       .text('CAMERA & SECURITY MANAGEMENT SYSTEMS', margin, 78, { width: inner });
-
-    // Divider
-    hRule(doc, margin, 100, pageW - margin, '#CBD5E1', 1);
-
-    // Project title block
-    doc.fillColor('#0F172A').fontSize(26).font('Helvetica-Bold')
-       .text(projectName, margin, 120, { width: inner });
-    if (projectNumber) {
-      doc.fillColor('#64748B').fontSize(11).font('Helvetica')
-         .text(`Project No. ${projectNumber}`, margin, 154, { width: inner });
-    }
-    doc.fillColor('#334155').fontSize(12).font('Helvetica')
-       .text(customerName, margin, projectNumber ? 172 : 154, { width: inner });
-
-    // Details grid
-    const detY = 220;
-    hRule(doc, margin, detY - 8, pageW - margin, '#CBD5E1', 0.5);
-    const col1X = margin;
-    const col2X = margin + inner / 2;
-    const colW  = inner / 2 - 12;
-    const detailPairs: [string, string][] = [
-      ['Project Manager', projectManager ?? '—'],
-      ['Date',            date],
-      ['Valid Until',     validUntil],
-      ['Prepared For',    customerName],
-    ];
-    detailPairs.forEach(([lbl, val], i) => {
-      const col = i % 2 === 0 ? col1X : col2X;
-      const row = Math.floor(i / 2);
-      const ry  = detY + row * 42;
-      doc.fillColor('#94A3B8').fontSize(7.5).font('Helvetica-Bold').text(lbl.toUpperCase(), col, ry);
-      doc.fillColor('#0F172A').fontSize(10).font('Helvetica').text(val, col, ry + 12, { width: colW });
-    });
-
-    if (grandTotal) {
-      const ty = detY + 100;
-      hRule(doc, margin, ty - 8, pageW - margin, '#CBD5E1', 0.5);
-      doc.fillColor('#64748B').fontSize(8).font('Helvetica')
-         .text('TOTAL INVESTMENT', margin, ty + 2);
-      doc.fillColor('#0F172A').fontSize(24).font('Helvetica-Bold')
-         .text(grandTotal, margin, ty + 16, { width: inner });
-    }
+  cover(doc, opts) {
+    drawCenteredCover(doc, opts, { primary: '#0F172A', body: '#0F172A', dim: '#64748B' });
   },
 
   pageHeader(doc, { pageW, margin, date }) {
@@ -278,53 +340,8 @@ const modern: PdfTemplate = {
     bodyText: '#111827', dimText: '#6B7280',
   },
 
-  cover(doc, { pageW, pageH, margin, inner, projectName, projectNumber,
-               projectManager, customerName, date, validUntil, grandTotal }) {
-    // Teal top band
-    const bandH = 240;
-    doc.rect(0, 0, pageW, bandH).fill('#0F766E');
-    doc.rect(0, bandH, pageW, pageH - bandH).fill('#FFFFFF');
-
-    // Company name in band
-    doc.fillColor('#CCFBF1').fontSize(11).font('Helvetica-Bold')
-       .text('CSMS  ·  Camera & Security Management Systems', margin, 30, { width: inner });
-    doc.fillColor('#FFFFFF').fontSize(26).font('Helvetica-Bold')
-       .text(projectName, margin, 60, { width: inner });
-    if (projectNumber) {
-      doc.fillColor('#99F6E4').fontSize(9).font('Helvetica')
-         .text(`Project No. ${projectNumber}`, margin, 96, { width: inner });
-    }
-    doc.fillColor('#CCFBF1').fontSize(12).font('Helvetica')
-       .text(customerName, margin, projectNumber ? 112 : 96, { width: inner });
-
-    // Teal tab for "PROPOSAL"
-    doc.rect(margin, bandH - 40, 110, 40).fill('#0D9488');
-    doc.fillColor('#FFFFFF').fontSize(13).font('Helvetica-Bold')
-       .text('PROPOSAL', margin + 10, bandH - 28);
-
-    // Details in white section
-    const detY = bandH + 24;
-    const rows: [string, string][] = [
-      ['Prepared For',    customerName],
-      ['Project Manager', projectManager ?? '—'],
-      ['Date',            date],
-      ['Valid Until',     validUntil],
-    ];
-    rows.forEach(([lbl, val], i) => {
-      const ry = detY + i * 28;
-      doc.fillColor('#0F766E').fontSize(7.5).font('Helvetica-Bold').text(lbl.toUpperCase(), margin, ry);
-      doc.fillColor('#111827').fontSize(10).font('Helvetica').text(val, margin, ry + 11, { width: inner });
-    });
-
-    if (grandTotal) {
-      const ty = detY + rows.length * 28 + 12;
-      doc.rect(margin, ty, inner, 52).fill('#F0FDFA');
-      doc.rect(margin, ty, 4, 52).fill('#0D9488');
-      doc.fillColor('#0F766E').fontSize(8).font('Helvetica-Bold')
-         .text('INVESTMENT TOTAL', margin + 14, ty + 10);
-      doc.fillColor('#134E4A').fontSize(22).font('Helvetica-Bold')
-         .text(grandTotal, margin + 14, ty + 24, { width: inner - 28 });
-    }
+  cover(doc, opts) {
+    drawCenteredCover(doc, opts, { primary: '#0F766E', body: '#111827', dim: '#6B7280' });
   },
 
   pageHeader(doc, { pageW, margin, date }) {
@@ -367,52 +384,8 @@ const bold: PdfTemplate = {
     bodyText: '#111827', dimText: '#6B7280',
   },
 
-  cover(doc, { pageW, pageH, margin, inner, projectName, projectNumber,
-               projectManager, customerName, date, validUntil, grandTotal }) {
-    doc.rect(0, 0, pageW, pageH).fill('#2E1065');
-    // Decorative amber diagonal stripe
-    doc.polygon([0, pageH - 120], [pageW, pageH - 200], [pageW, pageH - 160], [0, pageH - 80])
-       .fill('#F59E0B');
-    // Lighter purple panel at bottom
-    doc.rect(0, pageH - 80, pageW, 80).fill('#1C0A4A');
-
-    doc.fillColor('#DDD6FE').fontSize(10).font('Helvetica-Bold')
-       .text('CSMS  ·  Camera & Security Management Systems', margin, 44, { width: inner });
-    doc.fillColor('#FFFFFF').fontSize(30).font('Helvetica-Bold')
-       .text('PROPOSAL', margin, 72, { width: inner });
-    doc.fillColor('#C4B5FD').fontSize(15).font('Helvetica')
-       .text(projectName, margin, 114, { width: inner });
-    if (projectNumber) {
-      doc.fillColor('#A78BFA').fontSize(9).font('Helvetica')
-         .text(`Project No. ${projectNumber}`, margin, 138, { width: inner });
-    }
-    doc.fillColor('#DDD6FE').fontSize(11).font('Helvetica')
-       .text(customerName, margin, projectNumber ? 155 : 138, { width: inner });
-
-    // Details box
-    const boxY = 210;
-    doc.rect(margin, boxY, inner, 130).fillAndStroke('#FFFFFF08', '#FFFFFF22');
-    const rows: [string, string][] = [
-      ['Prepared For',    customerName],
-      ['Project',         projectName + (projectNumber ? ` (${projectNumber})` : '')],
-      ['Project Manager', projectManager ?? '—'],
-      ['Date',            date],
-      ['Valid Until',     validUntil],
-    ];
-    rows.forEach(([lbl, val], i) => {
-      const ry = boxY + 14 + i * 22;
-      doc.fillColor('#A78BFA').fontSize(7.5).font('Helvetica-Bold').text(lbl.toUpperCase(), margin + 16, ry);
-      doc.fillColor('#FFFFFF').fontSize(9).font('Helvetica').text(val, margin + 136, ry, { width: inner - 152 });
-    });
-
-    if (grandTotal) {
-      const ty = boxY + 150;
-      doc.rect(margin, ty, inner, 50).fill('#7C3AED');
-      doc.fillColor('#EDE9FE').fontSize(9).font('Helvetica')
-         .text('INVESTMENT TOTAL', margin + 16, ty + 10, { width: inner - 32 });
-      doc.fillColor('#FFFFFF').fontSize(22).font('Helvetica-Bold')
-         .text(grandTotal, margin + 16, ty + 23, { width: inner - 32 });
-    }
+  cover(doc, opts) {
+    drawCenteredCover(doc, opts, { primary: '#6D28D9', body: '#111827', dim: '#6B7280' });
   },
 
   pageHeader(doc, { pageW, margin, date }) {
@@ -455,46 +428,8 @@ const minimal: PdfTemplate = {
     bodyText: '#111827', dimText: '#6B7280',
   },
 
-  cover(doc, { pageW, pageH, margin, inner, projectName, projectNumber,
-               projectManager, customerName, date, validUntil, grandTotal }) {
-    // Pure white — no fill needed
-    doc.fillColor('#9CA3AF').fontSize(9).font('Helvetica')
-       .text('CSMS  ·  Camera & Security Management Systems', margin, 50, { width: inner });
-
-    hRule(doc, margin, 68, pageW - margin, '#E5E7EB', 0.5);
-
-    doc.fillColor('#111827').fontSize(30).font('Helvetica-Bold')
-       .text('PROPOSAL', margin, 84, { width: inner });
-    doc.fillColor('#374151').fontSize(14).font('Helvetica')
-       .text(projectName, margin, 125, { width: inner });
-    if (projectNumber) {
-      doc.fillColor('#9CA3AF').fontSize(10).font('Helvetica')
-         .text(`No. ${projectNumber}`, margin, 147, { width: inner });
-    }
-
-    hRule(doc, margin, projectNumber ? 168 : 148, pageW - margin, '#E5E7EB', 0.5);
-
-    const detY = projectNumber ? 180 : 160;
-    const rows: [string, string][] = [
-      ['Prepared For',    customerName],
-      ['Project Manager', projectManager ?? '—'],
-      ['Date',            date],
-      ['Valid Until',     validUntil],
-    ];
-    rows.forEach(([lbl, val], i) => {
-      const ry = detY + i * 30;
-      doc.fillColor('#9CA3AF').fontSize(7.5).font('Helvetica-Bold').text(lbl.toUpperCase(), margin, ry);
-      doc.fillColor('#111827').fontSize(10).font('Helvetica').text(val, margin, ry + 12, { width: inner });
-    });
-
-    if (grandTotal) {
-      const ty = detY + rows.length * 30 + 16;
-      hRule(doc, margin, ty - 4, pageW - margin, '#E5E7EB', 0.5);
-      doc.fillColor('#9CA3AF').fontSize(7.5).font('Helvetica-Bold')
-         .text('INVESTMENT TOTAL', margin, ty + 6);
-      doc.fillColor('#111827').fontSize(24).font('Helvetica-Bold')
-         .text(grandTotal, margin, ty + 20, { width: inner });
-    }
+  cover(doc, opts) {
+    drawCenteredCover(doc, opts, { primary: '#374151', body: '#111827', dim: '#9CA3AF' });
   },
 
   pageHeader(doc, { pageW, margin, date }) {

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateProposalPdf } from '@/lib/generate-proposal-pdf';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
+import type { ProposalCompanyInfo } from '@/lib/generate-proposal-pdf';
 
 // POST /api/projects/[id]/proposals/[proposalId]/pdf
 export async function POST(
@@ -18,7 +19,8 @@ export async function POST(
   // template may be sent in the body so we don't rely on stale Prisma client types
   const body = await req.json().catch(() => ({})) as { template?: string };
 
-  const [proposal, project] = await Promise.all([
+  const userId = Number((session.user as { id?: string | number }).id ?? 0);
+  const [proposal, project, userSettings] = await Promise.all([
     prisma.proposal.findUnique({ where: { id: Number(proposalId) } }),
     prisma.project.findUnique({
       where:   { id: Number(id) },
@@ -28,17 +30,19 @@ export async function POST(
         costs:      { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
       },
     }),
+    prisma.user.findUnique({
+      where:  { id: userId },
+      select: { companyName: true, companyTagline: true, companyAddress: true, companyPhone: true, companyWebsite: true },
+    }),
   ]);
 
   if (!proposal || !project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const content    = proposal.content as unknown as ProposalContent;
-  // Prefer template from request body; fall back to DB field; default to 'classic'
-  const templateId = body.template
-    ?? (proposal as { template?: string }).template
-    ?? 'classic';
+  const templateId = body.template ?? (proposal as { template?: string }).template ?? 'classic';
+  const company: ProposalCompanyInfo = userSettings ?? {};
 
-  const buf = await generateProposalPdf(content, project, templateId, proposal.validUntil);
+  const buf = await generateProposalPdf(content, project, templateId, proposal.validUntil, company);
 
   const slug    = project.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
   const dateStr = new Date().toISOString().slice(0, 10);

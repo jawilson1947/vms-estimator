@@ -163,15 +163,17 @@ export async function GET(_req: NextRequest) {
     lhdr.height = 24;
 
     project.costs.forEach((c, i) => {
-      const row = ws.getRow(5 + i);
+      const row      = ws.getRow(5 + i);
+      const unitCost = Number(c.unitCost);
+      const total    = Number(c.lineTotal ?? 0);
       const vals: any[] = [
         c.category.name,
         c.description ?? '',
         c.vendor ?? '',
         Number(c.quantity),
-        Number(c.unitCost),
+        unitCost !== total ? total : unitCost,
         Number(c.markupPercent),
-        Number(c.lineTotal ?? 0),
+        total,
         c.billable ? 'Yes' : 'No',
       ];
       vals.forEach((v, ci) => {

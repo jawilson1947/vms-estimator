@@ -8,6 +8,14 @@ import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface ProposalCompanyInfo {
+  companyName?:    string | null;
+  companyTagline?: string | null;
+  companyAddress?: string | null;
+  companyPhone?:   string | null;
+  companyWebsite?: string | null;
+}
+
 export interface ProposalProjectData {
   projectName:    string;
   projectNumber?: string | null;
@@ -28,6 +36,7 @@ export interface ProposalProjectData {
     quantity:     number | string | { toString(): string };
     unitCost:     number | string | { toString(): string };
     lineTotal?:   number | string | { toString(): string } | null;
+    url?:         string | null;
     category: { name: string };
   }>;
 }
@@ -59,10 +68,11 @@ const SECTION_ORDER: (keyof ProposalContent)[] = [
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function generateProposalPdf(
-  content:      ProposalContent,
-  project:      ProposalProjectData,
-  templateId:   string,
+  content:        ProposalContent,
+  project:        ProposalProjectData,
+  templateId:     string,
   validUntilDate: Date | null,
+  company:        ProposalCompanyInfo = {},
 ): Promise<Buffer> {
   const tmpl = getTemplate(templateId);
 
@@ -114,16 +124,21 @@ export async function generateProposalPdf(
 
   tmpl.cover(doc, {
     pageW,
-    pageH:          doc.page.height,
+    pageH:           doc.page.height,
     margin,
     inner,
-    projectName:    project.projectName,
-    projectNumber:  project.projectNumber,
-    projectManager: project.projectManager,
-    customerName:   project.customer.customerName,
+    projectName:     project.projectName,
+    projectNumber:   project.projectNumber,
+    projectManager:  project.projectManager,
+    customerName:    project.customer.customerName,
     date,
-    validUntil:     validUntilStr,
-    grandTotal:     grandTotalStr,
+    validUntil:      validUntilStr,
+    grandTotal:      grandTotalStr,
+    companyName:     company.companyName,
+    companyTagline:  company.companyTagline,
+    companyAddress:  company.companyAddress,
+    companyPhone:    company.companyPhone,
+    companyWebsite:  company.companyWebsite,
   });
   tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
 
@@ -242,6 +257,85 @@ export async function generateProposalPdf(
         doc.y = gtY + 30;
       }
     }
+
+    tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
+  }
+
+  // ── Signatory section ───────────────────────────────────────────────────────
+  newPage();
+  tmpl.sectionHeading(doc, { margin, inner, label: 'Acceptance of Proposal' });
+  doc.fillColor(tmpl.tc.bodyText).fontSize(9.5).font('Helvetica');
+  doc.text(
+    'The undersigned hereby accepts the terms, scope, and pricing outlined in this proposal and authorizes commencement of the described work.',
+    margin, doc.y, { width: inner, align: 'justify', lineGap: 2 }
+  );
+  doc.moveDown(1.5);
+
+  // Two-column signature blocks
+  const sigColW = (inner - 40) / 2;
+  const leftX   = margin;
+  const rightX  = margin + sigColW + 40;
+  const labels  = ['Authorized by (Client)', 'Authorized by (Vendor)'];
+  const xPos    = [leftX, rightX];
+
+  for (let col = 0; col < 2; col++) {
+    const x = xPos[col];
+    doc.fillColor(tmpl.tc.dimText ?? '#9CA3AF').fontSize(8).font('Helvetica-Bold')
+       .text(labels[col], x, doc.y - (col === 1 ? doc.currentLineHeight() + 16 : 0), { width: sigColW });
+  }
+  doc.moveDown(0.3);
+
+  const sigLineFields = ['Signature', 'Printed Name', 'Title', 'Date'];
+  for (const fieldLabel of sigLineFields) {
+    checkPageBreak(36);
+    const y = doc.y;
+    for (let col = 0; col < 2; col++) {
+      const x = xPos[col];
+      doc.moveTo(x, y + 20).lineTo(x + sigColW, y + 20)
+         .strokeColor('#9CA3AF').lineWidth(0.5).stroke();
+      doc.fillColor(tmpl.tc.dimText ?? '#9CA3AF').fontSize(7.5).font('Helvetica')
+         .text(fieldLabel, x, y + 22, { width: sigColW });
+    }
+    doc.y = y + 36;
+  }
+
+  tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
+
+  // ── Appendix — hyperlinks ─────────────────────────────────────────────────────
+  const linkedCosts = project.costs.filter(c => c.url?.trim());
+  if (linkedCosts.length > 0) {
+    newPage();
+    tmpl.sectionHeading(doc, { margin, inner, label: 'Appendix A — Reference Links' });
+    doc.fillColor(tmpl.tc.bodyText).fontSize(9.5).font('Helvetica');
+    doc.text(
+      'The following reference links are associated with line items in this proposal.',
+      margin, doc.y, { width: inner, lineGap: 2 }
+    );
+    doc.moveDown(0.8);
+
+    // Table header
+    const aC = [margin, margin + 30, margin + 300];
+    const aW = [28,  268, inner - 300];
+    const hdrY = doc.y;
+    doc.rect(margin, hdrY, inner, 16).fill(tmpl.tc.tableHdr);
+    doc.fillColor(tmpl.tc.tableHdrText).fontSize(7.5).font('Helvetica-Bold');
+    ['#', 'Description', 'URL'].forEach((h, i) =>
+      doc.text(h, aC[i] + 3, hdrY + 5, { width: aW[i] - 3 })
+    );
+    doc.y = hdrY + 16;
+
+    linkedCosts.forEach((c, idx) => {
+      checkPageBreak(14);
+      const rowY = doc.y;
+      if (idx % 2 === 0) doc.rect(margin, rowY, inner, 14).fill(tmpl.tc.tableAlt ?? '#F9FAFB');
+      const ry = rowY + 3;
+      doc.fillColor(tmpl.tc.bodyText).fontSize(7.5).font('Helvetica')
+         .text(String(idx + 1), aC[0] + 3, ry, { width: aW[0] - 3 });
+      doc.text((c.description ?? '—').substring(0, 50), aC[1] + 3, ry, { width: aW[1] - 3 });
+      doc.fillColor('#2563EB').fontSize(7.5)
+         .text(c.url!, aC[2] + 3, ry, { width: aW[2] - 3, link: c.url!, underline: true });
+      doc.y = rowY + 14;
+    });
 
     tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
   }

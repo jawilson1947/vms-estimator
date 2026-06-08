@@ -49,15 +49,12 @@ interface FeeSummary {
 }
 
 interface SurveyItem {
-  locationId:   number;
-  cameraModelId: number | null;
-  description:  string;
-  buildingName: string;
-  floor:        string;
-  areaName:     string;
-  unitCost:     number;
-  quantity:     number;
-  lineTotal:    number;
+  locationId:    number;      // first location in the group (used for markup API)
+  cameraModelId: number;      // group key
+  description:   string;
+  unitCost:      number;
+  quantity:      number;
+  lineTotal:     number;
 }
 
 interface SurveyOverride {
@@ -117,24 +114,35 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const [savingLine, setSavingLine] = useState(false);
   const [activeTab, setActiveTab]   = useState<'items'|'chart'>('items');
 
-  // Survey row markup — seeded from DB overrides, persisted on blur
+  // Survey row markup — keyed by cameraModelId, seeded from DB overrides
   const [surveyMarkups, setSurveyMarkups] = useState<Record<number, number>>(
     () => Object.fromEntries(Object.entries(surveyOverrides).map(([k, v]) => [Number(k), v.markupPercent]))
   );
+  const [dirtyMarkups,  setDirtyMarkups]  = useState<Record<number, string>>({});
+  const [savingMarkup,  setSavingMarkup]  = useState<Record<number, boolean>>({});
 
-  async function saveSurveyMarkup(s: SurveyItem, markupPercent: number) {
-    setSurveyMarkups(prev => ({ ...prev, [s.locationId]: markupPercent }));
+  async function commitSurveyMarkup(s: SurveyItem) {
+    const key = s.cameraModelId;
+    const val = Number(dirtyMarkups[key]) || 0;
+    setSavingMarkup(prev => ({ ...prev, [key]: true }));
     await fetch(`/api/projects/${projectId}/survey-markup`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
         locationId:    s.locationId,
-        markupPercent,
+        markupPercent: val,
         cameraModelId: s.cameraModelId,
         description:   s.description,
         unitCost:      s.unitCost,
       }),
     });
+    setSurveyMarkups(prev => ({ ...prev, [key]: val }));
+    setDirtyMarkups(prev => { const n = { ...prev }; delete n[key]; return n; });
+    setSavingMarkup(prev => ({ ...prev, [key]: false }));
+  }
+
+  function revertSurveyMarkup(key: number) {
+    setDirtyMarkups(prev => { const n = { ...prev }; delete n[key]; return n; });
   }
 
   useEffect(() => {
@@ -151,7 +159,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   // ── Derived totals ──────────────────────────────────────────────────────────
   const surveyTotal   = useMemo(
     () => surveyItems.reduce((s, i) => {
-      const markup = surveyMarkups[i.locationId] ?? 0;
+      const markup = surveyMarkups[i.cameraModelId] ?? 0;
       return s + i.unitCost * i.quantity * (1 + markup / 100);
     }, 0),
     [surveyItems, surveyMarkups]
@@ -353,35 +361,47 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                     ))}
 
                     {surveyItems.map(s => {
-                      const markup    = surveyMarkups[s.locationId] ?? 0;
+                      const key       = s.cameraModelId;
+                      const saved     = surveyMarkups[key] ?? 0;
+                      const inputVal  = key in dirtyMarkups ? dirtyMarkups[key] : String(saved);
+                      const isDirty   = key in dirtyMarkups && Number(dirtyMarkups[key]) !== saved;
+                      const isSaving  = savingMarkup[key] ?? false;
+                      const markup    = isDirty ? (Number(dirtyMarkups[key]) || 0) : saved;
                       const lineTotal = s.unitCost * s.quantity * (1 + markup / 100);
                       return (
-                        <tr key={`survey-${s.locationId}`} className="hover:bg-indigo-50/30">
+                        <tr key={`survey-${key}`} className="hover:bg-indigo-50/30">
                           <td className="px-3 py-2">
                             <span className="badge bg-indigo-100 text-indigo-700 text-xs whitespace-nowrap">Camera</span>
                           </td>
                           <td className="px-3 py-2 text-gray-700">
                             <div>{s.description}</div>
-                            {(s.buildingName || s.floor || s.areaName) && (
-                              <div className="text-xs text-gray-400 mt-0.5">
-                                {[s.buildingName, s.floor, s.areaName].filter(Boolean).join(' · ')}
-                              </div>
+                            {s.quantity > 1 && (
+                              <div className="text-xs text-gray-400 mt-0.5">{s.quantity} locations</div>
                             )}
                           </td>
                           <td className="px-3 py-2 text-right text-gray-600">{s.quantity}</td>
                           <td className="px-3 py-2 text-right text-gray-600">{fmt(s.unitCost)}</td>
                           <td className="px-3 py-2 text-right">
-                            <input
-                              type="number" min="0" step="0.1"
-                              defaultValue={markup}
-                              onBlur={e => {
-                                const val = Number(e.target.value) || 0;
-                                if (val !== (surveyMarkups[s.locationId] ?? 0)) {
-                                  saveSurveyMarkup(s, val);
-                                }
-                              }}
-                              className="form-input text-xs py-0.5 w-16 text-right"
-                            />
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number" min="0" step="0.1"
+                                value={inputVal}
+                                onChange={e => setDirtyMarkups(prev => ({ ...prev, [key]: e.target.value }))}
+                                className="form-input text-xs py-0.5 w-16 text-right"
+                              />
+                              {isDirty && (
+                                <>
+                                  <button onClick={() => commitSurveyMarkup(s)} disabled={isSaving}
+                                    className="p-1 text-green-600 hover:text-green-700 rounded">
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => revertSurveyMarkup(key)}
+                                    className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmt(lineTotal)}</td>
                           <td className="px-3 py-2" />
@@ -533,7 +553,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
             </div>
 
             <button onClick={saveFees} disabled={savingFees} className="btn-primary w-full justify-center mb-5">
-              {savingFees ? 'Saving…' : 'Save Fee Summary'}
+              {savingFees ? 'Saving...' : 'Save Fee Summary'}
             </button>
 
             {/* Calculated breakdown */}
@@ -611,11 +631,11 @@ function EditRow({
             onChange={e => onCameraChange(Number(e.target.value))}
             className="form-select text-xs py-1.5 w-full"
           >
-            <option value={0}>— Select camera —</option>
+            <option value={0}>-- Select camera --</option>
             {cameras.map(cam => (
               <option key={cam.id} value={cam.id}>
                 {[cam.manufacturer, cam.model].filter(Boolean).join(' ')}
-                {cam.cost ? ` — $${Number(cam.cost).toFixed(2)}` : ''}
+                {cam.cost ? ` -- $${Number(cam.cost).toFixed(2)}` : ''}
               </option>
             ))}
           </select>
@@ -635,7 +655,7 @@ function EditRow({
       <td className="px-2 py-2">
         {isCameraEquipment ? (
           <span className="block text-right text-xs text-gray-500 px-1">
-            {form.unitCost > 0 ? fmt(form.unitCost) : '—'}
+            {form.unitCost > 0 ? fmt(form.unitCost) : '--'}
           </span>
         ) : (
           <input name="unitCost" type="number" min="0" step="0.01" value={form.unitCost} onChange={onChange}

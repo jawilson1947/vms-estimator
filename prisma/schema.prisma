@@ -66,6 +66,7 @@ model Project {
   id                  Int           @id @default(autoincrement()) @map("project_id")
   customerId          Int           @map("customer_id")
   siteId              Int?          @map("site_id")
+  buildingId          Int?          @map("building_id")
   projectName         String        @map("project_name") @db.VarChar(200)
   projectNumber       String?       @map("project_number") @db.VarChar(50)
   projectStatus       ProjectStatus @default(PROPOSED) @map("project_status")
@@ -78,6 +79,7 @@ model Project {
 
   customer            Customer          @relation(fields: [customerId], references: [id])
   site                Site?             @relation(fields: [siteId], references: [id])
+  building            Building?         @relation(fields: [buildingId], references: [id])
   costs               ProjectCost[]
   feeSummary          ProjectFeeSummary?
   proposals           Proposal[]
@@ -121,6 +123,7 @@ model Building {
   site         Site               @relation(fields: [siteId], references: [id])
   locations    CameraLocation[]
   floorPlans   BuildingFloorPlan[]
+  projects     Project[]
 
   @@map("buildings")
 }

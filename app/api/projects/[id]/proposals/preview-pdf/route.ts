@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateProposalPdf } from '@/lib/generate-proposal-pdf';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
+import type { ProposalCompanyInfo } from '@/lib/generate-proposal-pdf';
 
 /**
  * POST /api/projects/[id]/proposals/preview-pdf
@@ -31,19 +32,27 @@ export async function POST(
 
   if (!content) return NextResponse.json({ error: 'content is required' }, { status: 400 });
 
-  const project = await prisma.project.findUnique({
-    where:   { id: Number(id) },
-    include: {
-      customer:   { select: { customerName: true } },
-      feeSummary: true,
-      costs:      { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
-    },
-  });
+  const userId = Number((session.user as { id?: string | number }).id ?? 0);
+  const [project, userSettings] = await Promise.all([
+    prisma.project.findUnique({
+      where:   { id: Number(id) },
+      include: {
+        customer:   { select: { customerName: true } },
+        feeSummary: true,
+        costs:      { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
+      },
+    }),
+    prisma.user.findUnique({
+      where:  { id: userId },
+      select: { companyName: true, companyTagline: true, companyAddress: true, companyPhone: true, companyWebsite: true },
+    }),
+  ]);
 
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  const company: ProposalCompanyInfo = userSettings ?? {};
   const validUntilDate = validUntil ? new Date(validUntil) : null;
-  const buf = await generateProposalPdf(content, project, templateId, validUntilDate);
+  const buf = await generateProposalPdf(content, project, templateId, validUntilDate, company);
 
   return new NextResponse(buf as unknown as BodyInit, {
     status: 200,

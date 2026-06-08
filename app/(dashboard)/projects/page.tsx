@@ -32,7 +32,13 @@ const statusFilterOptions = [
   { value: 'CANCELLED',   label: 'Cancelled'     },
 ];
 
-interface SiteRow { projectId: number; siteId: number; siteName: string }
+interface BuildingRow {
+  projectId:    number;
+  buildingId:   number;
+  buildingName: string;
+  siteId:       number;
+  siteName:     string;
+}
 
 async function getProjects(search: string, status: string) {
   const projects = await prisma.project.findMany({
@@ -55,18 +61,27 @@ async function getProjects(search: string, status: string) {
   });
 
   const projectIds = projects.map(p => p.id);
-  const siteRows = projectIds.length > 0
-    ? await prisma.$queryRaw<SiteRow[]>(
-        Prisma.sql`SELECT p.project_id AS projectId, s.site_id AS siteId, s.site_name AS siteName
-                   FROM projects p
-                   JOIN sites s ON s.site_id = p.site_id
-                   WHERE p.project_id IN (${Prisma.join(projectIds)})`
-      ).catch(() => [] as SiteRow[])
+
+  const buildingRows = projectIds.length > 0
+    ? await prisma.$queryRaw<BuildingRow[]>(
+        Prisma.sql`
+          SELECT p.project_id AS projectId,
+                 b.building_id AS buildingId,
+                 b.building_name AS buildingName,
+                 s.site_id AS siteId,
+                 s.site_name AS siteName
+          FROM projects p
+          JOIN buildings b ON b.building_id = p.building_id
+          JOIN sites s     ON s.site_id = b.site_id
+          WHERE p.project_id IN (${Prisma.join(projectIds)})`
+      ).catch(() => [] as BuildingRow[])
     : [];
 
-  const siteByProject = new Map(siteRows.map(r => [r.projectId, { id: r.siteId, siteName: r.siteName }]));
+  const buildingByProject = new Map(
+    buildingRows.map(r => [r.projectId, { id: r.buildingId, buildingName: r.buildingName, siteId: r.siteId, siteName: r.siteName }])
+  );
 
-  return projects.map(p => ({ ...p, site: siteByProject.get(p.id) ?? null }));
+  return projects.map(p => ({ ...p, building: buildingByProject.get(p.id) ?? null }));
 }
 
 export default async function ProjectsPage({
@@ -134,7 +149,7 @@ export default async function ProjectsPage({
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Manager</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Dates</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Site</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Building</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -171,9 +186,14 @@ export default async function ProjectsPage({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    {p.site
-                      ? <Link href={`/sites/${p.site.id}`} className="hover:underline">{p.site.siteName}</Link>
-                      : <span className="text-gray-400">—</span>}
+                    {p.building ? (
+                      <div>
+                        <span className="font-medium text-gray-800">{p.building.buildingName}</span>
+                        <p className="text-xs text-gray-400">{p.building.siteName}</p>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

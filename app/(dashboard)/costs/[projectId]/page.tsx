@@ -35,36 +35,49 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
 
   if (!project) notFound();
 
-  // Load stored markup overrides for survey camera rows
+  // Load stored markup overrides for survey camera rows (keyed by cameraModelId)
   const surveyOverrideRows = await prisma.projectCost.findMany({
     where: { projectId: Number(projectId), surveyLocationId: { not: null } },
-    select: { id: true, surveyLocationId: true, markupPercent: true },
+    select: { id: true, cameraModelId: true, surveyLocationId: true, markupPercent: true },
   });
   const surveyOverrides: Record<number, { costId: number; markupPercent: number }> = {};
+  const surveyOverrideIds = new Set<number>();
   for (const row of surveyOverrideRows) {
-    if (row.surveyLocationId != null) {
-      surveyOverrides[row.surveyLocationId] = { costId: row.id, markupPercent: Number(row.markupPercent) };
+    if (row.cameraModelId != null) {
+      surveyOverrides[row.cameraModelId] = { costId: row.id, markupPercent: Number(row.markupPercent) };
+      surveyOverrideIds.add(row.id);
     }
   }
 
-  const surveyItems = project.site?.buildings.flatMap(b =>
-    b.locations.map(l => {
-      const unitCost = l.cameraModel?.cost ? Number(l.cameraModel.cost) : 0;
-      if (unitCost <= 0) return null;
-      const description = [l.cameraModel?.manufacturer, l.cameraModel?.model].filter(Boolean).join(' ') || 'Unspecified Camera';
-      return {
-        locationId:    l.id,
-        cameraModelId: l.cameraModelId ?? null,
-        description,
-        buildingName:  b.buildingName,
-        floor:         l.floor    ?? '',
-        areaName:      l.areaName ?? '',
-        unitCost,
-        quantity:      1,
-        lineTotal:     unitCost,
-      };
-    }).filter((i): i is NonNullable<typeof i> => i !== null)
-  ) ?? [];
+  // Flatten all locations with a valid catalog price, then group by camera model
+  type SurveyGroup = {
+    locationId: number; cameraModelId: number; description: string;
+    quantity: number; unitCost: number; lineTotal: number;
+  };
+  const groupMap = new Map<number, SurveyGroup>();
+  for (const b of project.site?.buildings ?? []) {
+    for (const l of b.locations) {
+      if (!l.cameraModelId || !l.cameraModel?.cost) continue;
+      const unitCost = Number(l.cameraModel.cost);
+      if (unitCost <= 0) continue;
+      const description = [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') || 'Unspecified Camera';
+      if (groupMap.has(l.cameraModelId)) {
+        const g = groupMap.get(l.cameraModelId)!;
+        g.quantity += 1;
+        g.lineTotal = g.unitCost * g.quantity;
+      } else {
+        groupMap.set(l.cameraModelId, {
+          locationId:    l.id,
+          cameraModelId: l.cameraModelId,
+          description,
+          quantity:      1,
+          unitCost,
+          lineTotal:     unitCost,
+        });
+      }
+    }
+  }
+  const surveyItems = Array.from(groupMap.values());
 
   return (
     <div>
@@ -92,7 +105,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         overheadRateDefault={project.overheadRatePercent ? Number(project.overheadRatePercent) : 15}
         surveyItems={surveyItems}
         surveyOverrides={surveyOverrides}
-        initialCosts={project.costs.map(c => ({
+        initialCosts={project.costs.filter(c => !surveyOverrideIds.has(c.id)).map(c => ({
           id:            c.id,
           categoryId:    c.categoryId,
           categoryName:  c.category.name,

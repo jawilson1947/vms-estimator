@@ -179,20 +179,6 @@ function guessImageType(url: string): 'png' | 'jpg' | 'gif' | 'bmp' {
   return 'png';
 }
 
-// ── Cover page helpers ────────────────────────────────────────────────────────
-
-function coverPara(
-  text: string,
-  opts: { size: number; bold?: boolean; color: string; spacing?: number; align?: typeof AlignmentType[keyof typeof AlignmentType] },
-): Paragraph {
-  return new Paragraph({
-    alignment: opts.align ?? AlignmentType.LEFT,
-    spacing:   { before: opts.spacing ?? 0, after: 0 },
-    shading:   undefined,
-    children:  [new TextRun({ text, bold: opts.bold, color: opts.color, size: opts.size * 2, font: 'Arial' })],
-  });
-}
-
 // ── Section heading ───────────────────────────────────────────────────────────
 
 function sectionHeading(label: string, tmpl: TemplateConfig): Paragraph {
@@ -395,119 +381,112 @@ export async function generateProposalDocx(
   }
 
   const pm         = project.projectManager ?? company.defaultProjectManager ?? '—';
-  const isDarkCover = tmpl.coverBg !== 'FFFFFF';
 
-  // ── Cover page children ──────────────────────────────────────────────────────
+
+  // ── Cover page children — centered white layout ───────────────────────────────
   const coverChildren: (Paragraph | Table)[] = [];
 
-  // ── Branding block (logo + company name + contact line) ──────────────────────
+  // Helper: centered paragraph
+  function cPara(text: string, opts: { size: number; bold?: boolean; color: string; spacingBefore?: number; spacingAfter?: number }) {
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing:   { before: opts.spacingBefore ?? 0, after: opts.spacingAfter ?? 80 },
+      children:  [new TextRun({ text, bold: opts.bold ?? false, color: opts.color, size: opts.size, font: 'Arial' })],
+    });
+  }
+
+  // Helper: centered rule (paragraph border bottom)
+  function cRule(spacingBefore = 160, spacingAfter = 160) {
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing:   { before: spacingBefore, after: spacingAfter },
+      border:    { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB', space: 1 } },
+      children:  [],
+    });
+  }
+
+  // ── Logo ──────────────────────────────────────────────────────────────────────
   if (logoBuffer) {
     coverChildren.push(new Paragraph({
-      spacing: { before: 0, after: 200 },
-      children: [new ImageRun({
+      alignment: AlignmentType.CENTER,
+      spacing:   { before: 480, after: 160 },
+      children:  [new ImageRun({
         type:           logoType,
         data:           logoBuffer,
-        transformation: { width: 180, height: 68 },
+        transformation: { width: 140, height: 52 },
         altText:        { title: companyName, description: companyName, name: companyName },
       })],
     }));
   }
 
-  // Company name — large, prominent
-  coverChildren.push(new Paragraph({
-    spacing: { before: logoBuffer ? 0 : 480, after: 60 },
-    shading: isDarkCover ? shading(tmpl.coverBg) : undefined,
-    children: [new TextRun({
-      text: companyName.toUpperCase(),
-      bold: true, color: isDarkCover ? tmpl.coverText : tmpl.primary,
-      size: 56, font: 'Arial',
-    })],
-  }));
+  // ── Company block ─────────────────────────────────────────────────────────────
+  coverChildren.push(cPara(companyName, { size: 28, bold: true, color: tmpl.primary, spacingBefore: logoBuffer ? 0 : 480, spacingAfter: 80 }));
 
-  // Tagline
   if (tagline) {
-    coverChildren.push(new Paragraph({
-      spacing: { before: 0, after: 120 },
-      shading: isDarkCover ? shading(tmpl.coverBg) : undefined,
-      children: [new TextRun({ text: tagline, color: isDarkCover ? 'D1D5DB' : '6B7280', size: 20, font: 'Arial' })],
-    }));
+    coverChildren.push(cPara(tagline, { size: 18, color: '6B7280', spacingAfter: 80 }));
   }
 
-  // Contact line: phone  |  website  |  address
-  const contactParts: string[] = [];
-  if (company.companyPhone)   contactParts.push(company.companyPhone);
-  if (company.companyWebsite) contactParts.push(company.companyWebsite);
-  if (company.companyAddress) contactParts.push(company.companyAddress.replace(/\n/g, ', '));
-  if (contactParts.length > 0) {
-    coverChildren.push(new Paragraph({
-      spacing: { before: 0, after: 360 },
-      shading: isDarkCover ? shading(tmpl.coverBg) : undefined,
-      children: [new TextRun({
-        text: contactParts.join('   ·   '),
-        color: isDarkCover ? 'CBD5E1' : '9CA3AF',
-        size: 16, font: 'Arial',
-      })],
-    }));
+  if (company.companyAddress) {
+    for (const line of company.companyAddress.split(/\n/).map(s => s.trim()).filter(Boolean).slice(0, 3)) {
+      coverChildren.push(cPara(line, { size: 17, color: '9CA3AF', spacingAfter: 60 }));
+    }
   }
 
-  // ── Divider ───────────────────────────────────────────────────────────────────
-  coverChildren.push(new Paragraph({
-    spacing: { before: 0, after: 400 },
-    border:  { bottom: { style: BorderStyle.SINGLE, size: 6, color: tmpl.accent, space: 1 } },
-    children: [],
-  }));
+  if (company.companyPhone || company.companyWebsite) {
+    const phoneWeb = [company.companyPhone, company.companyWebsite].filter(Boolean).join('   |   ');
+    coverChildren.push(cPara(phoneWeb!, { size: 17, color: '9CA3AF', spacingAfter: 80 }));
+  }
 
-  // ── Project details ───────────────────────────────────────────────────────────
+  coverChildren.push(cRule(160, 200));
+
+  // ── Proposal section ──────────────────────────────────────────────────────────
   coverChildren.push(
-    coverPara('PROPOSAL', { size: 34, bold: true, color: isDarkCover ? tmpl.coverText : tmpl.primary, spacing: 0 }),
-    coverPara(project.projectName, { size: 28, bold: true, color: isDarkCover ? 'FFFFFF' : '111827', spacing: 100 }),
-    coverPara(project.customer.customerName, { size: 20, color: isDarkCover ? 'CBD5E1' : '374151', spacing: 40 }),
+    cPara('Proposal', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
+    cPara(project.customer.customerName, { size: 36, bold: true, color: '111827', spacingAfter: 80 }),
+    cPara(project.projectName, { size: 24, bold: true, color: '111827', spacingAfter: 80 }),
+  );
+  if (project.projectNumber) {
+    coverChildren.push(cPara(`Project No. ${project.projectNumber}`, { size: 18, color: '6B7280', spacingAfter: 80 }));
+  }
+
+  coverChildren.push(cRule(160, 200));
+
+  // ── Prepared by section ───────────────────────────────────────────────────────
+  coverChildren.push(
+    cPara('Prepared by:', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
+    cPara(pm, { size: 24, bold: true, color: '111827', spacingAfter: 80 }),
   );
 
-  // Project Manager — shown prominently
-  coverChildren.push(new Paragraph({
-    spacing: { before: 200, after: 0 },
-    children: [
-      new TextRun({ text: 'PROJECT MANAGER:  ', bold: true, color: isDarkCover ? 'CBD5E1' : '6B7280', size: 16, font: 'Arial' }),
-      new TextRun({ text: pm, bold: true, color: isDarkCover ? 'FFFFFF' : '111827', size: 18, font: 'Arial' }),
-    ],
-  }));
+  coverChildren.push(cRule(160, 200));
 
-  // Other details
-  const details: [string, string][] = [
-    ['Prepared For',  project.customer.customerName],
-    ...(siteName ? [['Project Site', siteName] as [string, string]] : []),
-    ['Project No.',   project.projectNumber ?? '—'],
-    ['Date',          dateStr],
-    ['Valid Until',   validStr],
-  ].filter(([, v]) => v && v !== '—') as [string, string][];
+  // ── Date section ──────────────────────────────────────────────────────────────
+  coverChildren.push(
+    cPara('Date', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
+    cPara(dateStr, { size: 20, color: '111827', spacingAfter: 80 }),
+    cPara(`Valid Until: ${validStr}`, { size: 18, color: '6B7280', spacingAfter: 80 }),
+  );
 
-  coverChildren.push(new Paragraph({ spacing: { before: 240, after: 0 }, children: [] }));
-  for (const [label, value] of details) {
-    coverChildren.push(new Paragraph({
-      spacing: { before: 80, after: 0 },
-      children: [
-        new TextRun({ text: `${label.toUpperCase()}:  `, bold: true, color: isDarkCover ? 'CBD5E1' : '6B7280', size: 16, font: 'Arial' }),
-        new TextRun({ text: value, color: isDarkCover ? 'FFFFFF' : '111827', size: 16, font: 'Arial' }),
-      ],
-    }));
-  }
-
+  // ── Investment total ──────────────────────────────────────────────────────────
   if (project.feeSummary) {
     const gt = fmt(n(project.feeSummary.grandTotal));
     coverChildren.push(
-      new Paragraph({ spacing: { before: 360, after: 0 }, children: [] }),
-      new Paragraph({
-        spacing: { before: 0, after: 0 },
-        shading: shading(tmpl.accent),
-        indent:  { left: 100, right: 100 },
-        children: [
-          new TextRun({ text: 'INVESTMENT TOTAL  ', bold: true, color: 'FFFFFF', size: 20, font: 'Arial' }),
-          new TextRun({ text: gt, bold: true, color: 'FFFFFF', size: 28, font: 'Arial' }),
-        ],
-      }),
+      cRule(160, 200),
+      cPara('Investment Total', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
+      cPara(gt, { size: 48, bold: true, color: tmpl.primary, spacingAfter: 80 }),
     );
   }
+
+  // ── Confidentiality statement ─────────────────────────────────────────────────
+  const confText = 'This proposal contains confidential and proprietary information intended solely for the use of the named recipient. No part of this document may be reproduced, distributed, or disclosed without the written consent of the principal investigator.';
+  coverChildren.push(
+    cRule(240, 160),
+    cPara('Confidentiality Statement', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 100 }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing:   { before: 0, after: 160 },
+      children:  [new TextRun({ text: confText, color: '9CA3AF', size: 16, font: 'Arial' })],
+    }),
+  );
 
   // Page break after cover
   coverChildren.push(new Paragraph({ children: [new PageBreak()] }));
@@ -533,6 +512,151 @@ export async function generateProposalDocx(
         new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
       );
     }
+  }
+
+  // ── Signatory section ────────────────────────────────────────────────────────
+  contentChildren.push(
+    new Paragraph({ children: [new PageBreak()] }),
+    sectionHeading('Acceptance of Proposal', tmpl),
+    new Paragraph({
+      spacing: { before: 0, after: 240 },
+      children: [new TextRun({
+        text: 'The undersigned hereby accepts the terms, scope, and pricing outlined in this proposal and authorizes commencement of the described work.',
+        color: '374151', size: 20, font: 'Arial',
+      })],
+    }),
+  );
+
+  // Two-column signature table
+  const SIG_COL = Math.floor(CONTENT_W / 2) - 200;
+  const sigFields = ['Signature', 'Printed Name', 'Title', 'Date'];
+  const sigHeaders = new TableRow({
+    children: [
+      new TableCell({
+        width: { size: SIG_COL, type: WidthType.DXA },
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        children: [new Paragraph({
+          children: [new TextRun({ text: 'Authorized by (Client)', bold: true, color: tmpl.primary, size: 18, font: 'Arial' })],
+        })],
+      }),
+      new TableCell({
+        width: { size: 400, type: WidthType.DXA },
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        children: [new Paragraph({ children: [] })],
+      }),
+      new TableCell({
+        width: { size: SIG_COL, type: WidthType.DXA },
+        borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+        children: [new Paragraph({
+          children: [new TextRun({ text: 'Authorized by (Vendor)', bold: true, color: tmpl.primary, size: 18, font: 'Arial' })],
+        })],
+      }),
+    ],
+  });
+
+  const sigRows: TableRow[] = [sigHeaders];
+  for (const field of sigFields) {
+    sigRows.push(new TableRow({
+      children: [
+        new TableCell({
+          width: { size: SIG_COL, type: WidthType.DXA },
+          borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          margins: { top: 480, bottom: 60, left: 0, right: 0 },
+          children: [new Paragraph({
+            children: [new TextRun({ text: field, color: '9CA3AF', size: 16, font: 'Arial' })],
+          })],
+        }),
+        new TableCell({
+          width: { size: 400, type: WidthType.DXA },
+          borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          children: [new Paragraph({ children: [] })],
+        }),
+        new TableCell({
+          width: { size: SIG_COL, type: WidthType.DXA },
+          borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE } },
+          margins: { top: 480, bottom: 60, left: 0, right: 0 },
+          children: [new Paragraph({
+            children: [new TextRun({ text: field, color: '9CA3AF', size: 16, font: 'Arial' })],
+          })],
+        }),
+      ],
+    }));
+  }
+
+  contentChildren.push(
+    new Table({
+      width: { size: CONTENT_W, type: WidthType.DXA },
+      columnWidths: [SIG_COL, 400, SIG_COL],
+      rows: sigRows,
+    }),
+    new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
+  );
+
+  // ── Appendix A — Reference Links ──────────────────────────────────────────────
+  const linkedCosts = project.costs.filter(c => (c as { url?: string | null }).url?.trim());
+  if (linkedCosts.length > 0) {
+    contentChildren.push(
+      new Paragraph({ children: [new PageBreak()] }),
+      sectionHeading('Appendix A — Reference Links', tmpl),
+      new Paragraph({
+        spacing: { before: 0, after: 200 },
+        children: [new TextRun({
+          text: 'The following reference links are associated with line items in this proposal.',
+          color: '374151', size: 20, font: 'Arial',
+        })],
+      }),
+    );
+
+    // Appendix table
+    const APP_COL = { num: 360, desc: 3600, url: CONTENT_W - 360 - 3600 };
+    const appRows: TableRow[] = [
+      new TableRow({
+        children: [
+          cell('#',           { width: APP_COL.num,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Description', { width: APP_COL.desc, bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('URL',         { width: APP_COL.url,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+        ],
+      }),
+    ];
+
+    linkedCosts.forEach((c, idx) => {
+      const url = (c as { url?: string | null }).url!;
+      const bg  = idx % 2 === 1 ? tmpl.altRow : 'FFFFFF';
+      appRows.push(new TableRow({
+        children: [
+          cell(String(idx + 1),       { width: APP_COL.num,  bg }),
+          cell(c.description ?? '—',  { width: APP_COL.desc, bg }),
+          new TableCell({
+            width:   { size: APP_COL.url, type: WidthType.DXA },
+            borders: cellBorder(),
+            shading: bg ? shading(bg) : undefined,
+            margins: { top: 60, bottom: 60, left: 100, right: 100 },
+            children: [new Paragraph({
+              children: [new ExternalHyperlink({
+                link: url,
+                children: [new TextRun({
+                  text:      url,
+                  style:     'Hyperlink',
+                  color:     '2563EB',
+                  size:      16,
+                  font:      'Arial',
+                  underline: { type: undefined },
+                })],
+              })],
+            })],
+          }),
+        ],
+      }));
+    });
+
+    contentChildren.push(
+      new Table({
+        width:        { size: CONTENT_W, type: WidthType.DXA },
+        columnWidths: [APP_COL.num, APP_COL.desc, APP_COL.url],
+        rows:         appRows,
+      }),
+      new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
+    );
   }
 
   // ── Header / Footer ───────────────────────────────────────────────────────────

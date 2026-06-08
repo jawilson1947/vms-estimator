@@ -4,13 +4,13 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import {
   ChevronRightIcon, PencilSquareIcon,
-  MapPinIcon, CurrencyDollarIcon,
+  BuildingOfficeIcon, CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
-import { RemoveSiteButton } from '@/components/RemoveSiteButton';
-import { AddSiteButton } from '@/components/AddSiteButton';
+import { AddBuildingButton } from '@/components/AddBuildingButton';
+import { RemoveBuildingButton } from '@/components/RemoveBuildingButton';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -30,7 +30,7 @@ const statusLabels: Record<string, string> = {
   COMPLETED: 'Completed', ON_HOLD: 'On Hold', CANCELLED: 'Cancelled',
 };
 
-interface SiteIdRow { siteId: number | null }
+interface BuildingIdRow { buildingId: number | null }
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,32 +47,39 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   if (!project) notFound();
 
-  // Fetch the assigned site_id via raw SQL (works before prisma generate)
-  const siteIdRows = await prisma.$queryRaw<SiteIdRow[]>(
-    Prisma.sql`SELECT site_id AS siteId FROM projects WHERE project_id = ${projectId}`
-  ).catch(() => [] as SiteIdRow[]);
-  const siteId = siteIdRows[0]?.siteId ?? null;
+  // Fetch building_id via raw SQL (safe before prisma generate)
+  const buildingIdRows = await prisma.$queryRaw<BuildingIdRow[]>(
+    Prisma.sql`SELECT building_id AS buildingId FROM projects WHERE project_id = ${projectId}`
+  ).catch(() => [] as BuildingIdRow[]);
+  const buildingId = buildingIdRows[0]?.buildingId ?? null;
 
-  // Fetch full site data (with buildings/locations/cameraModel) if a site is assigned
-  const assignedSite = siteId
-    ? await prisma.site.findUnique({
-        where: { id: siteId },
+  // Fetch full building + its parent site if a building is assigned
+  const assignedBuilding = buildingId
+    ? await prisma.building.findUnique({
+        where:   { id: buildingId },
         include: {
-          buildings: {
-            orderBy: { buildingName: 'asc' },
+          site: { select: { id: true, siteName: true, city: true, state: true } },
+          locations: {
+            orderBy: { areaName: 'asc' },
             include: {
-              locations: {
-                orderBy: { areaName: 'asc' },
-                include: {
-                  cameraModel: {
-                    select: { id: true, manufacturer: true, model: true, cost: true, cameraType: true },
-                  },
-                },
+              cameraModel: {
+                select: { id: true, manufacturer: true, model: true, cost: true, cameraType: true },
               },
             },
           },
         },
       })
+    : null;
+
+  // For ProjectScopePanel — build a minimal site-shaped object from building data
+  const scopeSite = assignedBuilding
+    ? {
+        id:        assignedBuilding.site.id,
+        siteName:  assignedBuilding.site.siteName,
+        city:      assignedBuilding.site.city,
+        state:     assignedBuilding.site.state,
+        buildings: [assignedBuilding],
+      }
     : null;
 
   const totalCost = project.feeSummary
@@ -180,39 +187,44 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {/* Site */}
+      {/* Building */}
       <div className="card p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-900">Site</h2>
-          <AddSiteButton
+          <h2 className="text-sm font-semibold text-gray-900">Building</h2>
+          <AddBuildingButton
             projectId={project.id}
-            excludeIds={assignedSite ? [assignedSite.id] : []}
-            label={assignedSite ? 'Change Site' : 'Assign Site'}
+            excludeIds={assignedBuilding ? [assignedBuilding.id] : []}
+            siteId={assignedBuilding?.site.id}
+            label={assignedBuilding ? 'Change Building' : 'Assign Building'}
           />
         </div>
 
-        {!assignedSite ? (
-          <p className="text-sm text-gray-400">No site assigned to this project.</p>
+        {!assignedBuilding ? (
+          <p className="text-sm text-gray-400">No building assigned to this project.</p>
         ) : (
           <div className="relative flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm group">
-            <Link href={`/sites/${assignedSite.id}`} className="flex items-start gap-2 flex-1 min-w-0">
-              <MapPinIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+            <Link
+              href={`/sites/${assignedBuilding.site.id}`}
+              className="flex items-start gap-2 flex-1 min-w-0"
+            >
+              <BuildingOfficeIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-gray-900">{assignedSite.siteName}</p>
-                {(assignedSite.city || assignedSite.state) && (
-                  <p className="text-xs text-gray-500">
-                    {[assignedSite.city, assignedSite.state].filter(Boolean).join(', ')}
-                  </p>
-                )}
+                <p className="font-medium text-gray-900">{assignedBuilding.buildingName}</p>
+                <p className="text-xs text-gray-500">
+                  {assignedBuilding.site.siteName}
+                  {(assignedBuilding.site.city || assignedBuilding.site.state) && (
+                    <> &middot; {[assignedBuilding.site.city, assignedBuilding.site.state].filter(Boolean).join(', ')}</>
+                  )}
+                </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {assignedSite.buildings.length} building{assignedSite.buildings.length !== 1 ? 's' : ''}
+                  {assignedBuilding.locations.length} camera location{assignedBuilding.locations.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </Link>
-            <RemoveSiteButton
+            <RemoveBuildingButton
               projectId={project.id}
-              siteId={assignedSite.id}
-              siteName={assignedSite.siteName}
+              buildingId={assignedBuilding.id}
+              buildingName={assignedBuilding.buildingName}
             />
           </div>
         )}
@@ -221,13 +233,12 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       {/* Project Scope — survey locations + cost line items */}
       <ProjectScopePanel
         projectId={project.id}
-        site={assignedSite}
+        site={scopeSite}
         manualCosts={project.costs}
       />
 
       {/* Proposal History */}
       <ProposalHistory projectId={project.id} projectName={project.projectName} />
-
     </div>
   );
 }
