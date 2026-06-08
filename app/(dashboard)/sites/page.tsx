@@ -1,19 +1,40 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { PlusIcon, MapPinIcon } from '@heroicons/react/24/outline';
 
+interface ProjectLink { id: number; projectName: string }
+interface SiteProjectRow { siteId: number; id: number; projectName: string }
+
 async function getSites(search: string) {
-  return prisma.site.findMany({
+  const sites = await prisma.site.findMany({
     where: search
       ? { OR: [{ siteName: { contains: search } }, { city: { contains: search } }, { state: { contains: search } }] }
       : undefined,
     include: {
-      customer:  { select: { id: true, customerName: true } },
-      projects:  { select: { id: true, projectName: true } },
-      _count:    { select: { buildings: true } },
+      customer: { select: { id: true, customerName: true } },
+      _count:   { select: { buildings: true } },
     },
     orderBy: { siteName: 'asc' },
   });
+
+  const siteIds = sites.map(s => s.id);
+  const projectRows = siteIds.length > 0
+    ? await prisma.$queryRaw<SiteProjectRow[]>(
+        Prisma.sql`SELECT site_id AS siteId, project_id AS id, project_name AS projectName
+                   FROM projects
+                   WHERE site_id IN (${Prisma.join(siteIds)})`
+      ).catch(() => [] as SiteProjectRow[])
+    : [];
+
+  const projectsBySite = new Map<number, ProjectLink[]>();
+  for (const row of projectRows) {
+    const list = projectsBySite.get(row.siteId) ?? [];
+    list.push({ id: row.id, projectName: row.projectName });
+    projectsBySite.set(row.siteId, list);
+  }
+
+  return sites.map(s => ({ ...s, projects: projectsBySite.get(s.id) ?? [] }));
 }
 
 export default async function SitesPage({ searchParams }: { searchParams: { search?: string } }) {
@@ -59,7 +80,7 @@ export default async function SitesPage({ searchParams }: { searchParams: { sear
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Site</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Customer</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-600">Project</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Projects</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Buildings</th>
               </tr>
             </thead>

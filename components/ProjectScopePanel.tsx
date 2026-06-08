@@ -51,14 +51,15 @@ interface ManualCost {
 
 interface Props {
   projectId: number;
-  sites: Site[];
+  site: Site | null;
   manualCosts: ManualCost[];
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ProjectScopePanel({ projectId, sites, manualCosts }: Props) {
+export function ProjectScopePanel({ projectId, site, manualCosts }: Props) {
   // Compute survey-derived totals
+  const sites = site ? [site] : [];
   const allLocations = sites.flatMap(s => s.buildings.flatMap(b => b.locations));
   const surveyTotal = allLocations.reduce(
     (sum, loc) => sum + Number(loc.cameraModel?.cost ?? 0),

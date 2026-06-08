@@ -1,15 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
   ChevronRightIcon, PencilSquareIcon,
   MapPinIcon, CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
-import { AddSiteButton } from '@/components/AddSiteButton';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
 import { RemoveSiteButton } from '@/components/RemoveSiteButton';
+import { AddSiteButton } from '@/components/AddSiteButton';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -29,15 +30,33 @@ const statusLabels: Record<string, string> = {
   COMPLETED: 'Completed', ON_HOLD: 'On Hold', CANCELLED: 'Cancelled',
 };
 
+interface SiteIdRow { siteId: number | null }
 
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const projectId = Number(id);
+
   const project = await prisma.project.findUnique({
-    where:   { id: Number(id) },
+    where:   { id: projectId },
     include: {
       customer:   { select: { id: true, customerName: true } },
-      sites: {
-        orderBy: { siteName: 'asc' },
+      costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
+      feeSummary: true,
+    },
+  });
+
+  if (!project) notFound();
+
+  // Fetch the assigned site_id via raw SQL (works before prisma generate)
+  const siteIdRows = await prisma.$queryRaw<SiteIdRow[]>(
+    Prisma.sql`SELECT site_id AS siteId FROM projects WHERE project_id = ${projectId}`
+  ).catch(() => [] as SiteIdRow[]);
+  const siteId = siteIdRows[0]?.siteId ?? null;
+
+  // Fetch full site data (with buildings/locations/cameraModel) if a site is assigned
+  const assignedSite = siteId
+    ? await prisma.site.findUnique({
+        where: { id: siteId },
         include: {
           buildings: {
             orderBy: { buildingName: 'asc' },
@@ -53,13 +72,8 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             },
           },
         },
-      },
-      costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
-      feeSummary: true,
-    },
-  });
-
-  if (!project) notFound();
+      })
+    : null;
 
   const totalCost = project.feeSummary
     ? Number(project.feeSummary.grandTotal)
@@ -166,47 +180,40 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
       </div>
 
-      {/* Sites */}
+      {/* Site */}
       <div className="card p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Sites
-            <span className="ml-2 badge bg-gray-100 text-gray-600">{project.sites.length}</span>
-          </h2>
+          <h2 className="text-sm font-semibold text-gray-900">Site</h2>
           <AddSiteButton
             projectId={project.id}
-            excludeIds={project.sites.map(s => s.id)}
+            excludeIds={assignedSite ? [assignedSite.id] : []}
+            label={assignedSite ? 'Change Site' : 'Assign Site'}
           />
         </div>
 
-        {project.sites.length === 0 ? (
-          <p className="text-sm text-gray-400">No sites added yet.</p>
+        {!assignedSite ? (
+          <p className="text-sm text-gray-400">No site assigned to this project.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {project.sites.map(s => (
-              <div
-                key={s.id}
-                className="relative flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm group"
-              >
-                <Link href={`/sites/${s.id}`} className="flex items-start gap-2 flex-1 min-w-0">
-                  <MapPinIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-gray-900">{s.siteName}</p>
-                    {(s.city || s.state) && (
-                      <p className="text-xs text-gray-500">{[s.city, s.state].filter(Boolean).join(', ')}</p>
-                    )}
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {s.buildings.length} building{s.buildings.length !== 1 ? 's' : ''}
-                    </p>
-                  </div>
-                </Link>
-                <RemoveSiteButton
-                  projectId={project.id}
-                  siteId={s.id}
-                  siteName={s.siteName}
-                />
+          <div className="relative flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm group">
+            <Link href={`/sites/${assignedSite.id}`} className="flex items-start gap-2 flex-1 min-w-0">
+              <MapPinIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-gray-900">{assignedSite.siteName}</p>
+                {(assignedSite.city || assignedSite.state) && (
+                  <p className="text-xs text-gray-500">
+                    {[assignedSite.city, assignedSite.state].filter(Boolean).join(', ')}
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {assignedSite.buildings.length} building{assignedSite.buildings.length !== 1 ? 's' : ''}
+                </p>
               </div>
-            ))}
+            </Link>
+            <RemoveSiteButton
+              projectId={project.id}
+              siteId={assignedSite.id}
+              siteName={assignedSite.siteName}
+            />
           </div>
         )}
       </div>
@@ -214,7 +221,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       {/* Project Scope — survey locations + cost line items */}
       <ProjectScopePanel
         projectId={project.id}
-        sites={project.sites}
+        site={assignedSite}
         manualCosts={project.costs}
       />
 

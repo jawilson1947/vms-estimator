@@ -9,6 +9,7 @@ import {
 import { AddBuildingForm } from '@/components/AddBuildingForm';
 import { BuildingActions } from '@/components/BuildingActions';
 import { BuildingFloorPlans } from '@/components/BuildingFloorPlans';
+import { LinkToProjectButton } from '@/components/LinkToProjectButton';
 
 interface ProjectRow { id: number; projectName: string; }
 
@@ -38,10 +39,9 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
       },
     }),
     prisma.$queryRaw<ProjectRow[]>(
-      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName
-                 FROM projects p
-                 JOIN _SiteProjects sp ON sp.A = p.project_id
-                 WHERE sp.B = ${siteId}`
+      Prisma.sql`SELECT project_id AS id, project_name AS projectName
+                 FROM projects
+                 WHERE site_id = ${siteId}`
     ).catch(() => [] as ProjectRow[]),
   ]);
 
@@ -101,7 +101,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Project links */}
-      <div className="flex flex-wrap gap-3 text-sm mb-6">
+      <div className="flex flex-wrap items-center gap-3 text-sm mb-6">
         {site.customer && (
           <Link href={`/customers/${site.customer.id}`} className="text-blue-600 hover:underline">
             ← {site.customer.customerName}
@@ -112,6 +112,10 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
             ← {p.projectName}
           </Link>
         ))}
+        <LinkToProjectButton
+          siteId={siteId}
+          excludeIds={linkedProjects.map(p => p.id)}
+        />
       </div>
 
       {/* Buildings */}

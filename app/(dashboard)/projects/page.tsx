@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { PlusIcon, FolderIcon } from '@heroicons/react/24/outline';
 import { ProjectStatus } from '@prisma/client';
 
@@ -31,8 +32,10 @@ const statusFilterOptions = [
   { value: 'CANCELLED',   label: 'Cancelled'     },
 ];
 
+interface SiteRow { projectId: number; siteId: number; siteName: string }
+
 async function getProjects(search: string, status: string) {
-  return prisma.project.findMany({
+  const projects = await prisma.project.findMany({
     where: {
       ...(status ? { projectStatus: status as ProjectStatus } : {}),
       ...(search
@@ -47,10 +50,23 @@ async function getProjects(search: string, status: string) {
     },
     include: {
       customer: { select: { id: true, customerName: true } },
-      _count:   { select: { sites: true, costs: true } },
     },
     orderBy: { projectName: 'asc' },
   });
+
+  const projectIds = projects.map(p => p.id);
+  const siteRows = projectIds.length > 0
+    ? await prisma.$queryRaw<SiteRow[]>(
+        Prisma.sql`SELECT p.project_id AS projectId, s.site_id AS siteId, s.site_name AS siteName
+                   FROM projects p
+                   JOIN sites s ON s.site_id = p.site_id
+                   WHERE p.project_id IN (${Prisma.join(projectIds)})`
+      ).catch(() => [] as SiteRow[])
+    : [];
+
+  const siteByProject = new Map(siteRows.map(r => [r.projectId, { id: r.siteId, siteName: r.siteName }]));
+
+  return projects.map(p => ({ ...p, site: siteByProject.get(p.id) ?? null }));
 }
 
 export default async function ProjectsPage({
@@ -118,7 +134,7 @@ export default async function ProjectsPage({
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Manager</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Dates</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-600">Sites</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Site</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -154,8 +170,10 @@ export default async function ProjectsPage({
                       {statusLabels[p.projectStatus]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="badge bg-gray-100 text-gray-600">{p._count.sites}</span>
+                  <td className="px-4 py-3 text-gray-600">
+                    {p.site
+                      ? <Link href={`/sites/${p.site.id}`} className="hover:underline">{p.site.siteName}</Link>
+                      : <span className="text-gray-400">—</span>}
                   </td>
                 </tr>
               ))}

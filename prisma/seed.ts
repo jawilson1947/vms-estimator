@@ -4,6 +4,7 @@ import {
   ProjectStatus,
   CameraType,
   Environment,
+  Prisma,
 } from '@prisma/client';
 import { hash } from 'bcryptjs';
 
@@ -89,13 +90,17 @@ async function main() {
     update: {},
     create: {
       customerId: customer.id,
-      projects:   { connect: { id: project.id } },
       siteName:   'Acme HQ Campus',
       address:    '100 Main Street',
       city:       'Springfield',
       state:      'IL',
     },
   });
+
+  // Link the project to the site via FK (raw SQL — works before/after prisma generate)
+  await prisma.$executeRaw(
+    Prisma.sql`UPDATE projects SET site_id = ${site.id} WHERE project_id = ${project.id}`
+  );
 
   const buildingA = await prisma.building.upsert({
     where:  { id: 1 },

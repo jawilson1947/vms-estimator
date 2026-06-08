@@ -1,22 +1,26 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import {
   ChevronRightIcon, DocumentTextIcon, CameraIcon, ServerStackIcon,
 } from '@heroicons/react/24/outline';
 
 type Params = { params: { siteId: string } };
+interface ProjectRow { id: number; projectName: string; projectNumber: string | null }
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 }
 
 export default async function WorksheetPage({ params }: Params) {
-  const site = await prisma.site.findUnique({
-    where: { id: Number(params.siteId) },
+  const siteId = Number(params.siteId);
+
+  const [site, projects] = await Promise.all([
+    prisma.site.findUnique({
+    where: { id: siteId },
     include: {
       customer: true,
-      projects: { select: { id: true, projectName: true, projectNumber: true } },
       buildings: {
         include: {
           locations: {
@@ -34,7 +38,12 @@ export default async function WorksheetPage({ params }: Params) {
         orderBy: { buildingName: 'asc' },
       },
     },
-  });
+  }),
+    prisma.$queryRaw<ProjectRow[]>(
+      Prisma.sql`SELECT project_id AS id, project_name AS projectName, project_number AS projectNumber
+                 FROM projects WHERE site_id = ${siteId}`
+    ).catch(() => [] as ProjectRow[]),
+  ]);
 
   if (!site) notFound();
 
@@ -57,7 +66,7 @@ export default async function WorksheetPage({ params }: Params) {
           <h1 className="text-xl font-bold text-gray-900">{site.siteName}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {site.customer?.customerName}
-            {site.projects.map(p => (
+            {projects.map(p => (
               <Link key={p.id} href={`/projects/${p.id}`} className="ml-2 text-blue-600 hover:underline">
                 {p.projectName}
                 {p.projectNumber && ` (${p.projectNumber})`}

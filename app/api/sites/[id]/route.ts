@@ -38,10 +38,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       },
     }),
     prisma.$queryRaw<ProjectRow[]>(
-      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName
-                 FROM projects p
-                 JOIN _SiteProjects sp ON sp.A = p.project_id
-                 WHERE sp.B = ${siteId}`
+      Prisma.sql`SELECT project_id AS id, project_name AS projectName
+                 FROM projects
+                 WHERE site_id = ${siteId}`
     ).catch(() => [] as ProjectRow[]),
   ]);
 

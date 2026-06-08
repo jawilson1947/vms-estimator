@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { ProjectStatus } from '@prisma/client';
+import { Prisma, ProjectStatus } from '@prisma/client';
 
 // GET /api/projects
 export async function GET(req: NextRequest) {
@@ -29,13 +29,32 @@ export async function GET(req: NextRequest) {
         : {}),
     },
     include: {
-      customer:  { select: { id: true, customerName: true } },
-      _count:    { select: { sites: true, costs: true } },
+      customer: { select: { id: true, customerName: true } },
+      _count:   { select: { costs: true } },
     },
     orderBy: { projectName: 'asc' },
   });
 
-  return NextResponse.json(projects);
+  // Fetch site names for all projects in one query
+  interface SiteRow { projectId: number; siteId: number; siteName: string }
+  const projectIds = projects.map(p => p.id);
+  const siteRows = projectIds.length > 0
+    ? await prisma.$queryRaw<SiteRow[]>(
+        Prisma.sql`SELECT p.project_id AS projectId, s.site_id AS siteId, s.site_name AS siteName
+                   FROM projects p
+                   JOIN sites s ON s.site_id = p.site_id
+                   WHERE p.project_id IN (${Prisma.join(projectIds)})`
+      ).catch(() => [] as SiteRow[])
+    : [];
+
+  const siteByProject = new Map(siteRows.map(r => [r.projectId, { id: r.siteId, siteName: r.siteName }]));
+
+  const result = projects.map(p => ({
+    ...p,
+    site: siteByProject.get(p.id) ?? null,
+  }));
+
+  return NextResponse.json(result);
 }
 
 // POST /api/projects
