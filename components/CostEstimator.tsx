@@ -15,10 +15,18 @@ interface CategoryOption {
   name: string;
 }
 
+interface CameraOption {
+  id:           number;
+  manufacturer: string | null;
+  model:        string | null;
+  cost:         number | null;
+}
+
 interface CostLine {
   id:            number;
   categoryId:    number;
   categoryName:  string;
+  cameraModelId: number;
   description:   string;
   quantity:      number;
   unitCost:      number;
@@ -40,11 +48,30 @@ interface FeeSummary {
   grandTotal:           number;
 }
 
+interface SurveyItem {
+  locationId:   number;
+  cameraModelId: number | null;
+  description:  string;
+  buildingName: string;
+  floor:        string;
+  areaName:     string;
+  unitCost:     number;
+  quantity:     number;
+  lineTotal:    number;
+}
+
+interface SurveyOverride {
+  costId:        number;
+  markupPercent: number;
+}
+
 interface Props {
-  projectId:           number;
+  projectId:       number;
   overheadRateDefault: number;
-  initialCosts:        CostLine[];
-  initialSummary:      FeeSummary | null;
+  initialCosts:    CostLine[];
+  initialSummary:  FeeSummary | null;
+  surveyItems?:    SurveyItem[];
+  surveyOverrides?: Record<number, SurveyOverride>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -52,7 +79,7 @@ interface Props {
 const PIE_COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#f97316','#84cc16','#ec4899','#6366f1','#14b8a6','#a855f7','#64748b'];
 
 const emptyLine = {
-  categoryId: 0, description: '', quantity: 1,
+  categoryId: 0, cameraModelId: 0, description: '', quantity: 1,
   unitCost: 0, markupPercent: 0, vendor: '', url: '', billable: true, notes: '',
 };
 
@@ -66,12 +93,13 @@ function fmtNum(n: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary }: Props) {
+export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary, surveyItems = [], surveyOverrides = {} }: Props) {
   const [costs, setCosts]         = useState<CostLine[]>(initialCosts);
   const [summary, setSummary]     = useState<FeeSummary | null>(initialSummary);
   const [editId, setEditId]       = useState<number | 'new' | null>(null);
   const [lineForm, setLineForm]   = useState(emptyLine);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [cameras,    setCameras]    = useState<CameraOption[]>([]);
   const [fees, setFees]           = useState({
     overheadPercent:      initialSummary?.overheadPercent      ?? overheadRateDefault,
     consultingFee:        initialSummary?.consultingFee        ?? 0,
@@ -89,36 +117,68 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const [savingLine, setSavingLine] = useState(false);
   const [activeTab, setActiveTab]   = useState<'items'|'chart'>('items');
 
+  // Survey row markup — seeded from DB overrides, persisted on blur
+  const [surveyMarkups, setSurveyMarkups] = useState<Record<number, number>>(
+    () => Object.fromEntries(Object.entries(surveyOverrides).map(([k, v]) => [Number(k), v.markupPercent]))
+  );
+
+  async function saveSurveyMarkup(s: SurveyItem, markupPercent: number) {
+    setSurveyMarkups(prev => ({ ...prev, [s.locationId]: markupPercent }));
+    await fetch(`/api/projects/${projectId}/survey-markup`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        locationId:    s.locationId,
+        markupPercent,
+        cameraModelId: s.cameraModelId,
+        description:   s.description,
+        unitCost:      s.unitCost,
+      }),
+    });
+  }
+
   useEffect(() => {
     fetch('/api/line-item-categories')
       .then(r => r.json())
       .then((data: CategoryOption[]) => setCategories(data))
       .catch(() => {});
+    fetch('/api/cameras')
+      .then(r => r.json())
+      .then((data: CameraOption[]) => setCameras(data))
+      .catch(() => {});
   }, []);
 
   // ── Derived totals ──────────────────────────────────────────────────────────
-  const directTotal = useMemo(() => costs.reduce((s, c) => s + c.lineTotal, 0), [costs]);
+  const surveyTotal   = useMemo(
+    () => surveyItems.reduce((s, i) => {
+      const markup = surveyMarkups[i.locationId] ?? 0;
+      return s + i.unitCost * i.quantity * (1 + markup / 100);
+    }, 0),
+    [surveyItems, surveyMarkups]
+  );
+  const directTotal   = useMemo(() => costs.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal, [costs, surveyTotal]);
 
   const overheadAmount  = directTotal * (fees.overheadPercent / 100);
   const grandTotal      = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount;
-  const billableTotal   = costs.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0);
+  const billableTotal   = costs.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal;
   const margin          = grandTotal > 0 ? ((grandTotal - directTotal) / grandTotal) * 100 : 0;
 
   // ── Category totals for charts ──────────────────────────────────────────────
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
     costs.forEach(c => { map[c.categoryName] = (map[c.categoryName] ?? 0) + c.lineTotal; });
+    if (surveyTotal > 0) map['Camera'] = (map['Camera'] ?? 0) + surveyTotal;
     return Object.entries(map)
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total);
-  }, [costs]);
+  }, [costs, surveyTotal]);
 
   // ── Line item CRUD ──────────────────────────────────────────────────────────
   function startNew()        { setLineForm({ ...emptyLine, categoryId: categories[0]?.id ?? 0 }); setEditId('new'); }
   function startEdit(c: CostLine) {
     setLineForm({
-      categoryId: c.categoryId, description: c.description, quantity: c.quantity,
-      unitCost: c.unitCost, markupPercent: c.markupPercent,
+      categoryId: c.categoryId, cameraModelId: c.cameraModelId, description: c.description,
+      quantity: c.quantity, unitCost: c.unitCost, markupPercent: c.markupPercent,
       vendor: c.vendor, url: c.url, billable: c.billable, notes: c.notes,
     });
     setEditId(c.id);
@@ -127,11 +187,29 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
 
   function handleLineChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) {
     const { name, type, value } = e.target;
+    setLineForm(prev => {
+      const next: typeof prev = {
+        ...prev,
+        [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked
+              : name === 'categoryId' ? Number(value)
+              : value,
+      };
+      // Clear camera link when switching away from Camera Equipment
+      if (name === 'categoryId') {
+        const catName = categories.find(c => c.id === Number(value))?.name;
+        if (catName !== 'Camera Equipment') next.cameraModelId = 0;
+      }
+      return next;
+    });
+  }
+
+  function handleCameraChange(cameraId: number) {
+    const cam = cameras.find(c => c.id === cameraId);
     setLineForm(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked
-            : name === 'categoryId' ? Number(value)
-            : value,
+      cameraModelId: cameraId,
+      description:   cam ? [cam.manufacturer, cam.model].filter(Boolean).join(' ') : prev.description,
+      unitCost:      cam?.cost ? Number(cam.cost) : prev.unitCost,
     }));
   }
 
@@ -151,6 +229,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       id:            raw.id,
       categoryId:    raw.categoryId,
       categoryName:  raw.category?.name ?? '',
+      cameraModelId: raw.cameraModelId  ?? 0,
       description:   raw.description   ?? '',
       quantity:      Number(raw.quantity),
       unitCost:      Number(raw.unitCost),
@@ -244,7 +323,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                       editId === c.id ? (
                         <EditRow key={c.id} form={lineForm} onChange={handleLineChange}
                           onSave={saveLine} onCancel={cancelEdit} saving={savingLine}
-                          categories={categories} />
+                          categories={categories} cameras={cameras} onCameraChange={handleCameraChange} />
                       ) : (
                         <tr key={c.id} className="hover:bg-gray-50">
                           <td className="px-3 py-2">
@@ -273,10 +352,47 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                       )
                     ))}
 
+                    {surveyItems.map(s => {
+                      const markup    = surveyMarkups[s.locationId] ?? 0;
+                      const lineTotal = s.unitCost * s.quantity * (1 + markup / 100);
+                      return (
+                        <tr key={`survey-${s.locationId}`} className="hover:bg-indigo-50/30">
+                          <td className="px-3 py-2">
+                            <span className="badge bg-indigo-100 text-indigo-700 text-xs whitespace-nowrap">Camera</span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            <div>{s.description}</div>
+                            {(s.buildingName || s.floor || s.areaName) && (
+                              <div className="text-xs text-gray-400 mt-0.5">
+                                {[s.buildingName, s.floor, s.areaName].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right text-gray-600">{s.quantity}</td>
+                          <td className="px-3 py-2 text-right text-gray-600">{fmt(s.unitCost)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number" min="0" step="0.1"
+                              defaultValue={markup}
+                              onBlur={e => {
+                                const val = Number(e.target.value) || 0;
+                                if (val !== (surveyMarkups[s.locationId] ?? 0)) {
+                                  saveSurveyMarkup(s, val);
+                                }
+                              }}
+                              className="form-input text-xs py-0.5 w-16 text-right"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmt(lineTotal)}</td>
+                          <td className="px-3 py-2" />
+                        </tr>
+                      );
+                    })}
+
                     {editId === 'new' && (
                       <EditRow form={lineForm} onChange={handleLineChange}
                         onSave={saveLine} onCancel={cancelEdit} saving={savingLine}
-                        categories={categories} />
+                        categories={categories} cameras={cameras} onCameraChange={handleCameraChange} />
                     )}
                   </tbody>
                   <tfoot>
@@ -465,15 +581,19 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
 // ─── Inline edit row ──────────────────────────────────────────────────────────
 
 function EditRow({
-  form, onChange, onSave, onCancel, saving, categories,
+  form, onChange, onSave, onCancel, saving, categories, cameras, onCameraChange,
 }: {
-  form:       typeof emptyLine;
-  onChange:   (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
-  onSave:     () => void;
-  onCancel:   () => void;
-  saving:     boolean;
-  categories: CategoryOption[];
+  form:             typeof emptyLine;
+  onChange:         (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onSave:           () => void;
+  onCancel:         () => void;
+  saving:           boolean;
+  categories:       CategoryOption[];
+  cameras:          CameraOption[];
+  onCameraChange:   (cameraId: number) => void;
 }) {
+  const isCameraEquipment = categories.find(c => c.id === form.categoryId)?.name === 'Camera Equipment';
+
   return (
     <tr className="bg-blue-50/60">
       <td className="px-2 py-2">
@@ -485,18 +605,42 @@ function EditRow({
         </select>
       </td>
       <td className="px-2 py-2">
-        <input name="description" value={form.description} onChange={onChange}
-          placeholder="Description" className="form-input text-xs py-1.5 w-full" />
-        <input name="url" type="url" value={form.url} onChange={onChange}
-          placeholder="https:// (optional link)" className="form-input text-xs py-1 w-full mt-1 text-blue-600 placeholder:text-gray-400" />
+        {isCameraEquipment ? (
+          <select
+            value={form.cameraModelId}
+            onChange={e => onCameraChange(Number(e.target.value))}
+            className="form-select text-xs py-1.5 w-full"
+          >
+            <option value={0}>— Select camera —</option>
+            {cameras.map(cam => (
+              <option key={cam.id} value={cam.id}>
+                {[cam.manufacturer, cam.model].filter(Boolean).join(' ')}
+                {cam.cost ? ` — $${Number(cam.cost).toFixed(2)}` : ''}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <>
+            <input name="description" value={form.description} onChange={onChange}
+              placeholder="Description" className="form-input text-xs py-1.5 w-full" />
+            <input name="url" type="url" value={form.url} onChange={onChange}
+              placeholder="https:// (optional link)" className="form-input text-xs py-1 w-full mt-1 text-blue-600 placeholder:text-gray-400" />
+          </>
+        )}
       </td>
       <td className="px-2 py-2">
         <input name="quantity" type="number" min="0" step="any" value={form.quantity} onChange={onChange}
           className="form-input text-xs py-1.5 w-16 text-right" />
       </td>
       <td className="px-2 py-2">
-        <input name="unitCost" type="number" min="0" step="0.01" value={form.unitCost} onChange={onChange}
-          className="form-input text-xs py-1.5 w-24 text-right" />
+        {isCameraEquipment ? (
+          <span className="block text-right text-xs text-gray-500 px-1">
+            {form.unitCost > 0 ? fmt(form.unitCost) : '—'}
+          </span>
+        ) : (
+          <input name="unitCost" type="number" min="0" step="0.01" value={form.unitCost} onChange={onChange}
+            className="form-input text-xs py-1.5 w-24 text-right" />
+        )}
       </td>
       <td className="px-2 py-2">
         <input name="markupPercent" type="number" min="0" step="0.1" value={form.markupPercent} onChange={onChange}

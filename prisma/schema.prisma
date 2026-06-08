@@ -160,6 +160,7 @@ model CameraLocation {
   building         Building              @relation(fields: [buildingId], references: [id])
   cameraModel      CameraModel?          @relation(fields: [cameraModelId], references: [id], onDelete: SetNull)
   images           CameraLocationImage[]
+  projectCosts     ProjectCost[]
 
   @@map("camera_locations")
 }
@@ -196,6 +197,7 @@ model CameraModel {
   comment             String?      @db.Text
 
   locations           CameraLocation[]
+  projectCosts        ProjectCost[]
 
   @@map("camera_models")
 }
@@ -259,22 +261,27 @@ model LineItemCategory {
 // ─── Project Costs ───────────────────────────────────────────────────────────
 
 model ProjectCost {
-  id            Int              @id @default(autoincrement()) @map("cost_id")
-  projectId     Int              @map("project_id")
-  categoryId    Int              @map("category_id")
-  description   String?          @db.VarChar(255)
-  quantity      Decimal          @default(1) @db.Decimal(10, 2)
-  unitCost      Decimal          @default(0) @map("unit_cost") @db.Decimal(10, 2)
-  markupPercent Decimal          @default(0) @map("markup_percent") @db.Decimal(5, 2)
-  lineTotal     Decimal?         @map("line_total") @db.Decimal(12, 2)
-  vendor        String?          @db.VarChar(150)
-  url           String?          @db.VarChar(500)
-  costDate      DateTime?        @map("cost_date") @db.Date
-  billable      Boolean          @default(true)
-  notes         String?          @db.Text
+  id              Int              @id @default(autoincrement()) @map("cost_id")
+  projectId       Int              @map("project_id")
+  categoryId      Int              @map("category_id")
+  cameraModelId   Int?             @map("camera_model_id")
+  description     String?          @db.VarChar(255)
+  quantity        Decimal          @default(1) @db.Decimal(10, 2)
+  unitCost        Decimal          @default(0) @map("unit_cost") @db.Decimal(10, 2)
+  markupPercent   Decimal          @default(0) @map("markup_percent") @db.Decimal(5, 2)
+  lineTotal       Decimal?         @map("line_total") @db.Decimal(12, 2)
+  vendor          String?          @db.VarChar(150)
+  url             String?          @db.VarChar(500)
+  costDate        DateTime?        @map("cost_date") @db.Date
+  billable        Boolean          @default(true)
+  notes           String?          @db.Text
 
-  project       Project          @relation(fields: [projectId], references: [id])
-  category      LineItemCategory @relation(fields: [categoryId], references: [id])
+  surveyLocationId  Int?             @map("survey_location_id")
+
+  project           Project          @relation(fields: [projectId], references: [id])
+  category          LineItemCategory @relation(fields: [categoryId], references: [id])
+  cameraModel       CameraModel?     @relation(fields: [cameraModelId], references: [id], onDelete: SetNull)
+  surveyLocation    CameraLocation?  @relation(fields: [surveyLocationId], references: [id], onDelete: SetNull)
 
   @@map("project_costs")
 }

@@ -28,11 +28,22 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const b = await req.json();
+  const b     = await req.json();
   const model = await prisma.cameraModel.update({
     where: { id: Number(id) },
     data:  buildData(b),
   });
+
+  // Propagate price change to all linked project cost lines.
+  // line_total is a generated column — updating unit_cost is sufficient.
+  if (b.cost !== undefined) {
+    const newCost = model.cost ? Number(model.cost) : 0;
+    await prisma.$executeRaw`
+      UPDATE project_costs
+      SET unit_cost = ${newCost}
+      WHERE camera_model_id = ${Number(id)}
+    `;
+  }
 
   return NextResponse.json(model);
 }

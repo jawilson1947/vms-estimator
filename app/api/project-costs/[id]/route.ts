@@ -13,19 +13,30 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   const b = await req.json();
 
+  // If a camera model is linked, always use its catalog price
+  const cameraModelId = b.cameraModelId ? Number(b.cameraModelId) : null;
+  let unitCost = b.unitCost ? Number(b.unitCost) : 0;
+  if (cameraModelId) {
+    const cam = await prisma.cameraModel.findUnique({ where: { id: cameraModelId }, select: { cost: true } });
+    if (cam?.cost) unitCost = Number(cam.cost);
+  }
+  const quantity    = b.quantity      ? Number(b.quantity)      : 1;
+  const markupPct   = b.markupPercent ? Number(b.markupPercent) : 0;
+
   await prisma.projectCost.update({
     where: { id: Number(id) },
     data:  {
       categoryId:    Number(b.categoryId),
-      description:   b.description  || null,
-      quantity:      b.quantity     ? Number(b.quantity)      : 1,
-      unitCost:      b.unitCost     ? Number(b.unitCost)      : 0,
-      markupPercent: b.markupPercent? Number(b.markupPercent) : 0,
-      vendor:        b.vendor       || null,
-      url:           b.url          || null,
-      costDate:      b.costDate     ? new Date(b.costDate)    : null,
-      billable:      b.billable !== undefined ? !!b.billable  : true,
-      notes:         b.notes        || null,
+      cameraModelId,
+      description:   b.description || null,
+      quantity,
+      unitCost,
+      markupPercent: markupPct,
+      vendor:        b.vendor   || null,
+      url:           b.url      || null,
+      costDate:      b.costDate ? new Date(b.costDate) : null,
+      billable:      b.billable !== undefined ? !!b.billable : true,
+      notes:         b.notes    || null,
     },
   });
 

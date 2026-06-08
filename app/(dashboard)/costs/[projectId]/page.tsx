@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { CostEstimator } from '@/components/CostEstimator';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ProjectCostPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   const project = await prisma.project.findUnique({
@@ -15,10 +17,54 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         include: { category: true },
       },
       feeSummary: true,
+      site: {
+        include: {
+          buildings: {
+            orderBy: { buildingName: 'asc' },
+            include: {
+              locations: {
+                orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
+                include: { cameraModel: true },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
   if (!project) notFound();
+
+  // Load stored markup overrides for survey camera rows
+  const surveyOverrideRows = await prisma.projectCost.findMany({
+    where: { projectId: Number(projectId), surveyLocationId: { not: null } },
+    select: { id: true, surveyLocationId: true, markupPercent: true },
+  });
+  const surveyOverrides: Record<number, { costId: number; markupPercent: number }> = {};
+  for (const row of surveyOverrideRows) {
+    if (row.surveyLocationId != null) {
+      surveyOverrides[row.surveyLocationId] = { costId: row.id, markupPercent: Number(row.markupPercent) };
+    }
+  }
+
+  const surveyItems = project.site?.buildings.flatMap(b =>
+    b.locations.map(l => {
+      const unitCost = l.cameraModel?.cost ? Number(l.cameraModel.cost) : 0;
+      if (unitCost <= 0) return null;
+      const description = [l.cameraModel?.manufacturer, l.cameraModel?.model].filter(Boolean).join(' ') || 'Unspecified Camera';
+      return {
+        locationId:    l.id,
+        cameraModelId: l.cameraModelId ?? null,
+        description,
+        buildingName:  b.buildingName,
+        floor:         l.floor    ?? '',
+        areaName:      l.areaName ?? '',
+        unitCost,
+        quantity:      1,
+        lineTotal:     unitCost,
+      };
+    }).filter((i): i is NonNullable<typeof i> => i !== null)
+  ) ?? [];
 
   return (
     <div>
@@ -44,10 +90,13 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
       <CostEstimator
         projectId={project.id}
         overheadRateDefault={project.overheadRatePercent ? Number(project.overheadRatePercent) : 15}
+        surveyItems={surveyItems}
+        surveyOverrides={surveyOverrides}
         initialCosts={project.costs.map(c => ({
           id:            c.id,
           categoryId:    c.categoryId,
           categoryName:  c.category.name,
+          cameraModelId: c.cameraModelId ?? 0,
           description:   c.description  ?? '',
           quantity:      Number(c.quantity),
           unitCost:      Number(c.unitCost),
