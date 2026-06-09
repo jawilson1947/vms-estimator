@@ -28,52 +28,105 @@ function fmt(n: number) {
 }
 
 function buildCostBreakdownText(project: Awaited<ReturnType<typeof prisma.project.findUnique>> & object): string {
-  const costs      = (project as Record<string, unknown>).costs as Array<Record<string, unknown>>;
-  const feeSummary = (project as Record<string, unknown>).feeSummary as Record<string, unknown> | null;
+  const allCosts        = ((project as Record<string, unknown>).costs ?? []) as Array<Record<string, unknown>>;
+  const feeSummary      = (project as Record<string, unknown>).feeSummary as Record<string, unknown> | null;
+  const cameraLocations = ((project as Record<string, unknown>).cameraLocations ?? []) as Array<Record<string, unknown>>;
 
-  if (!costs?.length) return '';
+  // Separate survey markup override records (surveyLocationId set) from regular
+  // manual line items. Override records must NOT appear in the manual category
+  // section -- they would double-count costs already shown under Survey Cameras.
+  const surveyOverrideRecords = allCosts.filter(c => c.surveyLocationId != null);
+  const manualCosts           = allCosts.filter(c => c.surveyLocationId == null);
 
-  // Group by category
-  const grouped = new Map<string, Array<Record<string, unknown>>>();
-  for (const c of costs) {
-    const cat = (c.category as Record<string, unknown>)?.name as string ?? 'Uncategorised';
-    if (!grouped.has(cat)) grouped.set(cat, []);
-    grouped.get(cat)!.push(c);
+  // Build a markup-by-model map from the stored override records.
+  const markupByModel = new Map<number, number>();
+  for (const r of surveyOverrideRecords) {
+    const modelId = r.cameraModelId as number | null;
+    if (modelId != null) markupByModel.set(modelId, Number(r.markupPercent ?? 0));
   }
 
   const lines: string[] = [];
 
-  for (const [catName, items] of grouped) {
-    lines.push(catName);
-    const subtotal = items.reduce((s, c) => s + Number(c.lineTotal ?? 0), 0);
-    for (const c of items) {
-      const desc       = (c.description as string | null) ?? '—';
-      const qty        = Number(c.quantity);
-      const unit       = Number(c.unitCost);
-      const markup     = Number(c.markupPercent ?? 0);
-      const displayUnit = markup > 0 ? unit * (1 + markup / 100) : unit;
-      const tot        = Number(c.lineTotal ?? 0);
-      lines.push(`  ${desc}  (${qty} × ${fmt(displayUnit)})  ${fmt(tot)}`);
+  // -- Survey cameras (grouped by model, markup applied to match cost page) --
+  const surveyGroup = new Map<number, { description: string; quantity: number; unitCost: number }>();
+  for (const loc of cameraLocations) {
+    const modelId = loc.cameraModelId as number | null;
+    const model   = loc.cameraModel   as Record<string, unknown> | null;
+    if (!modelId || !model?.cost) continue;
+    const unitCost = Number(model.cost);
+    if (unitCost <= 0) continue;
+    const description = [model.manufacturer, model.model].filter(Boolean).join(' ') || 'Unspecified Camera';
+    const entry = surveyGroup.get(modelId);
+    if (entry) { entry.quantity += 1; }
+    else        { surveyGroup.set(modelId, { description, quantity: 1, unitCost }); }
+  }
+
+  let surveyTotal = 0;
+  if (surveyGroup.size > 0) {
+    lines.push('Survey Cameras');
+    for (const [modelId, g] of surveyGroup) {
+      const markup      = markupByModel.get(modelId) ?? 0;
+      const displayUnit = g.unitCost * (1 + markup / 100);
+      const lineTotal   = displayUnit * g.quantity;
+      surveyTotal      += lineTotal;
+      const markupLabel = markup > 0 ? ` +${markup}%` : '';
+      lines.push(`  ${g.description}  (${g.quantity} x ${fmt(displayUnit)}${markupLabel})  ${fmt(lineTotal)}`);
     }
-    lines.push(`  Subtotal: ${fmt(subtotal)}`);
+    lines.push(`  Subtotal: ${fmt(surveyTotal)}`);
     lines.push('');
   }
 
-  if (feeSummary) {
-    const fs = feeSummary;
-    const feeRows: [string, number][] = [
-      ['Direct Cost Total',      Number(fs.directCostTotal)],
-      [`Overhead (${Number(fs.overheadPercent).toFixed(1)}%)`, Number(fs.overheadAmount)],
-      ['Consulting Fee',         Number(fs.consultingFee)],
-      ['Project Management Fee', Number(fs.projectManagementFee)],
-      ['Contingency',            Number(fs.contingencyAmount)],
-      ['Tax',                    Number(fs.taxAmount)],
-    ].filter(([, v]) => (v as number) > 0) as [string, number][];
+  if (!manualCosts.length && surveyGroup.size === 0) return '';
 
-    for (const [label, val] of feeRows) lines.push(`${label}: ${fmt(val)}`);
-    lines.push('');
-    lines.push(`Grand Total: ${fmt(Number(fs.grandTotal))}`);
+  // -- Manual cost line items (grouped by category) -------------------------
+  let manualTotal = 0;
+  if (manualCosts.length > 0) {
+    const grouped = new Map<string, Array<Record<string, unknown>>>();
+    for (const c of manualCosts) {
+      const cat = (c.category as Record<string, unknown>)?.name as string ?? 'Uncategorised';
+      if (!grouped.has(cat)) grouped.set(cat, []);
+      grouped.get(cat)!.push(c);
+    }
+    for (const [catName, items] of grouped) {
+      lines.push(catName);
+      const subtotal = items.reduce((s, c) => s + Number(c.lineTotal ?? 0), 0);
+      manualTotal   += subtotal;
+      for (const c of items) {
+        const desc        = (c.description as string | null) ?? '--';
+        const qty         = Number(c.quantity);
+        const unit        = Number(c.unitCost);
+        const markup      = Number(c.markupPercent ?? 0);
+        const displayUnit = markup > 0 ? unit * (1 + markup / 100) : unit;
+        const tot         = Number(c.lineTotal ?? 0);
+        lines.push(`  ${desc}  (${qty} x ${fmt(displayUnit)})  ${fmt(tot)}`);
+      }
+      lines.push(`  Subtotal: ${fmt(subtotal)}`);
+      lines.push('');
+    }
   }
+
+  // -- Live grand total (mirrors CostEstimator formula exactly) --------------
+  const directTotal   = surveyTotal + manualTotal;
+  const overheadPct   = feeSummary ? Number(feeSummary.overheadPercent      ?? 0) : 0;
+  const overheadAmt   = directTotal * (overheadPct / 100);
+  const consultingFee = feeSummary ? Number(feeSummary.consultingFee        ?? 0) : 0;
+  const pmFee         = feeSummary ? Number(feeSummary.projectManagementFee ?? 0) : 0;
+  const contingency   = feeSummary ? Number(feeSummary.contingencyAmount    ?? 0) : 0;
+  const tax           = feeSummary ? Number(feeSummary.taxAmount            ?? 0) : 0;
+  const grandTotal    = directTotal + overheadAmt + consultingFee + pmFee + contingency + tax;
+
+  const feeRows: [string, number][] = [
+    ['Direct Cost Total',                     directTotal],
+    [`Overhead (${overheadPct.toFixed(1)}%)`, overheadAmt],
+    ['Consulting Fee',                         consultingFee],
+    ['Project Management Fee',                pmFee],
+    ['Contingency',                            contingency],
+    ['Tax',                                    tax],
+  ].filter(([, v]) => (v as number) > 0) as [string, number][];
+
+  for (const [label, val] of feeRows) lines.push(`${label}: ${fmt(val)}`);
+  lines.push('');
+  lines.push(`Grand Total: ${fmt(grandTotal)}`);
 
   return lines.join('\n');
 }
@@ -89,7 +142,7 @@ function buildSystemPrompt(tone: ProposalTone): string {
 
 Your writing style should be: ${toneGuide}
 
-You will receive project details in JSON and must return a JSON object with proposal sections. Each section should be 2–4 paragraphs of polished, client-ready prose. Do not use markdown formatting — plain paragraphs only, separated by two newlines.
+You will receive project details in JSON and must return a JSON object with proposal sections. Each section should be 2-4 paragraphs of polished, client-ready prose. Do not use markdown formatting -- plain paragraphs only, separated by two newlines.
 
 Always return valid JSON matching exactly this shape:
 {
@@ -103,7 +156,7 @@ Always return valid JSON matching exactly this shape:
 
 If a section key is absent from the includeSections list, set its value to an empty string "".
 
-For scopeOfWork: the project data includes a "building" object with a name and a "cameras" array of placements. Structure the scope of work around the building — name it explicitly and describe the surveillance coverage planned. Reference specific areas and camera types where provided.
+For scopeOfWork: the project data includes a "building" object with a name and a "cameras" array of placements. Structure the scope of work around the building -- name it explicitly and describe the surveillance coverage planned. Reference specific areas and camera types where provided.
 
 For costBreakdown: always set this field to an empty string "". The cost breakdown is generated programmatically from live project data and does not require AI content.
 
@@ -139,7 +192,7 @@ function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest
       state:       building.site?.state,
       cameraCount: locs.length,
       cameras: locs.map(l => ({
-        area:             [l.floor, l.areaName].filter(Boolean).join(' – ') || undefined,
+        area:             [l.floor, l.areaName].filter(Boolean).join(' - ') || undefined,
         mountingLocation: l.mountingLocation || undefined,
         coveragePurpose:  l.coveragePurpose  || undefined,
         model:            l.cameraModel ? [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') : undefined,
@@ -194,12 +247,13 @@ export async function POST(
       cameraLocations: {
         orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
         select: {
+          cameraModelId: true,
           floor: true,
           areaName: true,
           mountingLocation: true,
           coveragePurpose: true,
           cameraModel: {
-            select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true },
+            select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true, cost: true },
           },
         },
       },
@@ -230,11 +284,11 @@ export async function POST(
         input_schema: {
           type: 'object' as const,
           properties: {
-            coverLetter:        { type: 'string', description: '2–4 paragraphs, plain text, no markdown.' },
-            executiveSummary:   { type: 'string', description: '2–4 paragraphs, plain text, no markdown.' },
-            scopeOfWork:        { type: 'string', description: '2–4 paragraphs per building, plain text, no markdown.' },
+            coverLetter:        { type: 'string', description: '2-4 paragraphs, plain text, no markdown.' },
+            executiveSummary:   { type: 'string', description: '2-4 paragraphs, plain text, no markdown.' },
+            scopeOfWork:        { type: 'string', description: '2-4 paragraphs per building, plain text, no markdown.' },
             costBreakdown:      { type: 'string', description: 'Always set to empty string "".' },
-            timeline:           { type: 'string', description: '2–4 paragraphs, plain text, no markdown.' },
+            timeline:           { type: 'string', description: '2-4 paragraphs, plain text, no markdown.' },
             termsAndConditions: { type: 'string', description: 'Standard clauses, plain text, no markdown.' },
           },
           required: ['coverLetter', 'executiveSummary', 'scopeOfWork', 'costBreakdown', 'timeline', 'termsAndConditions'],
