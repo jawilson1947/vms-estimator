@@ -224,7 +224,7 @@ export async function POST(
   try {
     const response = await client.messages.create({
       model:      'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 16000,
       system:     buildSystemPrompt(tone),
       messages:   [{
         role:    'user',
@@ -233,6 +233,12 @@ export async function POST(
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
+
+    if (response.stop_reason === 'max_tokens') {
+      console.error('[proposal/generate] Response truncated — increase max_tokens');
+      return NextResponse.json({ error: 'AI response was too long to complete. Please try again or reduce the scope of the proposal.' }, { status: 502 });
+    }
+
     const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
 
     let content: ProposalContent;
