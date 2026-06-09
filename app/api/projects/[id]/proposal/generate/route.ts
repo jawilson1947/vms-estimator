@@ -223,30 +223,40 @@ export async function POST(
 
   try {
     const response = await client.messages.create({
-      model:      'claude-sonnet-4-6',
-      max_tokens: 16000,
-      system:     buildSystemPrompt(tone),
-      messages:   [{
+      model:       'claude-sonnet-4-6',
+      max_tokens:  16000,
+      system:      buildSystemPrompt(tone),
+      tools: [{
+        name:        'write_proposal',
+        description: 'Write all sections of a security systems proposal.',
+        input_schema: {
+          type: 'object' as const,
+          properties: {
+            coverLetter:        { type: 'string', description: '2–4 paragraphs, plain text, no markdown.' },
+            executiveSummary:   { type: 'string', description: '2–4 paragraphs, plain text, no markdown.' },
+            scopeOfWork:        { type: 'string', description: '2–4 paragraphs per building, plain text, no markdown.' },
+            costBreakdown:      { type: 'string', description: 'Always set to empty string "".' },
+            timeline:           { type: 'string', description: '2–4 paragraphs, plain text, no markdown.' },
+            termsAndConditions: { type: 'string', description: 'Standard clauses, plain text, no markdown.' },
+          },
+          required: ['coverLetter', 'executiveSummary', 'scopeOfWork', 'costBreakdown', 'timeline', 'termsAndConditions'],
+        },
+      }],
+      tool_choice: { type: 'tool' as const, name: 'write_proposal' },
+      messages: [{
         role:    'user',
         content: buildUserMessage(project as Record<string, unknown>, { tone, includeSections: sections, additionalContext }),
       }],
     });
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
-
-    if (response.stop_reason === 'max_tokens') {
-      console.error('[proposal/generate] Response truncated — increase max_tokens');
-      return NextResponse.json({ error: 'AI response was too long to complete. Please try again or reduce the scope of the proposal.' }, { status: 502 });
+    // With tool_choice forced, the response is always a tool_use block
+    const toolBlock = response.content.find(b => b.type === 'tool_use');
+    if (!toolBlock || toolBlock.type !== 'tool_use') {
+      console.error('[proposal/generate] No tool_use block in response', response.content);
+      return NextResponse.json({ error: 'AI did not return a structured response.' }, { status: 502 });
     }
 
-    const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
-
-    let content: ProposalContent;
-    try {
-      content = JSON.parse(cleaned);
-    } catch {
-      return NextResponse.json({ error: 'AI returned invalid JSON', raw: text }, { status: 502 });
-    }
+    const content = toolBlock.input as ProposalContent;
 
     // Always inject programmatic cost breakdown when the section was requested
     if (sections.includes('costBreakdown')) {
