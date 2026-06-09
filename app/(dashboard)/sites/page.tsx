@@ -21,9 +21,10 @@ async function getSites(search: string) {
   const siteIds = sites.map(s => s.id);
   const projectRows = siteIds.length > 0
     ? await prisma.$queryRaw<SiteProjectRow[]>(
-        Prisma.sql`SELECT site_id AS siteId, project_id AS id, project_name AS projectName
-                   FROM projects
-                   WHERE site_id IN (${Prisma.join(siteIds)})`
+        Prisma.sql`SELECT b.site_id AS siteId, p.project_id AS id, p.project_name AS projectName
+                   FROM projects p
+                   JOIN buildings b ON b.building_id = p.building_id
+                   WHERE b.site_id IN (${Prisma.join(siteIds)})`
       ).catch(() => [] as SiteProjectRow[])
     : [];
 

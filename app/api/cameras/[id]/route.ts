@@ -14,8 +14,15 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const model = await prisma.cameraModel.findUnique({
     where: { id: Number(id) },
-    include: { locations: { select: { id: true, areaName: true, floor: true,
-      building: { select: { buildingName: true, site: { select: { siteName: true } } } } } } },
+    include: {
+      locations: {
+        select: {
+          id: true, areaName: true, floor: true,
+          project: { select: { id: true, projectName: true,
+            building: { select: { buildingName: true, site: { select: { siteName: true } } } } } },
+        },
+      },
+    },
   });
 
   if (!model) return NextResponse.json({ error: 'Not found' }, { status: 404 });

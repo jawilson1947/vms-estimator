@@ -23,12 +23,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     const building = await prisma.building.findUnique({ where: { id: buildingId } });
     if (!building) return NextResponse.json({ error: 'Building not found' }, { status: 404 });
 
-    // Set both building_id and site_id via raw SQL (until prisma generate is run)
-    await prisma.$executeRaw`
-      UPDATE projects
-      SET building_id = ${buildingId}, site_id = ${building.siteId}
-      WHERE project_id = ${projectId}
-    `;
+    await prisma.project.update({
+      where: { id: projectId },
+      data:  { buildingId },
+    });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {

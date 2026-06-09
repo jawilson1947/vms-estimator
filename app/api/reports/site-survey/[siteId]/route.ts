@@ -30,9 +30,11 @@ export async function GET(
       customer: { select: { customerName: true, contactName: true, phone: true, email: true } },
       buildings: {
         include: {
-          locations: {
+          projects: {
             include: {
-              cameraModel: true,
+              cameraLocations: {
+                include: { cameraModel: true },
+              },
             },
           },
         },
@@ -55,7 +57,7 @@ export async function GET(
 
   // Flatten locations that have a camera model assigned
   const allLocations = site.buildings.flatMap(b =>
-    b.locations.map(l => ({ ...l, building: b }))
+    b.projects.flatMap(p => p.cameraLocations.map(l => ({ ...l, building: b })))
   );
   const assignedLocations = allLocations.filter(l => l.cameraModel != null);
 
@@ -133,7 +135,7 @@ export async function GET(
 
   // ── Per-building location tables ──────────────────────────────────────────
   for (const bldg of site.buildings) {
-    const bLocs = bldg.locations.filter(l => l.cameraModel != null);
+    const bLocs = bldg.projects.flatMap(p => p.cameraLocations).filter(l => l.cameraModel != null);
     if (bLocs.length === 0) continue;
 
     // Building header

@@ -7,7 +7,8 @@ import { SpeechApiTest } from '@/components/settings/SpeechApiTest';
 import { UserManager } from '@/components/admin/UserManager';
 import { LineItemCategoryManager } from '@/components/settings/LineItemCategoryManager';
 import { CompanySettings } from '@/components/settings/CompanySettings';
-import { Cog6ToothIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
@@ -48,6 +49,20 @@ export default async function SettingsPage() {
       <div className="card p-4">
         <SpeechApiTest />
       </div>
+
+      <Link
+        href="/settings/survey-management"
+        className="card p-5 flex items-center gap-4 hover:border-teal-300 hover:shadow-sm transition-all group"
+      >
+        <div className="w-10 h-10 bg-teal-50 rounded-lg flex items-center justify-center shrink-0">
+          <ClipboardDocumentListIcon className="w-5 h-5 text-teal-600" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-gray-900 group-hover:text-teal-700 transition-colors">Survey Management</p>
+          <p className="text-xs text-gray-500 mt-0.5">Copy, move, or delete survey locations across projects</p>
+        </div>
+        <span className="text-xs text-teal-600 font-medium group-hover:underline">Open →</span>
+      </Link>
     </div>
   );
 }

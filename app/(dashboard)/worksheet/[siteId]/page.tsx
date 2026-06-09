@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import {
-  ChevronRightIcon, DocumentTextIcon, CameraIcon, ServerStackIcon,
+  ChevronRightIcon, ServerStackIcon,
 } from '@heroicons/react/24/outline';
 
 type Params = { params: { siteId: string } };
@@ -18,36 +18,41 @@ export default async function WorksheetPage({ params }: Params) {
 
   const [site, projects] = await Promise.all([
     prisma.site.findUnique({
-    where: { id: siteId },
-    include: {
-      customer: true,
-      buildings: {
-        include: {
-          locations: {
-            include: {
-              cameraModel: {
-                select: {
-                  id: true, manufacturer: true, model: true, cameraType: true,
-                  resolution: true, megapixels: true, cost: true, indoorOutdoor: true, ptz: true,
+      where: { id: siteId },
+      include: {
+        customer: true,
+        buildings: {
+          include: {
+            projects: {
+              include: {
+                cameraLocations: {
+                  include: {
+                    cameraModel: {
+                      select: {
+                        id: true, manufacturer: true, model: true, cameraType: true,
+                        resolution: true, megapixels: true, cost: true, indoorOutdoor: true, ptz: true,
+                      },
+                    },
+                  },
+                  orderBy: { areaName: 'asc' },
                 },
               },
             },
-            orderBy: { areaName: 'asc' },
           },
+          orderBy: { buildingName: 'asc' },
         },
-        orderBy: { buildingName: 'asc' },
       },
-    },
-  }),
+    }),
     prisma.$queryRaw<ProjectRow[]>(
-      Prisma.sql`SELECT project_id AS id, project_name AS projectName, project_number AS projectNumber
-                 FROM projects WHERE site_id = ${siteId}`
+      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName, p.project_number AS projectNumber
+                 FROM projects p JOIN buildings b ON p.building_id = b.building_id
+                 WHERE b.site_id = ${siteId}`
     ).catch(() => [] as ProjectRow[]),
   ]);
 
   if (!site) notFound();
 
-  const allLocations = site.buildings.flatMap(b => b.locations);
+  const allLocations = site.buildings.flatMap(b => b.projects.flatMap(p => p.cameraLocations));
   const assigned     = allLocations.filter(l => l.cameraModel != null);
   const totalCost    = assigned.reduce((s, l) => s + (l.cameraModel?.cost ? Number(l.cameraModel.cost) : 0), 0);
 
@@ -105,7 +110,7 @@ export default async function WorksheetPage({ params }: Params) {
 
       {/* Per-building breakdown */}
       {site.buildings.map(building => {
-        const bLocs     = building.locations;
+        const bLocs     = building.projects.flatMap(p => p.cameraLocations);
         const bAssigned = bLocs.filter(l => l.cameraModel != null);
         const bCost     = bAssigned.reduce((s, l) => s + (l.cameraModel?.cost ? Number(l.cameraModel.cost) : 0), 0);
 

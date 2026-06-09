@@ -10,15 +10,10 @@ export interface AgentMessage {
   content: string;
 }
 
-export interface AgentBuilding {
-  id: number;
-  buildingName: string;
-}
-
 export interface AgentLocationData {
-  buildingId: number;
-  areaName: string;
-  floor: string | null;
+  projectId: number;
+  areaName:  string;
+  floor:     string | null;
   surveyNotes: string | null;
   markSurveyed: boolean;
 }
@@ -30,29 +25,22 @@ export interface AgentAction {
 
 export interface AgentResponse {
   message: string;
-  action: AgentAction | null;
+  action:  AgentAction | null;
 }
 
-function buildSystemPrompt(buildings: AgentBuilding[]): string {
-  const buildingList = buildings
-    .map(b => `  - id=${b.id}: "${b.buildingName}"`)
-    .join('\n');
-
+function buildSystemPrompt(projectId: number, buildingName: string): string {
   return `You are a survey assistant helping a field technician log camera locations for a security system survey.
 
-Your job is to conduct a friendly, one-question-at-a-time conversation to collect the following fields for each location:
-1. Building (required) — must match one of the available buildings
-2. Floor (optional) — e.g. "Ground", "1", "2", "Basement"
-3. Area name (required) — e.g. "Main Lobby", "Server Room Hallway"
-4. Survey notes (optional) — any observations, mounting notes, coverage requirements
-5. Mark as surveyed — yes or no
+The survey is for project ID ${projectId}, conducted in building: "${buildingName}".
 
-Available buildings:
-${buildingList}
+Your job is to conduct a friendly, one-question-at-a-time conversation to collect these fields for each location:
+1. Floor (optional) — e.g. "Ground", "1", "2", "Basement"
+2. Area name (required) — e.g. "Main Lobby", "Server Room Hallway"
+3. Survey notes (optional) — any observations, mounting notes, coverage requirements
+4. Mark as surveyed — yes or no
 
 Rules:
 - Ask one question at a time. Be brief and conversational.
-- When the user provides a building, confirm which one you matched by name.
 - Accept natural language answers. "yeah" = yes, "nah" / "skip" = no/skip, "dunno" = null/unknown.
 - After collecting all fields, show a confirmation summary before saving. Format it clearly.
 - After the summary, wait for the user to confirm. Accept "yes", "save", "ok", "confirm", "correct" as confirmation.
@@ -68,12 +56,12 @@ IMPORTANT: You must always respond with valid JSON in this exact shape:
 When you have collected all fields AND the user has confirmed the summary, set action to:
 {
   "message": "Saving location...",
-  "action": { "type": "save", "data": { "buildingId": <number>, "areaName": "<string>", "floor": "<string or null>", "surveyNotes": "<string or null>", "markSurveyed": <boolean> } }
+  "action": { "type": "save", "data": { "projectId": ${projectId}, "areaName": "<string>", "floor": "<string or null>", "surveyNotes": "<string or null>", "markSurveyed": <boolean> } }
 }
 
 When the user wants to add another location after saving, set action to:
 {
-  "message": "Starting a new location. Which building?",
+  "message": "Starting a new location. Which floor?",
   "action": { "type": "next" }
 }
 
@@ -99,30 +87,33 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { messages, buildings }: { messages: AgentMessage[]; buildings: AgentBuilding[] } = body;
+  const { messages, projectId, buildingName }: {
+    messages: AgentMessage[];
+    projectId: number;
+    buildingName: string;
+  } = body;
 
-  if (!messages || !buildings) {
-    return NextResponse.json({ error: 'messages and buildings are required' }, { status: 400 });
+  if (!messages || !projectId || !buildingName) {
+    return NextResponse.json({ error: 'messages, projectId, and buildingName are required' }, { status: 400 });
   }
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model:      'claude-haiku-4-5-20251001',
       max_tokens: 512,
-      system: buildSystemPrompt(buildings),
-      messages: messages.map(m => ({ role: m.role, content: m.content })),
+      system:     buildSystemPrompt(projectId, buildingName),
+      messages:   messages.map(m => ({ role: m.role, content: m.content })),
     });
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
 
-    // Parse the JSON response from Claude
     let parsed: AgentResponse;
     try {
-      // Claude sometimes wraps JSON in code fences — strip them
-      const cleaned = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
+      const start   = text.indexOf('{');
+      const end     = text.lastIndexOf('}');
+      const cleaned = start !== -1 && end > start ? text.slice(start, end + 1) : text;
       parsed = JSON.parse(cleaned);
     } catch {
-      // Fallback: treat raw text as a plain message with no action
       parsed = { message: text, action: null };
     }
 

@@ -25,30 +25,34 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
         buildings: {
           orderBy: { buildingName: 'asc' },
           include: {
-            locations: {
-              orderBy: { areaName: 'asc' },
-              select: {
-                id: true, areaName: true, floor: true,
-                mountingLocation: true, coveragePurpose: true,
-                cameraModelId: true,
+            projects: {
+              include: {
+                cameraLocations: {
+                  orderBy: { areaName: 'asc' },
+                  select: {
+                    id: true, areaName: true, floor: true,
+                    mountingLocation: true, coveragePurpose: true,
+                    cameraModelId: true,
+                  },
+                },
               },
             },
-            _count: { select: { locations: true } },
           },
         },
       },
     }),
     prisma.$queryRaw<ProjectRow[]>(
-      Prisma.sql`SELECT project_id AS id, project_name AS projectName
-                 FROM projects
-                 WHERE site_id = ${siteId}`
+      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName
+                 FROM projects p
+                 JOIN buildings b ON b.building_id = p.building_id
+                 WHERE b.site_id = ${siteId}`
     ).catch(() => [] as ProjectRow[]),
   ]);
 
   if (!site) notFound();
 
   const totalCameras = site.buildings.reduce(
-    (sum, b) => sum + b.locations.filter(l => l.cameraModelId !== null).length, 0
+    (sum, b) => sum + b.projects.flatMap(p => p.cameraLocations).filter(l => l.cameraModelId !== null).length, 0
   );
 
   return (
@@ -86,7 +90,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
           <MapPinIcon className="w-8 h-8 text-indigo-500 shrink-0" />
           <div>
             <p className="text-2xl font-bold text-gray-900">
-              {site.buildings.reduce((s, b) => s + b._count.locations, 0)}
+              {site.buildings.reduce((s, b) => s + b.projects.reduce((ps, p) => ps + p.cameraLocations.length, 0), 0)}
             </p>
             <p className="text-xs text-gray-500">Camera Locations</p>
           </div>
@@ -104,12 +108,12 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
       <div className="flex flex-wrap items-center gap-3 text-sm mb-6">
         {site.customer && (
           <Link href={`/customers/${site.customer.id}`} className="text-blue-600 hover:underline">
-            ← {site.customer.customerName}
+            &larr; {site.customer.customerName}
           </Link>
         )}
         {linkedProjects.map(p => (
           <Link key={p.id} href={`/projects/${p.id}`} className="text-blue-600 hover:underline">
-            ← {p.projectName}
+            &larr; {p.projectName}
           </Link>
         ))}
         <LinkToProjectButton
@@ -122,58 +126,61 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
       <div className="space-y-4">
         <h2 className="text-base font-semibold text-gray-900">Buildings</h2>
 
-        {site.buildings.map(building => (
-          <div key={building.id} className="card overflow-hidden">
-            <div className="group flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center gap-2">
-                <BuildingOffice2Icon className="w-4 h-4 text-gray-400" />
-                <span className="font-semibold text-gray-900 text-sm">{building.buildingName}</span>
-                <span className="badge bg-gray-100 text-gray-500 text-xs">
-                  {building._count.locations} location{building._count.locations !== 1 ? 's' : ''}
-                </span>
+        {site.buildings.map(building => {
+          const bLocations = building.projects.flatMap(p => p.cameraLocations);
+          return (
+            <div key={building.id} className="card overflow-hidden">
+              <div className="group flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <BuildingOffice2Icon className="w-4 h-4 text-gray-400" />
+                  <span className="font-semibold text-gray-900 text-sm">{building.buildingName}</span>
+                  <span className="badge bg-gray-100 text-gray-500 text-xs">
+                    {bLocations.length} location{bLocations.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <BuildingActions buildingId={building.id} buildingName={building.buildingName} />
+                  <Link href={`/cameras?buildingId=${building.id}`} className="text-xs text-blue-600 hover:underline">
+                    View cameras
+                  </Link>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <BuildingActions buildingId={building.id} buildingName={building.buildingName} />
-                <Link href={`/cameras?buildingId=${building.id}`} className="text-xs text-blue-600 hover:underline">
-                  View cameras
-                </Link>
+
+              <div className="px-5 py-3 border-b border-gray-100">
+                <BuildingFloorPlans buildingId={building.id} />
               </div>
-            </div>
 
-            <div className="px-5 py-3 border-b border-gray-100">
-              <BuildingFloorPlans buildingId={building.id} />
-            </div>
-
-            {building.locations.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-gray-400">No camera locations yet.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left px-5 py-2 text-xs font-semibold text-gray-500">Area</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Floor</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Mounting</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Coverage Purpose</th>
-                    <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500">Cameras</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {building.locations.map(loc => (
-                    <tr key={loc.id} className="hover:bg-gray-50">
-                      <td className="px-5 py-2.5 font-medium text-gray-800">{loc.areaName ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-gray-500">{loc.floor ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-gray-500">{loc.mountingLocation ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-gray-500">{loc.coveragePurpose ?? '—'}</td>
-                      <td className="px-4 py-2.5 text-center">
-                        <span className="badge bg-blue-50 text-blue-700">{loc.cameraModelId ? 1 : 0}</span>
-                      </td>
+              {bLocations.length === 0 ? (
+                <p className="px-5 py-4 text-sm text-gray-400">No camera locations yet.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="text-left px-5 py-2 text-xs font-semibold text-gray-500">Area</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Floor</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Mounting</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Coverage Purpose</th>
+                      <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500">Cameras</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        ))}
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {bLocations.map(loc => (
+                      <tr key={loc.id} className="hover:bg-gray-50">
+                        <td className="px-5 py-2.5 font-medium text-gray-800">{loc.areaName ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-gray-500">{loc.floor ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-gray-500">{loc.mountingLocation ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-gray-500">{loc.coveragePurpose ?? '—'}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <span className="badge bg-blue-50 text-blue-700">{loc.cameraModelId ? 1 : 0}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          );
+        })}
 
         <AddBuildingForm siteId={site.id} />
       </div>

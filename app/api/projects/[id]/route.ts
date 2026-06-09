@@ -16,9 +16,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
     where:   { id: Number(id) },
     include: {
       customer:   { select: { id: true, customerName: true } },
-      site: {
-        include: { buildings: { include: { _count: { select: { locations: true } } } } },
+      building: {
+        include: { site: { select: { id: true, siteName: true, city: true, state: true } } },
       },
+      cameraLocations: { select: { id: true } },
       costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
       feeSummary: true,
     },

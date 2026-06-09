@@ -7,69 +7,50 @@ import { MapPinIcon, ChevronRightIcon, CheckCircleIcon, ClockIcon } from '@heroi
 
 export const metadata = { title: 'Site Survey' };
 
-interface SurveyCountRow {
-  site_id: number;
-  total: bigint;
-  done: bigint;
-}
-
 export default async function SurveyLandingPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect('/login');
 
-  // Fetch sites with building counts (no new schema fields needed)
-  const sites = await prisma.site.findMany({
-    orderBy: { siteName: 'asc' },
-    include: {
-      buildings: {
-        select: { id: true },
-      },
+  // Fetch projects that have a building assigned, with location counts
+  const projects = await prisma.project.findMany({
+    where:   { buildingId: { not: null } },
+    orderBy: { projectName: 'asc' },
+    select: {
+      id:          true,
+      projectName: true,
+      building: { select: { id: true, buildingName: true, site: { select: { siteName: true } } } },
+      _count:  { select: { cameraLocations: true } },
     },
   });
 
-  // Use raw SQL for surveyed counts so this works even before `prisma generate`
-  // is re-run after the migration adds `surveyed_at`.
-  let surveyRows: SurveyCountRow[] = [];
-  try {
-    surveyRows = await prisma.$queryRaw<SurveyCountRow[]>`
-      SELECT
-        b.site_id,
-        COUNT(cl.location_id)                          AS total,
-        COUNT(CASE WHEN cl.surveyed_at IS NOT NULL THEN 1 END) AS done
-      FROM camera_locations cl
-      JOIN buildings b ON cl.building_id = b.building_id
-      GROUP BY b.site_id
-    `;
-  } catch {
-    // Column may not exist yet if migration hasn't been run — degrade gracefully
-  }
-
-  const countBySite = new Map<number, { total: number; done: number }>();
-  for (const row of surveyRows) {
-    countBySite.set(Number(row.site_id), {
-      total: Number(row.total),
-      done:  Number(row.done),
-    });
+  // Surveyed count per project (locations where surveyedAt is not null)
+  const surveyedCounts = await prisma.cameraLocation.groupBy({
+    by:     ['projectId'],
+    where:  { projectId: { not: null }, surveyedAt: { not: null } },
+    _count: { id: true },
+  });
+  const surveyedByProject = new Map<number, number>();
+  for (const row of surveyedCounts) {
+    if (row.projectId != null) surveyedByProject.set(row.projectId, row._count.id);
   }
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-bold text-gray-900">Site Survey</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Walk a site and quickly capture camera locations, photos, and notes.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Walk a project site and capture camera locations, photos, and notes.</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {sites.map(site => {
-          const counts   = countBySite.get(site.id) ?? { total: 0, done: 0 };
-          const { total, done } = counts;
-          const pct      = total > 0 ? Math.round((done / total) * 100) : 0;
-          const buildings = site.buildings.length;
+        {projects.map(project => {
+          const total = project._count.cameraLocations;
+          const done  = surveyedByProject.get(project.id) ?? 0;
+          const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
 
           return (
             <Link
-              key={site.id}
-              href={`/survey/${site.id}`}
+              key={project.id}
+              href={`/survey/${project.id}`}
               className="card p-5 flex flex-col gap-3 hover:shadow-md transition-shadow group"
             >
               <div className="flex items-start justify-between">
@@ -80,8 +61,11 @@ export default async function SurveyLandingPage() {
               </div>
 
               <div>
-                <h2 className="font-semibold text-gray-900">{site.siteName}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{buildings} building{buildings !== 1 ? 's' : ''}</p>
+                <h2 className="font-semibold text-gray-900">{project.projectName}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {project.building?.buildingName ?? '—'}
+                  {project.building?.site?.siteName && <> · {project.building.site.siteName}</>}
+                </p>
               </div>
 
               {total > 0 ? (
@@ -119,10 +103,10 @@ export default async function SurveyLandingPage() {
         })}
       </div>
 
-      {sites.length === 0 && (
+      {projects.length === 0 && (
         <div className="text-center py-16 text-gray-400">
           <MapPinIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No sites yet. Add a site first.</p>
+          <p className="text-sm">No projects with buildings yet. Assign a building to a project first.</p>
         </div>
       )}
     </div>

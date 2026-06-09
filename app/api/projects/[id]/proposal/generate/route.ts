@@ -103,7 +103,7 @@ Always return valid JSON matching exactly this shape:
 
 If a section key is absent from the includeSections list, set its value to an empty string "".
 
-For scopeOfWork: the project data includes a "sites" array with a "buildings" array. Each building has a name, camera count, and a list of camera placements with area, mounting location, coverage purpose, and model. Structure the scope of work by building — name each building explicitly and describe the surveillance coverage planned for it. Reference specific areas and camera types where provided.
+For scopeOfWork: the project data includes a "building" object with a name and a "cameras" array of placements. Structure the scope of work around the building — name it explicitly and describe the surveillance coverage planned. Reference specific areas and camera types where provided.
 
 For costBreakdown: always set this field to an empty string "". The cost breakdown is generated programmatically from live project data and does not require AI content.
 
@@ -113,6 +113,16 @@ Never include markdown, bullet points, or headers inside any section value.`;
 }
 
 function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest): string {
+  type Loc = {
+    floor: string | null; areaName: string | null; mountingLocation: string | null;
+    coveragePurpose: string | null;
+    cameraModel: { manufacturer: string | null; model: string | null; cameraType: string | null; indoorOutdoor: string | null } | null;
+  };
+  type Bldg = { buildingName: string; site: { siteName: string; city: string | null; state: string | null } };
+
+  const building = project.building as (Bldg & { id: number }) | null;
+  const locs = (project.cameraLocations ?? []) as Loc[];
+
   return JSON.stringify({
     projectName:     project.projectName,
     projectNumber:   project.projectNumber,
@@ -122,28 +132,21 @@ function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest
     completionDate:  project.completionDate,
     status:          project.projectStatus,
     notes:           project.notes,
-    sites: project.site ? (() => {
-      type Loc = { floor: string | null; areaName: string | null; mountingLocation: string | null; coveragePurpose: string | null; cameraModel: { manufacturer: string | null; model: string | null; cameraType: string | null; indoorOutdoor: string | null } | null };
-      type Bldg = { buildingName: string; locations: Loc[] };
-      const s = project.site as unknown as { siteName: string; city: string | null; state: string | null; buildings: Bldg[] };
-      return [{
-        name:     s.siteName,
-        city:     s.city,
-        state:    s.state,
-        buildings: (s.buildings ?? []).map(b => ({
-          name:          b.buildingName,
-          cameraCount:   b.locations.length,
-          cameras: b.locations.map(l => ({
-            area:             [l.floor, l.areaName].filter(Boolean).join(' – ') || undefined,
-            mountingLocation: l.mountingLocation || undefined,
-            coveragePurpose:  l.coveragePurpose  || undefined,
-            model:            l.cameraModel ? [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') : undefined,
-            type:             l.cameraModel?.cameraType    || undefined,
-            environment:      l.cameraModel?.indoorOutdoor || undefined,
-          })),
-        })),
-      }];
-    })() : [],
+    building: building ? {
+      name:        building.buildingName,
+      site:        building.site?.siteName,
+      city:        building.site?.city,
+      state:       building.site?.state,
+      cameraCount: locs.length,
+      cameras: locs.map(l => ({
+        area:             [l.floor, l.areaName].filter(Boolean).join(' – ') || undefined,
+        mountingLocation: l.mountingLocation || undefined,
+        coveragePurpose:  l.coveragePurpose  || undefined,
+        model:            l.cameraModel ? [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') : undefined,
+        type:             l.cameraModel?.cameraType    || undefined,
+        environment:      l.cameraModel?.indoorOutdoor || undefined,
+      })),
+    } : null,
     costSummary: project.feeSummary ? {
       directCosts:         Number((project.feeSummary as Record<string, unknown>).directCostTotal),
       overhead:            Number((project.feeSummary as Record<string, unknown>).overheadAmount),
@@ -183,25 +186,20 @@ export async function POST(
     where:   { id: projectId },
     include: {
       customer:   { select: { customerName: true } },
-      site: {
+      building: {
+        include: {
+          site: { select: { siteName: true, city: true, state: true } },
+        },
+      },
+      cameraLocations: {
+        orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
         select: {
-          siteName: true, city: true, state: true,
-          buildings: {
-            orderBy: { buildingName: 'asc' },
-            select: {
-              buildingName: true,
-              locations: {
-                select: {
-                  floor: true,
-                  areaName: true,
-                  mountingLocation: true,
-                  coveragePurpose: true,
-                  cameraModel: {
-                    select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true },
-                  },
-                },
-              },
-            },
+          floor: true,
+          areaName: true,
+          mountingLocation: true,
+          coveragePurpose: true,
+          cameraModel: {
+            select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true },
           },
         },
       },

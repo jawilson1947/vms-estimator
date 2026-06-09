@@ -17,18 +17,9 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         include: { category: true },
       },
       feeSummary: true,
-      site: {
-        include: {
-          buildings: {
-            orderBy: { buildingName: 'asc' },
-            include: {
-              locations: {
-                orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
-                include: { cameraModel: true },
-              },
-            },
-          },
-        },
+      cameraLocations: {
+        orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
+        include: { cameraModel: true },
       },
     },
   });
@@ -55,26 +46,24 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
     quantity: number; unitCost: number; lineTotal: number;
   };
   const groupMap = new Map<number, SurveyGroup>();
-  for (const b of project.site?.buildings ?? []) {
-    for (const l of b.locations) {
-      if (!l.cameraModelId || !l.cameraModel?.cost) continue;
-      const unitCost = Number(l.cameraModel.cost);
-      if (unitCost <= 0) continue;
-      const description = [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') || 'Unspecified Camera';
-      if (groupMap.has(l.cameraModelId)) {
-        const g = groupMap.get(l.cameraModelId)!;
-        g.quantity += 1;
-        g.lineTotal = g.unitCost * g.quantity;
-      } else {
-        groupMap.set(l.cameraModelId, {
-          locationId:    l.id,
-          cameraModelId: l.cameraModelId,
-          description,
-          quantity:      1,
-          unitCost,
-          lineTotal:     unitCost,
-        });
-      }
+  for (const l of project.cameraLocations) {
+    if (!l.cameraModelId || !l.cameraModel?.cost) continue;
+    const unitCost = Number(l.cameraModel.cost);
+    if (unitCost <= 0) continue;
+    const description = [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') || 'Unspecified Camera';
+    if (groupMap.has(l.cameraModelId)) {
+      const g = groupMap.get(l.cameraModelId)!;
+      g.quantity += 1;
+      g.lineTotal = g.unitCost * g.quantity;
+    } else {
+      groupMap.set(l.cameraModelId, {
+        locationId:    l.id,
+        cameraModelId: l.cameraModelId,
+        description,
+        quantity:      1,
+        unitCost,
+        lineTotal:     unitCost,
+      });
     }
   }
   const surveyItems = Array.from(groupMap.values());

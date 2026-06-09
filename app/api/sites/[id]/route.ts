@@ -24,13 +24,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
         buildings: {
           orderBy: { buildingName: 'asc' },
           include: {
-            _count:    { select: { locations: true } },
-            locations: {
-              orderBy: { areaName: 'asc' },
-              select: {
-                id: true, areaName: true, floor: true,
-                mountingLocation: true, coveragePurpose: true,
-                cameraModelId: true,
+            projects: {
+              include: {
+                cameraLocations: {
+                  orderBy: { areaName: 'asc' },
+                  select: {
+                    id: true, areaName: true, floor: true,
+                    mountingLocation: true, coveragePurpose: true,
+                    cameraModelId: true,
+                  },
+                },
               },
             },
           },
@@ -38,9 +41,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
       },
     }),
     prisma.$queryRaw<ProjectRow[]>(
-      Prisma.sql`SELECT project_id AS id, project_name AS projectName
-                 FROM projects
-                 WHERE site_id = ${siteId}`
+      Prisma.sql`SELECT p.project_id AS id, p.project_name AS projectName
+                 FROM projects p
+                 JOIN buildings b ON b.building_id = p.building_id
+                 WHERE b.site_id = ${siteId}`
     ).catch(() => [] as ProjectRow[]),
   ]);
 
@@ -48,7 +52,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   return NextResponse.json({ ...site, projects });
 }
 
-// PUT /api/sites/[id]  — updates site fields only (project links managed via /api/projects/[id]/sites)
+// PUT /api/sites/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
   const session = await getServerSession(authOptions);

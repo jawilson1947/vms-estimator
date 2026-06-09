@@ -64,26 +64,6 @@ async function main() {
 
   console.log('✓ Customer created');
 
-  // ── Project ────────────────────────────────────────────────────────────────
-  const project = await prisma.project.upsert({
-    where:  { id: 1 },
-    update: {},
-    create: {
-      customerId:          customer.id,
-      projectName:         'Acme HQ Surveillance Upgrade',
-      projectNumber:       'PRJ-2026-001',
-      projectStatus:       ProjectStatus.IN_PROGRESS,
-      startDate:           new Date('2026-01-15'),
-      completionDate:      new Date('2026-06-30'),
-      projectManager:      'Project Manager',
-      consultingRate:      125.00,
-      overheadRatePercent: 15.00,
-      notes:               'Full interior and exterior camera refresh across two buildings',
-    },
-  });
-
-  console.log('✓ Project created');
-
   // ── Site & Buildings ───────────────────────────────────────────────────────
   const site = await prisma.site.upsert({
     where:  { id: 1 },
@@ -96,11 +76,6 @@ async function main() {
       state:      'IL',
     },
   });
-
-  // Link the project to the site via FK (raw SQL — works before/after prisma generate)
-  await prisma.$executeRaw(
-    Prisma.sql`UPDATE projects SET site_id = ${site.id} WHERE project_id = ${project.id}`
-  );
 
   const buildingA = await prisma.building.upsert({
     where:  { id: 1 },
@@ -122,12 +97,33 @@ async function main() {
 
   console.log('✓ Site and buildings created');
 
+  // ── Project ────────────────────────────────────────────────────────────────
+  const project = await prisma.project.upsert({
+    where:  { id: 1 },
+    update: {},
+    create: {
+      customerId:          customer.id,
+      buildingId:          buildingA.id,
+      projectName:         'Acme HQ Surveillance Upgrade',
+      projectNumber:       'PRJ-2026-001',
+      projectStatus:       ProjectStatus.IN_PROGRESS,
+      startDate:           new Date('2026-01-15'),
+      completionDate:      new Date('2026-06-30'),
+      projectManager:      'Project Manager',
+      consultingRate:      125.00,
+      overheadRatePercent: 15.00,
+      notes:               'Full interior and exterior camera refresh across two buildings',
+    },
+  });
+
+  console.log('✓ Project created');
+
   // ── Camera Locations ───────────────────────────────────────────────────────
   const lobbyLocation = await prisma.cameraLocation.upsert({
     where:  { id: 1 },
     update: {},
     create: {
-      buildingId:      buildingA.id,
+      projectId:       project.id,
       floor:           '1',
       areaName:        'Main Lobby',
       mountingLocation:'Ceiling',
@@ -139,7 +135,7 @@ async function main() {
     where:  { id: 2 },
     update: {},
     create: {
-      buildingId:      buildingA.id,
+      projectId:       project.id,
       floor:           'Exterior',
       areaName:        'Parking Lot North',
       mountingLocation:'Pole mount',

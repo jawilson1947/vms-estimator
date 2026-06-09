@@ -35,14 +35,15 @@ export async function GET(req: NextRequest) {
     orderBy: { projectName: 'asc' },
   });
 
-  // Fetch site names for all projects in one query
+  // Derive site for each project via its building
   interface SiteRow { projectId: number; siteId: number; siteName: string }
   const projectIds = projects.map(p => p.id);
   const siteRows = projectIds.length > 0
     ? await prisma.$queryRaw<SiteRow[]>(
         Prisma.sql`SELECT p.project_id AS projectId, s.site_id AS siteId, s.site_name AS siteName
                    FROM projects p
-                   JOIN sites s ON s.site_id = p.site_id
+                   JOIN buildings b ON b.building_id = p.building_id
+                   JOIN sites s     ON s.site_id = b.site_id
                    WHERE p.project_id IN (${Prisma.join(projectIds)})`
       ).catch(() => [] as SiteRow[])
     : [];

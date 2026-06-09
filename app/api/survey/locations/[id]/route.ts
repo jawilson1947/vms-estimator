@@ -16,7 +16,7 @@ export async function PATCH(
 
   const body = await req.json();
   const {
-    areaName, floor, buildingId, surveyNotes, notes,
+    areaName, floor, projectId, surveyNotes, notes,
     mountingLocation, coveragePurpose, markSurveyed,
     cameraModelId,
   } = body;
@@ -24,13 +24,13 @@ export async function PATCH(
   const updateData: Record<string, unknown> = {};
   if (areaName         !== undefined) updateData.areaName         = areaName;
   if (floor            !== undefined) updateData.floor            = floor;
-  if (buildingId       !== undefined) updateData.buildingId       = parseInt(String(buildingId), 10);
+  if (projectId        !== undefined) updateData.projectId        = parseInt(String(projectId), 10);
   if (notes            !== undefined) updateData.notes            = notes;
   if (mountingLocation !== undefined) updateData.mountingLocation = mountingLocation;
   if (coveragePurpose  !== undefined) updateData.coveragePurpose  = coveragePurpose;
-
-  // Direct model assignment — null clears it
-  if (cameraModelId !== undefined) {
+  if (surveyNotes      !== undefined) updateData.surveyNotes      = surveyNotes;
+  if (markSurveyed)                   updateData.surveyedAt       = new Date();
+  if (cameraModelId    !== undefined) {
     updateData.cameraModelId = typeof cameraModelId === 'number' ? cameraModelId : null;
   }
 
@@ -58,37 +58,17 @@ export async function PATCH(
     },
   });
 
-  let surveyedAtValue: string | null = null;
-  let surveyNotesValue: string | null = null;
-  try {
-    if (surveyNotes !== undefined || markSurveyed) {
-      await prisma.$executeRaw`
-        UPDATE camera_locations
-        SET    survey_notes = COALESCE(${surveyNotes ?? null}, survey_notes),
-               surveyed_at  = ${markSurveyed ? new Date() : null}
-        WHERE  location_id  = ${id}
-      `;
-    }
-    const rows = await prisma.$queryRaw<{ survey_notes: string | null; surveyed_at: Date | null }[]>`
-      SELECT survey_notes, surveyed_at FROM camera_locations WHERE location_id = ${id}
-    `;
-    if (rows[0]) {
-      surveyNotesValue = rows[0].survey_notes;
-      surveyedAtValue  = rows[0].surveyed_at ? new Date(rows[0].surveyed_at).toISOString() : null;
-    }
-  } catch { /* columns may not exist yet */ }
-
   return NextResponse.json({
-    id:              location.id,
-    buildingId:      location.buildingId,
-    areaName:        location.areaName,
-    floor:           location.floor,
-    surveyNotes:     surveyNotesValue,
-    notes:           location.notes,
-    mountingLocation:location.mountingLocation,
-    coveragePurpose: location.coveragePurpose,
-    surveyedAt:      surveyedAtValue,
-    cameraModel:     location.cameraModel ?? null,
+    id:               location.id,
+    projectId:        location.projectId,
+    areaName:         location.areaName,
+    floor:            location.floor,
+    surveyNotes:      location.surveyNotes ?? null,
+    notes:            location.notes,
+    mountingLocation: location.mountingLocation,
+    coveragePurpose:  location.coveragePurpose,
+    surveyedAt:       location.surveyedAt ? new Date(location.surveyedAt).toISOString() : null,
+    cameraModel:      location.cameraModel ?? null,
     images: location.images.map(img => ({
       id:        img.id,
       imageUrl:  img.fileUrl ?? '',

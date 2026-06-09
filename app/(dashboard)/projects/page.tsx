@@ -112,7 +112,7 @@ export default async function ProjectsPage({
         <input
           name="search"
           defaultValue={search}
-          placeholder="Search projects…"
+          placeholder="Search projects..."
           className="form-input w-56"
         />
         <select name="status" defaultValue={status} className="form-select w-44">

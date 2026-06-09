@@ -65,7 +65,6 @@ model Customer {
 model Project {
   id                  Int           @id @default(autoincrement()) @map("project_id")
   customerId          Int           @map("customer_id")
-  siteId              Int?          @map("site_id")
   buildingId          Int?          @map("building_id")
   projectName         String        @map("project_name") @db.VarChar(200)
   projectNumber       String?       @map("project_number") @db.VarChar(50)
@@ -77,12 +76,12 @@ model Project {
   overheadRatePercent Decimal?      @map("overhead_rate_percent") @db.Decimal(5, 2)
   notes               String?       @db.Text
 
-  customer            Customer          @relation(fields: [customerId], references: [id])
-  site                Site?             @relation(fields: [siteId], references: [id])
-  building            Building?         @relation(fields: [buildingId], references: [id])
+  customer            Customer           @relation(fields: [customerId], references: [id])
+  building            Building?          @relation(fields: [buildingId], references: [id])
   costs               ProjectCost[]
   feeSummary          ProjectFeeSummary?
   proposals           Proposal[]
+  cameraLocations     CameraLocation[]
 
   @@map("projects")
 }
@@ -108,7 +107,6 @@ model Site {
   notes      String?    @db.Text
 
   customer   Customer?  @relation(fields: [customerId], references: [id])
-  projects   Project[]
   buildings  Building[]
 
   @@map("sites")
@@ -121,7 +119,6 @@ model Building {
   notes        String?            @db.Text
 
   site         Site               @relation(fields: [siteId], references: [id])
-  locations    CameraLocation[]
   floorPlans   BuildingFloorPlan[]
   projects     Project[]
 
@@ -150,7 +147,7 @@ model BuildingFloorPlan {
 
 model CameraLocation {
   id               Int                   @id @default(autoincrement()) @map("location_id")
-  buildingId       Int                   @map("building_id")
+  projectId        Int?                  @map("project_id")
   cameraModelId    Int?                  @map("camera_model_id")
   floor            String?               @db.VarChar(50)
   areaName         String?               @map("area_name") @db.VarChar(150)
@@ -160,7 +157,7 @@ model CameraLocation {
   surveyNotes      String?               @map("survey_notes") @db.Text
   surveyedAt       DateTime?             @map("surveyed_at")
 
-  building         Building              @relation(fields: [buildingId], references: [id])
+  project          Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
   cameraModel      CameraModel?          @relation(fields: [cameraModelId], references: [id], onDelete: SetNull)
   images           CameraLocationImage[]
   projectCosts     ProjectCost[]

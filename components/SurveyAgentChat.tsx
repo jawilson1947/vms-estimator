@@ -2,22 +2,21 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { XMarkIcon, PaperAirplaneIcon, SparklesIcon } from '@heroicons/react/24/outline';
-import type { AgentMessage, AgentBuilding, AgentLocationData, AgentResponse } from '@/app/api/survey/agent/route';
+import type { AgentMessage, AgentLocationData, AgentResponse } from '@/app/api/survey/agent/route';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface SurveyLocation {
-  id: number;
-  buildingId: number;
-  areaName: string | null;
-  floor: string | null;
-  surveyNotes: string | null;
-  notes: string | null;
+  id:               number;
+  projectId:        number | null;
+  areaName:         string | null;
+  floor:            string | null;
+  surveyNotes:      string | null;
+  notes:            string | null;
   mountingLocation: string | null;
-  coveragePurpose: string | null;
-  surveyedAt: string | null;
-  cameras: unknown[];
-  images: unknown[];
+  coveragePurpose:  string | null;
+  surveyedAt:       string | null;
+  images:           unknown[];
 }
 
 interface ChatMessage {
@@ -26,45 +25,30 @@ interface ChatMessage {
 }
 
 interface SurveyAgentChatProps {
-  siteId: number;
-  buildings: AgentBuilding[];
+  projectId:       number;
+  buildingName:    string;
   onLocationSaved: (location: SurveyLocation) => void;
-  onExit: () => void;
-}
-
-// ── Greeting ──────────────────────────────────────────────────────────────────
-
-function buildGreeting(buildings: AgentBuilding[]): string {
-  if (buildings.length === 0) {
-    return "Hi! I'll help you log survey locations. Let's start — what's the area name for the first location?";
-  }
-  if (buildings.length === 1) {
-    return `Hi! I'll walk you through logging locations for this survey. There's one building: "${buildings[0].buildingName}". What floor is the first location on?`;
-  }
-  const names = buildings.map(b => `"${b.buildingName}"`).join(', ');
-  return `Hi! I'll walk you through logging locations. Available buildings: ${names}. Which building is the first location in?`;
+  onExit:          () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SurveyAgentChat({ siteId, buildings, onLocationSaved, onExit }: SurveyAgentChatProps) {
-  const greeting = buildGreeting(buildings);
+export function SurveyAgentChat({ projectId, buildingName, onLocationSaved, onExit }: SurveyAgentChatProps) {
+  const greeting = `Hi! I'll walk you through logging locations for this survey in "${buildingName}". What floor is the first location on?`;
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: greeting },
   ]);
-  const [input, setInput]     = useState('');
+  const [input,   setInput]   = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [error,   setError]   = useState<string | null>(null);
   const bottomRef             = useRef<HTMLDivElement>(null);
   const inputRef              = useRef<HTMLInputElement>(null);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto-focus input
   useEffect(() => {
     inputRef.current?.focus();
   }, [loading]);
@@ -72,20 +56,17 @@ export function SurveyAgentChat({ siteId, buildings, onLocationSaved, onExit }: 
   const saveLocation = useCallback(async (data: AgentLocationData): Promise<SurveyLocation | null> => {
     try {
       const res = await fetch('/api/survey/locations', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          buildingId: data.buildingId,
-          areaName:   data.areaName,
-          floor:      data.floor ?? undefined,
-          surveyNotes: data.markSurveyed
-            ? (data.surveyNotes ?? '')
-            : (data.surveyNotes ?? undefined),
+          projectId:   data.projectId,
+          areaName:    data.areaName,
+          floor:       data.floor ?? undefined,
+          surveyNotes: data.surveyNotes ?? undefined,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
-      const loc: SurveyLocation = await res.json();
-      return loc;
+      return await res.json() as SurveyLocation;
     } catch {
       return null;
     }
@@ -102,80 +83,60 @@ export function SurveyAgentChat({ siteId, buildings, onLocationSaved, onExit }: 
     setError(null);
 
     try {
-      // Build history to send — exclude the greeting (it was client-generated, not from Claude)
-      // We send all messages so Claude has full context
       const historyToSend: AgentMessage[] = nextMessages.map(m => ({
-        role: m.role,
+        role:    m.role,
         content: m.content,
       }));
 
       const res = await fetch('/api/survey/agent', {
-        method: 'POST',
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: historyToSend, buildings }),
+        body: JSON.stringify({ messages: historyToSend, projectId, buildingName }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? 'Agent request failed');
+        throw new Error((err as { error?: string }).error ?? 'Agent request failed');
       }
 
       const data: AgentResponse = await res.json();
-
-      // Add assistant reply
       setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
 
-      // Handle actions
       if (data.action) {
         if (data.action.type === 'save' && data.action.data) {
-          const locationData = data.action.data;
-          const saved = await saveLocation(locationData);
+          const saved = await saveLocation(data.action.data);
           if (saved) {
             onLocationSaved(saved);
-            // Let Claude continue the conversation (it will ask "Add another?")
           } else {
-            setMessages(prev => [
-              ...prev,
-              { role: 'assistant', content: 'Sorry, I had trouble saving that location. Want to try again?' },
-            ]);
+            setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I had trouble saving that location. Want to try again?' }]);
           }
         } else if (data.action.type === 'exit') {
           setTimeout(() => onExit(), 1200);
         }
-        // 'next' — Claude will naturally ask the first question for the new form
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong';
-      setError(msg);
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setLoading(false);
     }
-  }, [messages, loading, buildings, saveLocation, onLocationSaved, onExit]);
+  }, [messages, loading, projectId, buildingName, saveLocation, onLocationSaved, onExit]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl flex flex-col"
-           style={{ maxHeight: '80vh' }}>
+      <div className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl flex flex-col" style={{ maxHeight: '80vh' }}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2">
             <SparklesIcon className="w-5 h-5 text-blue-500" />
             <span className="text-sm font-semibold text-gray-800">Survey Assistant</span>
-            <span className="text-xs text-gray-400">— {buildings.length} building{buildings.length !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-gray-400">— {buildingName}</span>
           </div>
-          <button
-            onClick={onExit}
-            className="p-1 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
-            title="Exit survey chat"
-          >
+          <button onClick={onExit} className="p-1 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
             <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
@@ -183,17 +144,8 @@ export function SurveyAgentChat({ siteId, buildings, onLocationSaved, onExit }: 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
           {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-sm'
-                    : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                }`}
-              >
+            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'}`}>
                 {msg.content}
               </div>
             </div>
@@ -231,11 +183,7 @@ export function SurveyAgentChat({ siteId, buildings, onLocationSaved, onExit }: 
               placeholder="Type your response…"
               className="flex-1 bg-transparent text-sm text-gray-800 placeholder-gray-400 outline-none disabled:opacity-50"
             />
-            <button
-              onClick={() => sendMessage(input)}
-              disabled={loading || !input.trim()}
-              className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-30 transition-colors"
-            >
+            <button onClick={() => sendMessage(input)} disabled={loading || !input.trim()} className="p-1 text-blue-500 hover:text-blue-700 disabled:opacity-30 transition-colors">
               <PaperAirplaneIcon className="w-5 h-5" />
             </button>
           </div>

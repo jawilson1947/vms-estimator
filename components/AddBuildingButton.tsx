@@ -10,7 +10,7 @@ interface Building {
   buildingName: string;
   siteId:       number;
   site:         { siteName: string; city: string | null; state: string | null };
-  _count:       { locations: number };
+  _count:       { projects: number };
 }
 
 interface Props {
@@ -148,7 +148,7 @@ export function AddBuildingButton({ projectId, excludeIds, siteId, label }: Prop
                       <> &middot; {[b.site.city, b.site.state].filter(Boolean).join(', ')}</>
                     )}
                   </p>
-                  <p className="text-xs text-gray-400">{b._count.locations} camera location{b._count.locations !== 1 ? 's' : ''}</p>
+                  <p className="text-xs text-gray-400">{b._count.projects} project{b._count.projects !== 1 ? 's' : ''}</p>
                 </div>
               </button>
             ))

@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import {
   ChevronRightIcon, PencilSquareIcon,
   BuildingOfficeIcon, CurrencyDollarIcon,
@@ -30,8 +29,6 @@ const statusLabels: Record<string, string> = {
   COMPLETED: 'Completed', ON_HOLD: 'On Hold', CANCELLED: 'Cancelled',
 };
 
-interface BuildingIdRow { buildingId: number | null }
-
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const projectId = Number(id);
@@ -40,6 +37,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
     where:   { id: projectId },
     include: {
       customer:   { select: { id: true, customerName: true } },
+      building: {
+        include: {
+          site: { select: { id: true, siteName: true, city: true, state: true } },
+        },
+      },
+      cameraLocations: {
+        orderBy: [{ areaName: 'asc' }],
+        include: {
+          cameraModel: {
+            select: { id: true, manufacturer: true, model: true, cost: true, cameraType: true },
+          },
+        },
+      },
       costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
       feeSummary: true,
     },
@@ -47,38 +57,19 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
   if (!project) notFound();
 
-  // Fetch building_id via raw SQL (safe before prisma generate)
-  const buildingIdRows = await prisma.$queryRaw<BuildingIdRow[]>(
-    Prisma.sql`SELECT building_id AS buildingId FROM projects WHERE project_id = ${projectId}`
-  ).catch(() => [] as BuildingIdRow[]);
-  const buildingId = buildingIdRows[0]?.buildingId ?? null;
+  const assignedBuilding = project.building ?? null;
 
-  // Fetch full building + its parent site if a building is assigned
-  const assignedBuilding = buildingId
-    ? await prisma.building.findUnique({
-        where:   { id: buildingId },
-        include: {
-          site: { select: { id: true, siteName: true, city: true, state: true } },
-          locations: {
-            orderBy: { areaName: 'asc' },
-            include: {
-              cameraModel: {
-                select: { id: true, manufacturer: true, model: true, cost: true, cameraType: true },
-              },
-            },
-          },
-        },
-      })
-    : null;
-
-  // For ProjectScopePanel — build a minimal site-shaped object from building data
+  // For ProjectScopePanel — attach project's cameraLocations to building for display
   const scopeSite = assignedBuilding
     ? {
         id:        assignedBuilding.site.id,
         siteName:  assignedBuilding.site.siteName,
         city:      assignedBuilding.site.city,
         state:     assignedBuilding.site.state,
-        buildings: [assignedBuilding],
+        buildings: [{
+          ...assignedBuilding,
+          locations: project.cameraLocations,
+        }],
       }
     : null;
 
@@ -217,7 +208,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                   )}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {assignedBuilding.locations.length} camera location{assignedBuilding.locations.length !== 1 ? 's' : ''}
+                  {project.cameraLocations.length} survey location{project.cameraLocations.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </Link>

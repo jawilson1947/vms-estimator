@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const buildings = await prisma.building.findMany({
     where:   siteId ? { siteId: Number(siteId) } : undefined,
     include: {
-      _count: { select: { locations: true } },
+      _count: { select: { projects: true } },
       site:   { select: { siteName: true, city: true, state: true } },
     },
     orderBy: [{ site: { siteName: 'asc' } }, { buildingName: 'asc' }],

@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
 
 type Params = { params: Promise<{ id: string; siteId: string }> };
 
-// DELETE /api/projects/[id]/sites/[siteId]  — remove site from this project
+// DELETE /api/projects/[id]/sites/[siteId]
+// Site-project linking is now managed via building assignment.
+// This route is kept for compatibility but is a no-op.
 export async function DELETE(_req: NextRequest, { params }: Params) {
   try {
-    const { id } = await params;
+    await params;
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-    await prisma.project.update({
-      where: { id: Number(id) },
-      data:  { siteId: null },
-    });
-
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[DELETE /api/projects/[id]/sites/[siteId]]', err);
