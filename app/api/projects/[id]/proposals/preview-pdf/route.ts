@@ -38,8 +38,9 @@ export async function POST(
         costs:           { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
         cameraLocations: {
           orderBy: [{ floor: 'asc' }, { areaName: 'asc' }] as const,
-          include: { cameraModel: { select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true } } },
+          include: { cameraModel: { select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true, cost: true } } },
         },
+        building: { select: { buildingName: true } },
       },
     }),
     prisma.user.findUnique({

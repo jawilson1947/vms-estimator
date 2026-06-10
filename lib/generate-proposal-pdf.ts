@@ -5,6 +5,7 @@
 import PDFDocument from 'pdfkit';
 import { getTemplate } from '@/lib/pdf-templates';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
+import { buildCostSchedule } from '@/lib/cost-schedule';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,10 @@ export interface ProposalProjectData {
   projectNumber?: string | null;
   projectManager?: string | null;
   customer: { customerName: string };
-  cameraLocations?: ProposalCameraLocation[] | null;
+  cameraLocations?: (ProposalCameraLocation & {
+    cameraModelId?: number | null;
+    cameraModel?: (ProposalCameraLocation['cameraModel'] & { cost?: unknown }) | null;
+  })[] | null;
   feeSummary: {
     directCostTotal:      number | string | { toString(): string };
     overheadPercent:      number | string | { toString(): string };
@@ -48,11 +52,14 @@ export interface ProposalProjectData {
     grandTotal:           number | string | { toString(): string };
   } | null;
   costs: Array<{
-    description?: string | null;
-    quantity:     number | string | { toString(): string };
-    unitCost:     number | string | { toString(): string };
-    lineTotal?:   number | string | { toString(): string } | null;
-    url?:         string | null;
+    surveyLocationId?: unknown;
+    cameraModelId?:    number | null;
+    markupPercent?:    unknown;
+    description?:      string | null;
+    quantity:          number | string | { toString(): string };
+    unitCost:          number | string | { toString(): string };
+    lineTotal?:        number | string | { toString(): string } | null;
+    url?:              string | null;
     category: { name: string };
   }>;
 }
@@ -71,7 +78,7 @@ const SECTION_LABELS: Record<keyof ProposalContent, string> = {
   coverLetter:        'Introduction',
   executiveSummary:   'Executive Summary',
   scopeOfWork:        'Scope of Work',
-  costBreakdown:      'Investment Summary',
+  costBreakdown:      'Cost Schedule',
   timeline:           'Project Timeline',
   termsAndConditions: 'Terms & Conditions',
 };
@@ -167,6 +174,7 @@ export async function generateProposalPdf(
     projectSummary,
     logoBuffer:      logoBuffer ?? undefined,
     siteName:        (project as { siteName?: string | null }).siteName,
+    buildingName:    (project as { building?: { buildingName?: string } | null }).building?.buildingName,
     companyName:     company.companyName,
     companyTagline:  company.companyTagline,
     companyAddress:  company.companyAddress,
@@ -176,120 +184,113 @@ export async function generateProposalPdf(
   tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
 
   // ── Content sections ────────────────────────────────────────────────────────
-  // Track whether we've rendered the cost table so we don't double-render
-  let costTableRendered = false;
-
   for (const key of SECTION_ORDER) {
+    // -- Cost Schedule (always programmatic, never AI text) --
+    if (key === 'costBreakdown') {
+      const schedule = buildCostSchedule(
+        (project.cameraLocations ?? []) as Parameters<typeof buildCostSchedule>[0],
+        project.costs               as Parameters<typeof buildCostSchedule>[1],
+        project.feeSummary          as Parameters<typeof buildCostSchedule>[2],
+      );
+      if (schedule.groups.length === 0) continue;
+
+      newPage();
+      tmpl.sectionHeading(doc, { margin, inner, label: SECTION_LABELS[key] });
+
+      // Column x-positions and widths (sum = inner = 512)
+      const cW = { cat: 88, desc: 192, qty: 32, unit: 72, mkup: 44, tot: 84 };
+      const cX = {
+        cat:  margin,
+        desc: margin + cW.cat,
+        qty:  margin + cW.cat + cW.desc,
+        unit: margin + cW.cat + cW.desc + cW.qty,
+        mkup: margin + cW.cat + cW.desc + cW.qty + cW.unit,
+        tot:  margin + cW.cat + cW.desc + cW.qty + cW.unit + cW.mkup,
+      };
+
+      // Header row
+      checkPageBreak(20);
+      const hY = doc.y;
+      doc.rect(margin, hY, inner, 16).fill(tmpl.tc.tableHdr);
+      doc.fillColor(tmpl.tc.tableHdrText).fontSize(7).font('Helvetica-Bold');
+      doc.text('Category',    cX.cat  + 2, hY + 4, { width: cW.cat  - 4 });
+      doc.text('Description', cX.desc + 2, hY + 4, { width: cW.desc - 4 });
+      doc.text('Qty',         cX.qty  + 2, hY + 4, { width: cW.qty  - 4, align: 'right' });
+      doc.text('Unit Cost',   cX.unit + 2, hY + 4, { width: cW.unit - 4, align: 'right' });
+      doc.text('Markup',      cX.mkup + 2, hY + 4, { width: cW.mkup - 4, align: 'right' });
+      doc.text('Line Total',  cX.tot  + 2, hY + 4, { width: cW.tot  - 4, align: 'right' });
+      doc.y = hY + 16;
+
+      // Group rows by category
+      let prevCat = '';
+      let rowIdx = 0;
+      for (const g of schedule.groups) {
+        if (g.category !== prevCat) {
+          checkPageBreak(28);
+          const catY = doc.y;
+          doc.rect(margin, catY, inner, 14).fill(tmpl.tc.catRow);
+          doc.fillColor(tmpl.tc.catRowText).fontSize(7.5).font('Helvetica-Bold')
+             .text(g.category, margin + 4, catY + 3, { width: inner - 8 });
+          doc.y = catY + 14;
+          prevCat = g.category;
+        }
+        checkPageBreak(14);
+        const rowY = doc.y;
+        if (rowIdx % 2 === 0) doc.rect(margin, rowY, inner, 13).fill(tmpl.tc.tableAlt);
+        const ry = rowY + 3;
+        doc.fillColor(tmpl.tc.bodyText).fontSize(7).font('Helvetica');
+        doc.text('',                                  cX.cat  + 2, ry, { width: cW.cat  - 4 });
+        doc.text(g.description.substring(0, 38),      cX.desc + 2, ry, { width: cW.desc - 4 });
+        doc.text(String(g.quantity),                  cX.qty  + 2, ry, { width: cW.qty  - 4, align: 'right' });
+        doc.text(fmt(g.unitCost),                     cX.unit + 2, ry, { width: cW.unit - 4, align: 'right' });
+        doc.text(g.markupPercent > 0 ? `${g.markupPercent}%` : '—', cX.mkup + 2, ry, { width: cW.mkup - 4, align: 'right' });
+        doc.text(fmt(g.lineTotal),                    cX.tot  + 2, ry, { width: cW.tot  - 4, align: 'right' });
+        doc.y = rowY + 13;
+        rowIdx++;
+      }
+
+      // Fee summary rows
+      doc.moveDown(0.4);
+      const feeRows: [string, number][] = [
+        ['Direct Cost Total',                              schedule.directTotal],
+        [`Overhead (${schedule.overheadPercent.toFixed(1)}%)`, schedule.overheadAmount],
+        ['Consulting Fee',                                 schedule.consultingFee],
+        ['Project Management Fee',                        schedule.projectManagementFee],
+        ['Contingency',                                    schedule.contingencyAmount],
+        ['Tax',                                            schedule.taxAmount],
+      ].filter(([, v]) => v > 0) as [string, number][];
+
+      for (const [label, val] of feeRows) {
+        checkPageBreak(13);
+        const fY = doc.y;
+        doc.fillColor(tmpl.tc.dimText ?? '#9CA3AF').fontSize(7.5).font('Helvetica')
+           .text(label, margin + inner - 230, fY, { width: 148, align: 'right' });
+        doc.fillColor(tmpl.tc.bodyText).fontSize(7.5)
+           .text(fmt(val), cX.tot + 2, fY, { width: cW.tot - 4, align: 'right' });
+        doc.y = fY + 13;
+      }
+
+      // Grand total bar
+      checkPageBreak(22);
+      const gtY = doc.y + 3;
+      doc.rect(margin + inner - 230, gtY, 230, 20).fill(tmpl.tc.totalBar ?? tmpl.tc.tableHdr);
+      doc.fillColor(tmpl.tc.totalText ?? '#FFFFFF').fontSize(8).font('Helvetica-Bold')
+         .text('GRAND TOTAL', margin + inner - 230 + 2, gtY + 5, { width: 144, align: 'right' });
+      doc.fillColor(tmpl.tc.totalText ?? '#FFFFFF').fontSize(8)
+         .text(fmt(schedule.grandTotal), cX.tot + 2, gtY + 5, { width: cW.tot - 4, align: 'right' });
+      doc.y = gtY + 26;
+
+      tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
+      continue;
+    }
+
+    // -- Regular text sections --
     const text = content[key];
-    // For costBreakdown: render even when text is empty as long as costs exist
-    const hasCosts = key === 'costBreakdown' && project.costs.length > 0;
-    if ((!text || text.trim() === '') && !hasCosts) continue;
+    if (!text || text.trim() === '') continue;
 
     newPage();
     tmpl.sectionHeading(doc, { margin, inner, label: SECTION_LABELS[key] });
-    if (text && text.trim()) drawParagraphs(text);
-
-    // ── Cost table ────────────────────────────────────────────────────────────
-    if (key === 'costBreakdown' && project.costs.length > 0 && !costTableRendered) {
-      costTableRendered = true;
-      checkPageBreak(120);
-      doc.moveDown(0.5);
-
-      // Group by category (already sorted by category.sortOrder from query)
-      const grouped = new Map<string, typeof project.costs>();
-      for (const c of project.costs) {
-        const catKey = c.category.name;
-        if (!grouped.has(catKey)) grouped.set(catKey, []);
-        grouped.get(catKey)!.push(c);
-      }
-
-      // Column layout
-      const tCols = [margin, margin + 290, margin + 350, margin + 430];
-      const tW    = [287, 57, 77, 79];
-      const tHdrs = ['Description', 'Qty', 'Unit Cost', 'Line Total'];
-
-      // Header row
-      const hdrY = doc.y;
-      doc.rect(margin, hdrY, inner, 18).fill(tmpl.tc.tableHdr);
-      doc.fillColor(tmpl.tc.tableHdrText).fontSize(7.5).font('Helvetica-Bold');
-      tHdrs.forEach((h, i) =>
-        doc.text(h, tCols[i] + 3, hdrY + 6, { width: tW[i], align: i >= 1 ? 'right' : 'left' }),
-      );
-      doc.y = hdrY + 18;
-
-      let rowIdx = 0;
-      for (const [catName, items] of grouped) {
-        // Category header
-        checkPageBreak(32);
-        const catY = doc.y;
-        doc.rect(margin, catY, inner, 16).fill(tmpl.tc.catRow);
-        doc.fillColor(tmpl.tc.catRowText).fontSize(8).font('Helvetica-Bold')
-           .text(catName, margin + 6, catY + 4, { width: inner - 12 });
-        doc.y = catY + 16;
-
-        const catSubtotal = items.reduce((sum, c) => sum + n(c.lineTotal), 0);
-
-        for (const c of items) {
-          checkPageBreak(15);
-          const itemY = doc.y;
-          if (rowIdx % 2 === 0) doc.rect(margin, itemY, inner, 15).fill(tmpl.tc.tableAlt);
-          const ry = itemY + 4;
-          doc.fillColor(tmpl.tc.bodyText).fontSize(7.5).font('Helvetica')
-             .text((c.description ?? '').substring(0, 55), tCols[0] + 3, ry, { width: tW[0] - 3 });
-          doc.text(String(n(c.quantity)),  tCols[1] + 3, ry, { width: tW[1] - 3, align: 'right' });
-          doc.text(fmt(n(c.unitCost)),     tCols[2] + 3, ry, { width: tW[2] - 3, align: 'right' });
-          doc.text(fmt(n(c.lineTotal)),    tCols[3] + 3, ry, { width: tW[3] - 3, align: 'right' });
-          doc.y = itemY + 15;
-          rowIdx++;
-        }
-
-        // Subtotal row
-        checkPageBreak(16);
-        const subY = doc.y;
-        doc.rect(margin, subY, inner, 16).fill(tmpl.tc.subRow);
-        doc.fillColor(tmpl.tc.subRowText).fontSize(8).font('Helvetica-Bold')
-           .text('Subtotal', tCols[0] + 3, subY + 4, { width: tW[0] + tW[1] + tW[2] - 6, align: 'right' });
-        doc.fillColor(tmpl.tc.subRowText)
-           .text(fmt(catSubtotal), tCols[3] + 3, subY + 4, { width: tW[3] - 3, align: 'right' });
-        doc.y = subY + 16;
-      }
-
-      // Fee summary
-      if (project.feeSummary) {
-        const fs = project.feeSummary;
-        const feeRows: [string, number][] = ([
-          ['Direct Cost Total',      n(fs.directCostTotal)],
-          [`Overhead (${n(fs.overheadPercent).toFixed(1)}%)`, n(fs.overheadAmount)],
-          ['Consulting Fee',         n(fs.consultingFee)],
-          ['Project Management Fee', n(fs.projectManagementFee)],
-          ['Contingency',            n(fs.contingencyAmount)],
-          ['Tax',                    n(fs.taxAmount)],
-        ] as [string, number][]).filter(([, v]) => v > 0);
-
-        doc.moveDown(0.5);
-        doc.moveTo(margin, doc.y).lineTo(margin + inner, doc.y)
-           .strokeColor('#E5E7EB').lineWidth(0.5).stroke();
-        doc.moveDown(0.3);
-
-        for (const [label, val] of feeRows) {
-          checkPageBreak(14);
-          const feeY = doc.y;
-          doc.fillColor(tmpl.tc.dimText).fontSize(8).font('Helvetica')
-             .text(label, margin + inner - 180, feeY, { width: 130, align: 'right' });
-          doc.fillColor(tmpl.tc.bodyText)
-          doc.y = feeY + doc.currentLineHeight() + 3;
-        }
-
-        // Grand total bar
-        checkPageBreak(28);
-        const gtY = doc.y + 4;
-        doc.rect(margin + inner - 230, gtY, 230, 24).fill(tmpl.tc.totalBar);
-        doc.fillColor(tmpl.tc.totalText).fontSize(9).font('Helvetica-Bold')
-           .text('GRAND TOTAL', margin + inner - 112, gtY + 6, { width: 108, align: 'right' });
-        doc.y = gtY + 30;
-      }
-    }
-
+    drawParagraphs(text);
     tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
   }
 

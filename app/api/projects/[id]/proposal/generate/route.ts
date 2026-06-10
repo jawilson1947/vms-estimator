@@ -27,110 +27,6 @@ function fmt(n: number) {
   return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
 }
 
-function buildCostBreakdownText(project: Awaited<ReturnType<typeof prisma.project.findUnique>> & object): string {
-  const allCosts        = ((project as Record<string, unknown>).costs ?? []) as Array<Record<string, unknown>>;
-  const feeSummary      = (project as Record<string, unknown>).feeSummary as Record<string, unknown> | null;
-  const cameraLocations = ((project as Record<string, unknown>).cameraLocations ?? []) as Array<Record<string, unknown>>;
-
-  // Separate survey markup override records (surveyLocationId set) from regular
-  // manual line items. Override records must NOT appear in the manual category
-  // section -- they would double-count costs already shown under Survey Cameras.
-  const surveyOverrideRecords = allCosts.filter(c => c.surveyLocationId != null);
-  const manualCosts           = allCosts.filter(c => c.surveyLocationId == null);
-
-  // Build a markup-by-model map from the stored override records.
-  const markupByModel = new Map<number, number>();
-  for (const r of surveyOverrideRecords) {
-    const modelId = r.cameraModelId as number | null;
-    if (modelId != null) markupByModel.set(modelId, Number(r.markupPercent ?? 0));
-  }
-
-  const lines: string[] = [];
-
-  // -- Survey cameras (grouped by model, markup applied to match cost page) --
-  const surveyGroup = new Map<number, { description: string; quantity: number; unitCost: number }>();
-  for (const loc of cameraLocations) {
-    const modelId = loc.cameraModelId as number | null;
-    const model   = loc.cameraModel   as Record<string, unknown> | null;
-    if (!modelId || !model?.cost) continue;
-    const unitCost = Number(model.cost);
-    if (unitCost <= 0) continue;
-    const description = [model.manufacturer, model.model].filter(Boolean).join(' ') || 'Unspecified Camera';
-    const entry = surveyGroup.get(modelId);
-    if (entry) { entry.quantity += 1; }
-    else        { surveyGroup.set(modelId, { description, quantity: 1, unitCost }); }
-  }
-
-  let surveyTotal = 0;
-  if (surveyGroup.size > 0) {
-    lines.push('Survey Cameras');
-    for (const [modelId, g] of surveyGroup) {
-      const markup      = markupByModel.get(modelId) ?? 0;
-      const displayUnit = g.unitCost * (1 + markup / 100);
-      const lineTotal   = displayUnit * g.quantity;
-      surveyTotal      += lineTotal;
-      const markupLabel = markup > 0 ? ` +${markup}%` : '';
-      lines.push(`  ${g.description}  (${g.quantity} x ${fmt(displayUnit)}${markupLabel})  ${fmt(lineTotal)}`);
-    }
-    lines.push(`  Subtotal: ${fmt(surveyTotal)}`);
-    lines.push('');
-  }
-
-  if (!manualCosts.length && surveyGroup.size === 0) return '';
-
-  // -- Manual cost line items (grouped by category) -------------------------
-  let manualTotal = 0;
-  if (manualCosts.length > 0) {
-    const grouped = new Map<string, Array<Record<string, unknown>>>();
-    for (const c of manualCosts) {
-      const cat = (c.category as Record<string, unknown>)?.name as string ?? 'Uncategorised';
-      if (!grouped.has(cat)) grouped.set(cat, []);
-      grouped.get(cat)!.push(c);
-    }
-    for (const [catName, items] of grouped) {
-      lines.push(catName);
-      const subtotal = items.reduce((s, c) => s + Number(c.lineTotal ?? 0), 0);
-      manualTotal   += subtotal;
-      for (const c of items) {
-        const desc        = (c.description as string | null) ?? '--';
-        const qty         = Number(c.quantity);
-        const unit        = Number(c.unitCost);
-        const markup      = Number(c.markupPercent ?? 0);
-        const displayUnit = markup > 0 ? unit * (1 + markup / 100) : unit;
-        const tot         = Number(c.lineTotal ?? 0);
-        lines.push(`  ${desc}  (${qty} x ${fmt(displayUnit)})  ${fmt(tot)}`);
-      }
-      lines.push(`  Subtotal: ${fmt(subtotal)}`);
-      lines.push('');
-    }
-  }
-
-  // -- Live grand total (mirrors CostEstimator formula exactly) --------------
-  const directTotal   = surveyTotal + manualTotal;
-  const overheadPct   = feeSummary ? Number(feeSummary.overheadPercent      ?? 0) : 0;
-  const overheadAmt   = directTotal * (overheadPct / 100);
-  const consultingFee = feeSummary ? Number(feeSummary.consultingFee        ?? 0) : 0;
-  const pmFee         = feeSummary ? Number(feeSummary.projectManagementFee ?? 0) : 0;
-  const contingency   = feeSummary ? Number(feeSummary.contingencyAmount    ?? 0) : 0;
-  const tax           = feeSummary ? Number(feeSummary.taxAmount            ?? 0) : 0;
-  const grandTotal    = directTotal + overheadAmt + consultingFee + pmFee + contingency + tax;
-
-  const feeRows: [string, number][] = [
-    ['Direct Cost Total',                     directTotal],
-    [`Overhead (${overheadPct.toFixed(1)}%)`, overheadAmt],
-    ['Consulting Fee',                         consultingFee],
-    ['Project Management Fee',                pmFee],
-    ['Contingency',                            contingency],
-    ['Tax',                                    tax],
-  ].filter(([, v]) => (v as number) > 0) as [string, number][];
-
-  for (const [label, val] of feeRows) lines.push(`${label}: ${fmt(val)}`);
-  lines.push('');
-  lines.push(`Grand Total: ${fmt(grandTotal)}`);
-
-  return lines.join('\n');
-}
-
 function buildSystemPrompt(tone: ProposalTone): string {
   const toneGuide = {
     professional:  'formal, precise, and authoritative. Use industry terminology. Avoid contractions.',
@@ -269,7 +165,7 @@ export async function POST(
 
   const allSections: (keyof ProposalContent)[] = [
     'coverLetter', 'executiveSummary', 'scopeOfWork',
-    'costBreakdown', 'timeline', 'termsAndConditions',
+    'timeline', 'termsAndConditions',
   ];
   const sections = includeSections?.length ? includeSections : allSections;
 
@@ -309,11 +205,6 @@ export async function POST(
     }
 
     const content = toolBlock.input as ProposalContent;
-
-    // Always inject programmatic cost breakdown when the section was requested
-    if (sections.includes('costBreakdown')) {
-      content.costBreakdown = buildCostBreakdownText(project as Parameters<typeof buildCostBreakdownText>[0]);
-    }
 
     return NextResponse.json({ content });
   } catch (err) {

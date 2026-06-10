@@ -36,6 +36,7 @@ export interface CoverOpts {
   companyWebsite?: string | null;
   projectSummary?: string | null;
   siteName?:       string | null;
+  buildingName?:   string | null;
   logoBuffer?:     Buffer;
 }
 
@@ -199,6 +200,12 @@ function drawCenteredCover(doc: Doc, opts: CoverOpts, c: CoverColors) {
   doc.fillColor(c.body).fontSize(12).font('Helvetica-Bold')
      .text(opts.projectName, x, y, { width: inner, align: 'center' });
   y += 18;
+
+  if (opts.buildingName) {
+    doc.fillColor(c.dim).fontSize(9).font('Helvetica')
+       .text(opts.buildingName, x, y, { width: inner, align: 'center' });
+    y += 14;
+  }
 
   if (opts.projectNumber) {
     doc.fillColor(c.dim).fontSize(9).font('Helvetica')

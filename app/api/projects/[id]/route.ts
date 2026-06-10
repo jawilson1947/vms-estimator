@@ -19,7 +19,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
       building: {
         include: { site: { select: { id: true, siteName: true, city: true, state: true } } },
       },
-      cameraLocations: { select: { id: true } },
+      cameraLocations: {
+        select: {
+          id:            true,
+          cameraModelId: true,
+          cameraModel:   { select: { manufacturer: true, model: true, cost: true } },
+        },
+      },
       costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
       feeSummary: true,
     },

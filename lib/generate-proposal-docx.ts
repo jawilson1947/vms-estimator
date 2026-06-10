@@ -11,6 +11,7 @@ import {
 } from 'docx';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 import type { ProposalProjectData, ProposalCameraLocation } from '@/lib/generate-proposal-pdf';
+import { buildCostSchedule } from '@/lib/cost-schedule';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -346,7 +347,7 @@ const SECTION_LABELS: Record<keyof ProposalContent, string> = {
   coverLetter:        'Introduction',
   executiveSummary:   'Executive Summary',
   scopeOfWork:        'Scope of Work',
-  costBreakdown:      'Cost Breakdown',
+  costBreakdown:      'Cost Schedule',
   timeline:           'Project Timeline',
   termsAndConditions: 'Terms & Conditions',
 };
@@ -357,12 +358,13 @@ const SECTION_ORDER: (keyof ProposalContent)[] = [
 ];
 
 export async function generateProposalDocx(
-  content:    ProposalContent,
-  project:    ProposalProjectData,
-  templateId: string,
+  content:      ProposalContent,
+  project:      ProposalProjectData,
+  templateId:   string,
   validUntilDate: Date | null,
-  company:    CompanySettings = {},
-  siteName?:  string | null,
+  company:      CompanySettings = {},
+  siteName?:    string | null,
+  buildingName?: string | null,
 ): Promise<Buffer> {
   const tmpl       = TEMPLATES[templateId] ?? TEMPLATES.classic;
   const companyName = company.companyName ?? 'CSMS';
@@ -445,6 +447,7 @@ export async function generateProposalDocx(
     cPara(project.customer.customerName, { size: 36, bold: true, color: '111827', spacingAfter: 80 }),
     ...(siteName ? [cPara(siteName, { size: 22, color: '374151', spacingAfter: 60 })] : []),
     cPara(project.projectName, { size: 24, bold: true, color: '111827', spacingAfter: 80 }),
+    ...(buildingName ? [cPara(buildingName, { size: 18, color: '374151', spacingAfter: 60 })] : []),
   );
   if (project.projectNumber) {
     coverChildren.push(cPara(`Project No. ${project.projectNumber}`, { size: 18, color: '6B7280', spacingAfter: 80 }));
@@ -512,23 +515,108 @@ export async function generateProposalDocx(
   const contentChildren: (Paragraph | Table)[] = [];
 
   for (const key of SECTION_ORDER) {
-    const text    = content[key];
-    const hasCosts = key === 'costBreakdown' && project.costs.length > 0;
-    if ((!text || text.trim() === '') && !hasCosts) continue;
+    // -- Cost Schedule (programmatic table, no AI text) --
+    if (key === 'costBreakdown') {
+      const schedule = buildCostSchedule(
+        (project.cameraLocations ?? []) as Parameters<typeof buildCostSchedule>[0],
+        project.costs               as Parameters<typeof buildCostSchedule>[1],
+        project.feeSummary          as Parameters<typeof buildCostSchedule>[2],
+      );
+      if (schedule.groups.length === 0) continue;
 
-    contentChildren.push(sectionHeading(SECTION_LABELS[key], tmpl));
+      // Column widths (sum = CONTENT_W = 10080 DXA)
+      const SC = { cat: 1400, desc: 4280, qty: 500, unit: 1600, mkup: 700, tot: 1600 };
 
-    if (text && text.trim()) {
-      contentChildren.push(...bodyParagraphs(text));
-    }
+      const csRows: TableRow[] = [
+        // Header row
+        new TableRow({ children: [
+          cell('Category',    { width: SC.cat,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Description', { width: SC.desc, bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Qty',         { width: SC.qty,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
+          cell('Unit Cost',   { width: SC.unit, bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
+          cell('Markup',      { width: SC.mkup, bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
+          cell('Line Total',  { width: SC.tot,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
+        ]}),
+      ];
 
-    if (key === 'costBreakdown' && project.costs.length > 0) {
+      let prevCat = '';
+      let rowIdx  = 0;
+      for (const g of schedule.groups) {
+        if (g.category !== prevCat) {
+          csRows.push(new TableRow({ children: [
+            new TableCell({
+              columnSpan: 6,
+              width:   { size: CONTENT_W, type: WidthType.DXA },
+              borders: cellBorder(),
+              shading: shading(tmpl.catRow),
+              margins: { top: 50, bottom: 50, left: 100, right: 100 },
+              children: [new Paragraph({ children: [new TextRun({ text: g.category, bold: true, color: tmpl.catText, size: 17, font: 'Arial' })] })],
+            }),
+          ]}));
+          prevCat = g.category;
+        }
+        const bg = rowIdx % 2 === 1 ? tmpl.altRow : 'FFFFFF';
+        csRows.push(new TableRow({ children: [
+          cell('',                                { width: SC.cat,  bg }),
+          cell(g.description.substring(0, 80),    { width: SC.desc, bg }),
+          cell(String(g.quantity),                { width: SC.qty,  bg, align: AlignmentType.RIGHT }),
+          cell(fmt(g.unitCost),                   { width: SC.unit, bg, align: AlignmentType.RIGHT }),
+          cell(g.markupPercent > 0 ? `${g.markupPercent}%` : '—', { width: SC.mkup, bg, align: AlignmentType.RIGHT }),
+          cell(fmt(g.lineTotal),                  { width: SC.tot,  bg, align: AlignmentType.RIGHT }),
+        ]}));
+        rowIdx++;
+      }
+
+      // Fee summary rows
+      const feeRows: [string, number][] = ([
+        ['Direct Cost Total',                              schedule.directTotal],
+        [`Overhead (${schedule.overheadPercent.toFixed(1)}%)`, schedule.overheadAmount],
+        ['Consulting Fee',                                 schedule.consultingFee],
+        ['Project Management Fee',                        schedule.projectManagementFee],
+        ['Contingency',                                    schedule.contingencyAmount],
+        ['Tax',                                            schedule.taxAmount],
+      ] as [string, number][]).filter(([, v]) => v > 0);
+
+      for (const [label, val] of feeRows) {
+        csRows.push(new TableRow({ children: [
+          new TableCell({
+            columnSpan: 5,
+            width:   { size: SC.cat + SC.desc + SC.qty + SC.unit + SC.mkup, type: WidthType.DXA },
+            borders: cellBorder(),
+            margins: { top: 40, bottom: 40, left: 100, right: 100 },
+            children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: label, color: '6B7280', size: 16, font: 'Arial' })] })],
+          }),
+          cell(fmt(val), { width: SC.tot, align: AlignmentType.RIGHT }),
+        ]}));
+      }
+
+      // Grand total row
+      csRows.push(new TableRow({ children: [
+        new TableCell({
+          columnSpan: 5,
+          width:   { size: SC.cat + SC.desc + SC.qty + SC.unit + SC.mkup, type: WidthType.DXA },
+          borders: cellBorder(),
+          shading: shading(tmpl.totalRow),
+          margins: { top: 70, bottom: 70, left: 100, right: 100 },
+          children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: 'GRAND TOTAL', bold: true, color: tmpl.totalText, size: 18, font: 'Arial' })] })],
+        }),
+        cell(fmt(schedule.grandTotal), { width: SC.tot, bold: true, color: tmpl.totalText, bg: tmpl.totalRow, align: AlignmentType.RIGHT, fontSize: 10 }),
+      ]}));
+
       contentChildren.push(
-        new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
-        costTable(project, tmpl),
+        sectionHeading(SECTION_LABELS[key], tmpl),
+        new Table({ width: { size: CONTENT_W, type: WidthType.DXA }, columnWidths: [SC.cat, SC.desc, SC.qty, SC.unit, SC.mkup, SC.tot], rows: csRows }),
         new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
       );
+      continue;
     }
+
+    // -- Regular text sections --
+    const text = content[key];
+    if (!text || text.trim() === '') continue;
+
+    contentChildren.push(sectionHeading(SECTION_LABELS[key], tmpl));
+    contentChildren.push(...bodyParagraphs(text));
   }
 
   // ── Survey Summary (camera locations) ────────────────────────────────────────

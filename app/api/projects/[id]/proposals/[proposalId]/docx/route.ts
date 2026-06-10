@@ -30,8 +30,9 @@ export async function POST(
         costs:           { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
         cameraLocations: {
           orderBy: [{ floor: 'asc' }, { areaName: 'asc' }] as const,
-          include: { cameraModel: { select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true } } },
+          include: { cameraModel: { select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true, cost: true } } },
         },
+        building: { select: { buildingName: true } },
       },
     }),
     prisma.user.findUnique({
@@ -58,6 +59,7 @@ export async function POST(
     proposal.validUntil,
     userSettings ?? {},
     body.siteName ?? null,
+    (project as { building?: { buildingName?: string } | null }).building?.buildingName ?? null,
   );
 
   const slug    = project.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);

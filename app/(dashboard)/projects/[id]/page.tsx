@@ -10,6 +10,7 @@ import { ProposalHistory } from '@/components/ProposalHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
 import { AddBuildingButton } from '@/components/AddBuildingButton';
 import { RemoveBuildingButton } from '@/components/RemoveBuildingButton';
+import { buildCostSchedule } from '@/lib/cost-schedule';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
@@ -73,9 +74,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       }
     : null;
 
-  const totalCost = project.feeSummary
-    ? Number(project.feeSummary.grandTotal)
-    : project.costs.reduce((sum, c) => sum + Number(c.lineTotal ?? 0), 0);
+  // Compute costs live (same formula as the cost page) so the summary is
+  // always consistent even after survey locations are moved between projects.
+  const liveSchedule = buildCostSchedule(
+    project.cameraLocations as Parameters<typeof buildCostSchedule>[0],
+    project.costs           as Parameters<typeof buildCostSchedule>[1],
+    project.feeSummary      as Parameters<typeof buildCostSchedule>[2],
+  );
+
+  const totalCost = liveSchedule.grandTotal || project.costs.reduce((sum, c) => sum + Number(c.lineTotal ?? 0), 0);
 
   return (
     <div>
@@ -146,24 +153,22 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             <dl className="space-y-1.5 text-sm">
               {(
                 [
-                  ['Direct Costs',       project.feeSummary.directCostTotal],
-                  ['Overhead',           project.feeSummary.overheadAmount],
-                  ['Consulting Fee',     project.feeSummary.consultingFee],
-                  ['Project Mgmt Fee',   project.feeSummary.projectManagementFee],
-                  ['Contingency',        project.feeSummary.contingencyAmount],
-                  ['Tax',                project.feeSummary.taxAmount],
-                ] as [string, unknown][]
-              ).map(([label, val]) => (
+                  ['Direct Costs',       liveSchedule.directTotal],
+                  [`Overhead (${liveSchedule.overheadPercent.toFixed(1)}%)`, liveSchedule.overheadAmount],
+                  ['Consulting Fee',     liveSchedule.consultingFee],
+                  ['Project Mgmt Fee',   liveSchedule.projectManagementFee],
+                  ['Contingency',        liveSchedule.contingencyAmount],
+                  ['Tax',                liveSchedule.taxAmount],
+                ] as [string, number][]
+              ).filter(([, val]) => val > 0).map(([label, val]) => (
                 <div key={String(label)} className="flex justify-between">
                   <dt className="text-gray-500">{label}</dt>
-                  <dd className="text-gray-900">{fmt(Number(val))}</dd>
+                  <dd className="text-gray-900">{fmt(val)}</dd>
                 </div>
               ))}
               <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold">
                 <dt>Grand Total</dt>
-                <dd className="text-blue-700">
-                  {fmt(Number(project.feeSummary.grandTotal))}
-                </dd>
+                <dd className="text-blue-700">{fmt(liveSchedule.grandTotal)}</dd>
               </div>
             </dl>
           ) : (

@@ -8,8 +8,9 @@ import {
   BookmarkIcon,
 } from '@heroicons/react/24/outline';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
-import { CostBreakdownTable, type CostItem, type FeeSummaryData } from '@/components/CostBreakdownTable';
+import type { FeeSummaryData } from '@/components/CostBreakdownTable';
 import { ProposalDocumentPreview } from '@/components/ProposalDocumentPreview';
+import { buildCostSchedule, type CostScheduleData } from '@/lib/cost-schedule';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,7 @@ const SECTIONS: Section[] = [
   { key: 'coverLetter',        label: 'Cover Letter'       },
   { key: 'executiveSummary',   label: 'Executive Summary'  },
   { key: 'scopeOfWork',        label: 'Scope of Work'      },
-  { key: 'costBreakdown',      label: 'Investment Summary' },
+  { key: 'costBreakdown',      label: 'Cost Schedule'      },
   { key: 'timeline',           label: 'Project Timeline'   },
   { key: 'termsAndConditions', label: 'Terms & Conditions' },
 ];
@@ -75,19 +76,27 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
   const [editDraft, setEditDraft]   = useState('');
   const [regenKey, setRegenKey]     = useState<keyof ProposalContent | null>(null);
 
-  // Project cost data (for the Investment Summary table)
-  const [projectCosts, setProjectCosts]             = useState<CostItem[]>([]);
+  // Raw project data for computing the cost schedule
+  type RawCost = Record<string, unknown> & { category: { name: string } };
+  type RawCamLoc = { cameraModelId?: number | null; cameraModel?: { manufacturer?: string | null; model?: string | null; cost?: unknown } | null };
+  const [rawCosts, setRawCosts]                     = useState<RawCost[]>([]);
+  const [rawCamLocs, setRawCamLocs]                 = useState<RawCamLoc[]>([]);
   const [projectFeeSummary, setProjectFeeSummary]   = useState<FeeSummaryData | null>(null);
   const [projectCustomerName, setProjectCustomerName] = useState('');
   const [projectNumber, setProjectNumber]           = useState('');
   const [projectManager, setProjectManager]         = useState('');
   const [projectSites, setProjectSites]             = useState<{ id: number; siteName: string }[]>([]);
+  const [projectBuildingName, setProjectBuildingName] = useState<string | null>(null);
   const [selectedSiteId, setSelectedSiteId]         = useState<number | null>(null);
   const [companySettings, setCompanySettings]       = useState<{
     companyName: string; companyTagline: string; logoUrl: string;
     companyPhone: string; companyAddress: string; companyWebsite: string;
   }>({ companyName: 'CSMS', companyTagline: '', logoUrl: '', companyPhone: '', companyAddress: '', companyWebsite: '' });
   const [showDocPreview, setShowDocPreview]         = useState(false);
+
+  const costSchedule: CostScheduleData | null = rawCosts.length > 0 || rawCamLocs.length > 0
+    ? buildCostSchedule(rawCamLocs, rawCosts as Parameters<typeof buildCostSchedule>[1], projectFeeSummary)
+    : null;
 
   useEffect(() => {
     fetch(`/api/projects/${projectId}`)
@@ -97,6 +106,7 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
         setProjectCustomerName(d.customer?.customerName ?? '');
         setProjectNumber(d.projectNumber ?? '');
         setProjectManager(d.projectManager ?? '');
+        setProjectBuildingName((d.building as { buildingName?: string } | null)?.buildingName ?? null);
         const sites = (d.sites ?? []) as { id: number; siteName: string }[];
         setProjectSites(sites);
         if (sites.length === 1) setSelectedSiteId(sites[0].id);
@@ -111,14 +121,8 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
             companyWebsite: s.companyWebsite ?? '',
           });
         });
-        setProjectCosts((d.costs ?? []).map((c: Record<string, unknown>) => ({
-          id:          c.id,
-          description: c.description as string | null,
-          quantity:    Number(c.quantity),
-          unitCost:    Number(c.unitCost),
-          lineTotal:   Number(c.lineTotal ?? 0),
-          category:    { name: (c.category as Record<string, unknown>)?.name as string ?? '' },
-        })));
+        setRawCosts((d.costs ?? []) as RawCost[]);
+        setRawCamLocs((d.cameraLocations ?? []) as RawCamLoc[]);
         if (d.feeSummary) {
           const fs = d.feeSummary as Record<string, unknown>;
           setProjectFeeSummary({
@@ -510,53 +514,59 @@ Best regards,
                 </button>
               </div>
 
-              {SECTIONS.filter(s => includedKeys.has(s.key) && content[s.key]).map(s => (
-                <div key={s.key} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
-                    <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{s.label}</span>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => regenerateSection(s.key)}
-                        disabled={regenKey === s.key}
-                        title="Regenerate this section"
-                        className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors"
-                      >
-                        <ArrowPathIcon className={`w-3.5 h-3.5 ${regenKey === s.key ? 'animate-spin' : ''}`} />
-                      </button>
-                      <button
-                        onClick={() => editingKey === s.key ? saveEdit() : startEdit(s.key)}
-                        title={editingKey === s.key ? 'Save edits' : 'Edit section'}
-                        className="p-1.5 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors"
-                      >
-                        {editingKey === s.key
-                          ? <CheckIcon className="w-3.5 h-3.5 text-green-600" />
-                          : <PencilSquareIcon className="w-3.5 h-3.5" />}
-                      </button>
+              {SECTIONS.filter(s => {
+                if (s.key === 'costBreakdown') return includedKeys.has(s.key) && !!costSchedule;
+                return includedKeys.has(s.key) && !!content[s.key];
+              }).map(s => {
+                const isCostSchedule = s.key === 'costBreakdown';
+                return (
+                  <div key={s.key} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                      <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{s.label}</span>
+                      {!isCostSchedule && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => regenerateSection(s.key)}
+                            disabled={regenKey === s.key}
+                            title="Regenerate this section"
+                            className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors"
+                          >
+                            <ArrowPathIcon className={`w-3.5 h-3.5 ${regenKey === s.key ? 'animate-spin' : ''}`} />
+                          </button>
+                          <button
+                            onClick={() => editingKey === s.key ? saveEdit() : startEdit(s.key)}
+                            title={editingKey === s.key ? 'Save edits' : 'Edit section'}
+                            className="p-1.5 rounded text-gray-400 hover:text-green-600 hover:bg-green-50 transition-colors"
+                          >
+                            {editingKey === s.key
+                              ? <CheckIcon className="w-3.5 h-3.5 text-green-600" />
+                              : <PencilSquareIcon className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-4">
+                      {isCostSchedule ? (
+                        <div className="text-xs text-gray-500 italic">Live cost schedule — {costSchedule!.groups.length} line items · Grand total {costSchedule!.grandTotal.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</div>
+                      ) : editingKey === s.key ? (
+                        <textarea
+                          value={editDraft}
+                          onChange={e => setEditDraft(e.target.value)}
+                          rows={8}
+                          className="form-input resize-y w-full text-sm"
+                          autoFocus
+                        />
+                      ) : (
+                        <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                          {regenKey === s.key
+                            ? <span className="text-gray-400 italic">Regenerating…</span>
+                            : content[s.key]}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="p-4">
-                    {editingKey === s.key ? (
-                      <textarea
-                        value={editDraft}
-                        onChange={e => setEditDraft(e.target.value)}
-                        rows={8}
-                        className="form-input resize-y w-full text-sm"
-                        autoFocus
-                      />
-                    ) : s.key === 'costBreakdown' ? (
-                      regenKey === s.key
-                        ? <span className="text-gray-400 italic">Regenerating…</span>
-                        : <CostBreakdownTable costs={projectCosts} feeSummary={projectFeeSummary} templateId={template} />
-                    ) : (
-                      <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                        {regenKey === s.key
-                          ? <span className="text-gray-400 italic">Regenerating…</span>
-                          : content[s.key]}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -651,6 +661,7 @@ Best regards,
         projectNumber={projectNumber}
         projectManager={projectManager}
         siteName={projectSites.find(s => s.id === selectedSiteId)?.siteName}
+        buildingName={projectBuildingName}
         validUntil={validUntil || '30 days from date of issue'}
         date={new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
         companyName={companySettings.companyName}
@@ -659,8 +670,8 @@ Best regards,
         companyPhone={companySettings.companyPhone}
         companyAddress={companySettings.companyAddress}
         companyWebsite={companySettings.companyWebsite}
-        costs={projectCosts}
         feeSummary={projectFeeSummary}
+        costSchedule={costSchedule}
         onClose={() => setShowDocPreview(false)}
         onExport={downloadPdf}
         exporting={pdfLoading}

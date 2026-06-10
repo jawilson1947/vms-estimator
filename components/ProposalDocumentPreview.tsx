@@ -1,7 +1,8 @@
 'use client';
 
 import { XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { CostBreakdownTable, type CostItem, type FeeSummaryData } from './CostBreakdownTable';
+import type { FeeSummaryData } from './CostBreakdownTable';
+import type { CostScheduleData } from '@/lib/cost-schedule';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -14,6 +15,7 @@ interface Props {
   projectManager?: string | null;
   projectNumber?:  string | null;
   siteName?:       string | null;
+  buildingName?:   string | null;
   validUntil:      string;
   date:            string;
   companyName:     string;
@@ -22,8 +24,8 @@ interface Props {
   companyPhone?:   string | null;
   companyAddress?: string | null;
   companyWebsite?: string | null;
-  costs:           CostItem[];
   feeSummary:      FeeSummaryData | null;
+  costSchedule:    CostScheduleData | null;
   onClose:         () => void;
   onExport?:        () => void;
   exporting?:       boolean;
@@ -43,7 +45,7 @@ const SECTION_LABELS: Partial<Record<keyof ProposalContent, string>> = {
   coverLetter:        'Introduction',
   executiveSummary:   'Executive Summary',
   scopeOfWork:        'Scope of Work',
-  costBreakdown:      'Investment Summary',
+  costBreakdown:      'Cost Schedule',
   timeline:           'Project Timeline',
   termsAndConditions: 'Terms & Conditions',
 };
@@ -72,11 +74,15 @@ function CoverLabel({ text, color }: { text: string; color: string }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+function fmtUSD(n: number) {
+  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+}
+
 export function ProposalDocumentPreview({
   content, templateId, projectName, customerName, projectManager,
   validUntil, date, companyName, companyTagline,
   logoUrl, companyPhone, companyAddress, companyWebsite,
-  projectNumber, siteName, costs, feeSummary, onClose, onExport, exporting,
+  projectNumber, siteName, buildingName, feeSummary, costSchedule, onClose, onExport, exporting,
 }: Props) {
   const pal = PALETTE[templateId] ?? PALETTE.classic;
 
@@ -143,6 +149,7 @@ export function ProposalDocumentPreview({
             <div style={{ ...center, color: '#111827', fontSize: 26, fontWeight: 700, lineHeight: 1.2, marginBottom: 6 }}>{customerName}</div>
             {siteName && <div style={{ ...center, color: '#374151', fontSize: 16, marginBottom: 6 }}>{siteName}</div>}
             <div style={{ ...center, color: '#111827', fontSize: 17, fontWeight: 600, marginBottom: 4 }}>{projectName}</div>
+            {buildingName && <div style={{ ...center, color: '#6B7280', fontSize: 12, marginBottom: 4 }}>{buildingName}</div>}
             {projectNumber && <div style={{ ...center, color: '#6B7280', fontSize: 12, marginBottom: 4 }}>Project No. {projectNumber}</div>}
 
             <Rule />
@@ -167,12 +174,14 @@ export function ProposalDocumentPreview({
             <div style={{ ...center, color: '#111827', fontSize: 13, marginBottom: 2 }}>{date}</div>
             <div style={{ ...center, color: '#6B7280', fontSize: 12, marginBottom: 4 }}>Valid Until: {validUntil}</div>
 
-            {/* Investment total */}
-            {feeSummary && (
+            {/* Investment total — prefer live costSchedule over stale feeSummary */}
+            {(costSchedule || feeSummary) && (
               <>
                 <Rule />
                 <CoverLabel text="Investment Total" color={pal.primary} />
-                <div style={{ ...center, color: pal.primary, fontSize: 28, fontWeight: 700 }}>{fmt(feeSummary.grandTotal)}</div>
+                <div style={{ ...center, color: pal.primary, fontSize: 28, fontWeight: 700 }}>
+                  {fmt(costSchedule ? costSchedule.grandTotal : feeSummary!.grandTotal)}
+                </div>
               </>
             )}
 
@@ -188,26 +197,103 @@ export function ProposalDocumentPreview({
           {/* ── Content sections ───────────────────────────────────────────── */}
           <div className="bg-white shadow-xl rounded-b-lg overflow-hidden pb-10">
             {SECTION_ORDER.map(key => {
-              const text    = content[key];
-              const isCosts = key === 'costBreakdown';
-              const hasCosts = isCosts && costs.length > 0;
-              if ((!text || text.trim() === '') && !hasCosts) return null;
+              const sectionHeadingEl = (
+                <div style={{
+                  backgroundColor: pal.sectionBg, color: pal.sectionText,
+                  padding: '8px 14px', fontWeight: 700, fontSize: 12,
+                  letterSpacing: '.08em', textTransform: 'uppercase',
+                  borderRadius: 4, marginBottom: 16,
+                }}>
+                  {SECTION_LABELS[key]}
+                </div>
+              );
 
+              // Cost Schedule — always programmatic, ignores content[key]
+              if (key === 'costBreakdown') {
+                if (!costSchedule || costSchedule.groups.length === 0) return null;
+                const thCell: React.CSSProperties = {
+                  padding: '5px 6px', fontSize: 10, fontWeight: 700,
+                  backgroundColor: pal.sectionBg, color: pal.sectionText,
+                  textAlign: 'left', borderBottom: '1px solid #E5E7EB',
+                };
+                const thR: React.CSSProperties = { ...thCell, textAlign: 'right' };
+                const tdCell: React.CSSProperties = { padding: '4px 6px', fontSize: 10, color: '#374151', verticalAlign: 'top' };
+                const tdR: React.CSSProperties    = { ...tdCell, textAlign: 'right' };
+
+                let prevCat = '';
+                const bodyRows: React.ReactNode[] = [];
+                costSchedule.groups.forEach((g, i) => {
+                  if (g.category !== prevCat) {
+                    bodyRows.push(
+                      <tr key={`cat-${i}`}>
+                        <td colSpan={6} style={{ padding: '4px 6px', fontSize: 10, fontWeight: 700, color: pal.sectionBg, backgroundColor: '#F0F4F8' }}>
+                          {g.category}
+                        </td>
+                      </tr>
+                    );
+                    prevCat = g.category;
+                  }
+                  const rowBg = i % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
+                  bodyRows.push(
+                    <tr key={i} style={{ backgroundColor: rowBg }}>
+                      <td style={tdCell}></td>
+                      <td style={tdCell}>{g.description}</td>
+                      <td style={tdR}>{g.quantity}</td>
+                      <td style={tdR}>{fmtUSD(g.unitCost)}</td>
+                      <td style={tdR}>{g.markupPercent > 0 ? `${g.markupPercent}%` : '—'}</td>
+                      <td style={tdR}>{fmtUSD(g.lineTotal)}</td>
+                    </tr>
+                  );
+                });
+
+                const feeRows: [string, number][] = [
+                  ['Direct Cost Total',                                       costSchedule.directTotal],
+                  [`Overhead (${costSchedule.overheadPercent.toFixed(1)}%)`,  costSchedule.overheadAmount],
+                  ['Consulting Fee',                                           costSchedule.consultingFee],
+                  ['Project Management Fee',                                   costSchedule.projectManagementFee],
+                  ['Contingency',                                              costSchedule.contingencyAmount],
+                  ['Tax',                                                      costSchedule.taxAmount],
+                ].filter(([, v]) => (v as number) > 0) as [string, number][];
+
+                return (
+                  <div key={key} style={{ padding: '0 48px', marginTop: 36 }}>
+                    {sectionHeadingEl}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ ...thCell, width: '12%' }}>Category</th>
+                          <th style={{ ...thCell, width: '38%' }}>Description</th>
+                          <th style={{ ...thR,    width: '6%'  }}>Qty</th>
+                          <th style={{ ...thR,    width: '14%' }}>Unit Cost</th>
+                          <th style={{ ...thR,    width: '8%'  }}>Markup</th>
+                          <th style={{ ...thR,    width: '14%' }}>Line Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>{bodyRows}</tbody>
+                      <tfoot>
+                        {feeRows.map(([label, val]) => (
+                          <tr key={label}>
+                            <td colSpan={5} style={{ ...tdR, paddingTop: 5, color: '#6B7280', fontStyle: 'italic' }}>{label}</td>
+                            <td style={{ ...tdR, paddingTop: 5 }}>{fmtUSD(val)}</td>
+                          </tr>
+                        ))}
+                        <tr style={{ backgroundColor: pal.sectionBg }}>
+                          <td colSpan={5} style={{ ...tdR, color: '#fff', fontWeight: 700, padding: '6px', fontSize: 11 }}>GRAND TOTAL</td>
+                          <td style={{ ...tdR, color: '#fff', fontWeight: 700, padding: '6px', fontSize: 11 }}>{fmtUSD(costSchedule.grandTotal)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                );
+              }
+
+              // Regular text sections
+              const text = content[key];
+              if (!text || text.trim() === '') return null;
               return (
                 <div key={key} style={{ padding: '0 48px', marginTop: 36 }}>
-                  <div style={{
-                    backgroundColor: pal.sectionBg, color: pal.sectionText,
-                    padding: '8px 14px', fontWeight: 700, fontSize: 12,
-                    letterSpacing: '.08em', textTransform: 'uppercase',
-                    borderRadius: 4, marginBottom: 16,
-                  }}>
-                    {SECTION_LABELS[key]}
-                  </div>
-                  {isCosts ? (
-                    <CostBreakdownTable costs={costs} feeSummary={feeSummary} templateId={templateId} />
-                  ) : (
-                    <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{text}</div>
-                  )}
+                  {sectionHeadingEl}
+                  <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{text}</div>
                 </div>
               );
             })}
