@@ -251,14 +251,14 @@ export async function generateProposalPdf(
 
       // Fee summary rows
       doc.moveDown(0.4);
-      const feeRows: [string, number][] = [
+      const feeRows = ([
         ['Direct Cost Total',                              schedule.directTotal],
         [`Overhead (${schedule.overheadPercent.toFixed(1)}%)`, schedule.overheadAmount],
         ['Consulting Fee',                                 schedule.consultingFee],
         ['Project Management Fee',                        schedule.projectManagementFee],
         ['Contingency',                                    schedule.contingencyAmount],
         ['Tax',                                            schedule.taxAmount],
-      ].filter(([, v]) => v > 0) as [string, number][];
+      ] as [string, number][]).filter(([, v]) => v > 0);
 
       for (const [label, val] of feeRows) {
         checkPageBreak(13);

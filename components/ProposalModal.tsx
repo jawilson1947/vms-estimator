@@ -95,7 +95,7 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
   const [showDocPreview, setShowDocPreview]         = useState(false);
 
   const costSchedule: CostScheduleData | null = rawCosts.length > 0 || rawCamLocs.length > 0
-    ? buildCostSchedule(rawCamLocs, rawCosts as Parameters<typeof buildCostSchedule>[1], projectFeeSummary)
+    ? buildCostSchedule(rawCamLocs, rawCosts as unknown as Parameters<typeof buildCostSchedule>[1], projectFeeSummary)
     : null;
 
   useEffect(() => {
