@@ -58,8 +58,7 @@ targets:
         CLAUDE_API_KEY: "$(CLAUDE_API_KEY)"
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
+        UIRequiresFullScreen: YES
         UILaunchScreen: {}
         NSMicrophoneUsageDescription: "CSMS Survey uses your microphone to listen for hands-free voice commands during surveys."
         NSSpeechRecognitionUsageDescription: "CSMS Survey uses speech recognition to convert voice commands into survey actions."

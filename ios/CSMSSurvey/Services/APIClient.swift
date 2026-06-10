@@ -46,13 +46,13 @@ final class APIClient {
     // MARK: - Full site (building + project tree, no locations)
 
     func fetchSite(_ id: Int) async throws -> SurveySite {
-        try await get("/api/survey/\(id)")
+        try await get("/api/survey/sites/\(id)")
     }
 
     // MARK: - Full project (with locations)
 
     func fetchProject(_ id: Int) async throws -> SurveyProject {
-        try await get("/api/survey/projects/\(id)")
+        try await get("/api/survey/\(id)")
     }
 
     // MARK: - Create location

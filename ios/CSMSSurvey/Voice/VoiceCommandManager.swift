@@ -135,7 +135,7 @@ final class VoiceCommandManager: NSObject, ObservableObject {
                 DispatchQueue.global(qos: .userInitiated).async {
                     let session = AVAudioSession.sharedInstance()
                     try? session.setCategory(.playAndRecord, mode: .measurement,
-                                              options: [.defaultToSpeaker, .allowBluetooth])
+                                              options: [.defaultToSpeaker, .allowBluetoothHFP])
                     try? session.setActive(true)
                     cont.resume()
                 }

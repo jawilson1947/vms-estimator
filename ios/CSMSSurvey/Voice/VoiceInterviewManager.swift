@@ -109,7 +109,7 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         Task.detached(priority: .userInitiated) { [weak self] in
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playAndRecord, mode: .measurement,
-                                      options: [.defaultToSpeaker, .allowBluetooth])
+                                      options: [.defaultToSpeaker, .allowBluetoothHFP])
             try? session.setActive(true)
             await MainActor.run { [weak self] in
                 self?.voice.setEnabled(false)

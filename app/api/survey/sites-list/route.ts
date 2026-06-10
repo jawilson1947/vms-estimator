@@ -13,7 +13,17 @@ export async function GET() {
     select: {
       id: true,
       siteName: true,
-      buildings: { select: { id: true, buildingName: true } },
+      buildings: {
+          orderBy: { buildingName: 'asc' },
+          select: {
+            id: true,
+            buildingName: true,
+            projects: {
+              orderBy: { projectName: 'asc' },
+              select: { id: true, projectName: true },
+            },
+          },
+        },
     },
   });
 

@@ -90,7 +90,7 @@ struct ProjectListView: View {
 }
 
 private struct ProjectRow: View {
-    let project: SurveyProject
+    let project: ProjectSummary
 
     var body: some View {
         HStack(spacing: 14) {
