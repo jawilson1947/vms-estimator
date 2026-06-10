@@ -29,9 +29,14 @@ export default async function SurveyManagementPage() {
         <span className="text-gray-900 font-medium">Survey Management</span>
       </nav>
 
-      <div className="flex items-center gap-2 mb-6">
-        <ClipboardDocumentListIcon className="w-5 h-5 text-teal-500" />
-        <h1 className="text-base font-semibold text-gray-900">Survey Management</h1>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <ClipboardDocumentListIcon className="w-5 h-5 text-teal-500" />
+          <h1 className="text-xl font-bold text-gray-900">Survey Management</h1>
+        </div>
+        <Link href="/settings" className="btn-secondary text-sm">
+          ← Back to Settings
+        </Link>
       </div>
 
       <p className="text-sm text-gray-500 mb-6">

@@ -200,7 +200,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         ) : (
           <div className="relative flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors text-sm group">
             <Link
-              href={`/sites/${assignedBuilding.site.id}`}
+              href={`/buildings/${assignedBuilding.id}`}
               className="flex items-start gap-2 flex-1 min-w-0"
             >
               <BuildingOfficeIcon className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />

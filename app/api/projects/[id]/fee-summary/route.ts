@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { buildCostSchedule } from '@/lib/cost-schedule';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -27,17 +28,45 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const projectId = Number(id);
   const b = await req.json();
 
-  // Recalculate direct cost total from actual line items
-  const costs = await prisma.projectCost.findMany({ where: { projectId } });
-  const directCostTotal = costs.reduce((sum, c) => sum + Number(c.lineTotal ?? 0), 0);
+  // Fetch both manual costs and camera locations to compute the live direct total
+  const [costs, cameraLocations] = await Promise.all([
+    prisma.projectCost.findMany({
+      where:   { projectId },
+      include: { category: true },
+    }),
+    prisma.cameraLocation.findMany({
+      where:   { projectId },
+      select:  {
+        id: true, cameraModelId: true,
+        cameraModel: { select: { manufacturer: true, model: true, cost: true } },
+      },
+    }),
+  ]);
 
-  const overheadPercent      = Number(b.overheadPercent      ?? 0);
-  const overheadAmount       = directCostTotal * (overheadPercent / 100);
-  const consultingFee        = Number(b.consultingFee        ?? 0);
-  const projectManagementFee = Number(b.projectManagementFee ?? 0);
-  const contingencyAmount    = Number(b.contingencyAmount    ?? 0);
-  const taxAmount            = Number(b.taxAmount            ?? 0);
-  const grandTotal           = directCostTotal + overheadAmount + consultingFee + projectManagementFee + contingencyAmount + taxAmount;
+  const overheadPercent = Number(b.overheadPercent ?? 0);
+
+  // Build a minimal feeSummary stub so buildCostSchedule picks up the overhead rate
+  const feeSummaryStub = {
+    overheadPercent,
+    consultingFee:        Number(b.consultingFee        ?? 0),
+    projectManagementFee: Number(b.projectManagementFee ?? 0),
+    contingencyAmount:    Number(b.contingencyAmount    ?? 0),
+    taxAmount:            Number(b.taxAmount            ?? 0),
+  };
+
+  const schedule = buildCostSchedule(
+    cameraLocations as Parameters<typeof buildCostSchedule>[0],
+    costs           as unknown as Parameters<typeof buildCostSchedule>[1],
+    feeSummaryStub  as Parameters<typeof buildCostSchedule>[2],
+  );
+
+  const directCostTotal      = schedule.directTotal;
+  const overheadAmount       = schedule.overheadAmount;
+  const consultingFee        = schedule.consultingFee;
+  const projectManagementFee = schedule.projectManagementFee;
+  const contingencyAmount    = schedule.contingencyAmount;
+  const taxAmount            = schedule.taxAmount;
+  const grandTotal           = schedule.grandTotal;
 
   const summary = await prisma.projectFeeSummary.upsert({
     where:  { projectId },

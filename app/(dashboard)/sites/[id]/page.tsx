@@ -126,6 +126,8 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
       <div className="space-y-4">
         <h2 className="text-base font-semibold text-gray-900">Buildings</h2>
 
+        <AddBuildingForm siteId={site.id} />
+
         {site.buildings.map(building => {
           const bLocations = building.projects.flatMap(p => p.cameraLocations);
           return (
@@ -133,7 +135,9 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
               <div className="group flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200">
                 <div className="flex items-center gap-2">
                   <BuildingOffice2Icon className="w-4 h-4 text-gray-400" />
-                  <span className="font-semibold text-gray-900 text-sm">{building.buildingName}</span>
+                  <Link href={`/buildings/${building.id}`} className="font-semibold text-gray-900 text-sm hover:text-blue-700 hover:underline">
+                    {building.buildingName}
+                  </Link>
                   <span className="badge bg-gray-100 text-gray-500 text-xs">
                     {bLocations.length} location{bLocations.length !== 1 ? 's' : ''}
                   </span>
@@ -182,7 +186,6 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
           );
         })}
 
-        <AddBuildingForm siteId={site.id} />
       </div>
 
       {site.notes && (

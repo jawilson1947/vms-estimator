@@ -5,6 +5,32 @@ import { prisma } from '@/lib/prisma';
 
 type Params = { params: Promise<{ id: string }> };
 
+// GET /api/buildings/[id]
+export async function GET(_req: NextRequest, { params }: Params) {
+  const { id } = await params;
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const building = await prisma.building.findUnique({
+    where:   { id: Number(id) },
+    include: {
+      site: { select: { id: true, siteName: true, city: true, state: true } },
+      projects: {
+        orderBy: { projectName: 'asc' },
+        include: {
+          customer:        { select: { id: true, customerName: true } },
+          feeSummary:      { select: { grandTotal: true } },
+          _count:          { select: { cameraLocations: true } },
+        },
+      },
+      floorPlans: { orderBy: { uploadedAt: 'desc' }, select: { id: true, fileName: true, fileUrl: true, uploadedAt: true } },
+    },
+  });
+
+  if (!building) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  return NextResponse.json(building);
+}
+
 // PUT /api/buildings/[id]
 export async function PUT(req: NextRequest, { params }: Params) {
   const { id } = await params;
