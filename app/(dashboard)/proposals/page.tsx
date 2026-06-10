@@ -12,6 +12,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default async function ProposalsPage() {
   const proposals = await prisma.proposal.findMany({
+    where:   { project: { id: { gt: 0 } } },
     orderBy: { createdAt: 'desc' },
     include: { project: { include: { customer: { select: { customerName: true } } } } },
   });
