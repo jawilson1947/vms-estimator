@@ -9,6 +9,7 @@ final class LocationDetailViewModel: ObservableObject {
     @Published var errorMsg:   String?
 
     var onUpdate: ((SurveyLocation) -> Void)?
+    var onDelete: (() -> Void)?
 
     private let api = APIClient.shared
     static let maxPhotos = 5
@@ -110,4 +111,18 @@ final class LocationDetailViewModel: ObservableObject {
     }
 
     var atPhotoLimit: Bool { location.images.count >= Self.maxPhotos }
+
+    // MARK: - Delete location
+
+    func deleteLocation() async {
+        isSaving = true
+        errorMsg = nil
+        do {
+            try await api.deleteLocation(location.id)
+            onDelete?()
+        } catch {
+            errorMsg = error.localizedDescription
+            isSaving = false
+        }
+    }
 }

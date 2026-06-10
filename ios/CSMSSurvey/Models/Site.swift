@@ -2,21 +2,30 @@ import Foundation
 
 // MARK: - Site list (lightweight, for the site/project picker)
 
-struct SiteSummary: Codable, Identifiable {
+struct SiteSummary: Codable, Identifiable, Hashable {
     let id: Int
     let siteName: String
     let buildings: [BuildingSummary]
+
+    static func == (lhs: SiteSummary, rhs: SiteSummary) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-struct BuildingSummary: Codable, Identifiable {
+struct BuildingSummary: Codable, Identifiable, Hashable {
     let id: Int
     let buildingName: String
     let projects: [ProjectSummary]
+
+    static func == (lhs: BuildingSummary, rhs: BuildingSummary) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-struct ProjectSummary: Codable, Identifiable {
+struct ProjectSummary: Codable, Identifiable, Hashable {
     let id: Int
     let projectName: String
+
+    static func == (lhs: ProjectSummary, rhs: ProjectSummary) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 // MARK: - Full site (project list screen)

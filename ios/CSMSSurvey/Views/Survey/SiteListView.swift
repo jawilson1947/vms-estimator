@@ -49,7 +49,7 @@ struct SiteListView: View {
                         ScrollView {
                             LazyVStack(spacing: 10) {
                                 ForEach(filtered) { site in
-                                    NavigationLink(value: site.id) {
+                                    NavigationLink(value: site) {
                                         SiteRow(site: site)
                                     }
                                     .buttonStyle(.plain)
@@ -65,8 +65,8 @@ struct SiteListView: View {
                 }
             }
             .navigationTitle("Survey Sites")
-            .navigationDestination(for: Int.self) { siteId in
-                ProjectListView(siteId: siteId)
+            .navigationDestination(for: SiteSummary.self) { site in
+                BuildingListView(site: site)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {

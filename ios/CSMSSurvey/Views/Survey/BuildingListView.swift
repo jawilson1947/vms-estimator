@@ -1,26 +1,26 @@
 import SwiftUI
 
-struct ProjectListView: View {
-    let building: BuildingSummary
+struct BuildingListView: View {
+    let site: SiteSummary
 
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
 
             Group {
-                if building.projects.isEmpty {
+                if site.buildings.isEmpty {
                     ContentUnavailableView {
-                        Label("No Projects", systemImage: "folder")
+                        Label("No Buildings", systemImage: "building")
                     } description: {
-                        Text("No survey projects have been created for this building.")
+                        Text("No buildings have been added to this site.")
                             .foregroundStyle(Theme.textSecondary)
                     }
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 10) {
-                            ForEach(building.projects) { project in
-                                NavigationLink(value: project) {
-                                    ProjectRow(project: project)
+                            ForEach(site.buildings) { building in
+                                NavigationLink(value: building) {
+                                    BuildingRow(building: building)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -32,16 +32,16 @@ struct ProjectListView: View {
                 }
             }
         }
-        .navigationTitle(building.buildingName)
+        .navigationTitle(site.siteName)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: ProjectSummary.self) { project in
-            SurveyBoardView(projectId: project.id)
+        .navigationDestination(for: BuildingSummary.self) { building in
+            ProjectListView(building: building)
         }
     }
 }
 
-private struct ProjectRow: View {
-    let project: ProjectSummary
+private struct BuildingRow: View {
+    let building: BuildingSummary
 
     var body: some View {
         HStack(spacing: 14) {
@@ -49,15 +49,19 @@ private struct ProjectRow: View {
                 RoundedRectangle(cornerRadius: 10)
                     .fill(Theme.accentSoft)
                     .frame(width: 42, height: 42)
-                Image(systemName: "checklist")
+                Image(systemName: "building.fill")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.accent)
             }
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(project.projectName)
+                Text(building.buildingName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
+                let count = building.projects.count
+                Text("\(count) project\(count == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundStyle(Theme.textSecondary)
             }
 
             Spacer()

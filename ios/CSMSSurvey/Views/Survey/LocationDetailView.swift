@@ -7,14 +7,18 @@ struct LocationDetailView: View {
     private        let speech      = SpeechOutputManager.shared
     @Environment(\.dismiss) private var dismiss
 
-    @State private var notesText        = ""
-    @State private var photoItem:       PhotosPickerItem?
-    @State private var showCamera       = false
-    @State private var showCameraPicker = false
+    @State private var notesText           = ""
+    @State private var photoItem:          PhotosPickerItem?
+    @State private var showCamera          = false
+    @State private var showCameraPicker    = false
+    @State private var showDeleteConfirm   = false
 
-    init(location: SurveyLocation, onUpdate: @escaping (SurveyLocation) -> Void) {
+    init(location: SurveyLocation,
+         onUpdate: @escaping (SurveyLocation) -> Void,
+         onDelete: (() -> Void)? = nil) {
         let viewModel = LocationDetailViewModel(location: location)
         viewModel.onUpdate = onUpdate
+        viewModel.onDelete = onDelete
         _vm = StateObject(wrappedValue: viewModel)
     }
 
@@ -191,6 +195,29 @@ struct LocationDetailView: View {
         }
         .navigationTitle(vm.location.areaName)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(role: .destructive) {
+                    showDeleteConfirm = true
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(Theme.danger)
+                }
+                .disabled(vm.isSaving)
+            }
+        }
+        .confirmationDialog(
+            "Delete \"\(vm.location.areaName)\"?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Survey", role: .destructive) {
+                Task { await vm.deleteLocation() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently remove the survey and all its photos.")
+        }
         .onAppear {
             notesText = vm.location.surveyNotes ?? ""
             registerVoiceCommands()

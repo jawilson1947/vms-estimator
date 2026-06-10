@@ -136,6 +136,9 @@ struct SurveyBoardView: View {
         .navigationDestination(item: $selectedLocation) { loc in
             LocationDetailView(location: loc) { updated in
                 vm.update(updated)
+            } onDelete: {
+                vm.remove(locationId: loc.id)
+                selectedLocation = nil
             }
         }
         .sheet(isPresented: $showQuickRef) {
