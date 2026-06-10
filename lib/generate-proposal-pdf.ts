@@ -114,6 +114,14 @@ export async function generateProposalPdf(
 
   let pageNum = 0;
 
+  // Compute live cost schedule once — used for the cover Investment Total AND
+  // the Cost Schedule section, so both surfaces always agree.
+  const liveSchedule = buildCostSchedule(
+    (project.cameraLocations ?? []) as Parameters<typeof buildCostSchedule>[0],
+    project.costs               as Parameters<typeof buildCostSchedule>[1],
+    project.feeSummary          as Parameters<typeof buildCostSchedule>[2],
+  );
+
   function newPage() {
     pageNum++;
     doc.addPage();
@@ -141,9 +149,12 @@ export async function generateProposalPdf(
   pageNum++;
   doc.addPage();
 
-  const grandTotalStr = project.feeSummary
-    ? fmt(n(project.feeSummary.grandTotal))
-    : undefined;
+  // Cover Investment Total: prefer live schedule; fall back to saved feeSummary.
+  const grandTotalStr = liveSchedule.groups.length > 0
+    ? fmt(liveSchedule.grandTotal)
+    : project.feeSummary
+      ? fmt(n(project.feeSummary.grandTotal))
+      : undefined;
 
   // Fetch logo buffer
   let logoBuffer: Buffer | null = null;
@@ -187,11 +198,7 @@ export async function generateProposalPdf(
   for (const key of SECTION_ORDER) {
     // -- Cost Schedule (always programmatic, never AI text) --
     if (key === 'costBreakdown') {
-      const schedule = buildCostSchedule(
-        (project.cameraLocations ?? []) as Parameters<typeof buildCostSchedule>[0],
-        project.costs               as Parameters<typeof buildCostSchedule>[1],
-        project.feeSummary          as Parameters<typeof buildCostSchedule>[2],
-      );
+      const schedule = liveSchedule;   // computed once above — same data as cover total
       if (schedule.groups.length === 0) continue;
 
       newPage();

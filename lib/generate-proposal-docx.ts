@@ -197,137 +197,6 @@ function sectionHeading(label: string, tmpl: TemplateConfig): Paragraph {
   });
 }
 
-// ── Cost table ────────────────────────────────────────────────────────────────
-// Column widths (sum = CONTENT_W = 10080)
-const COL = { desc: 5780, qty: 600, unit: 1700, total: 2000 };
-
-function costTable(project: ProposalProjectData, tmpl: TemplateConfig): Table {
-  const rows: TableRow[] = [];
-
-  // Header row
-  rows.push(new TableRow({
-    children: [
-      cell('Description', { width: COL.desc,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
-      cell('Qty',          { width: COL.qty,   bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
-      cell('Unit Cost',    { width: COL.unit,  bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
-      cell('Line Total',   { width: COL.total, bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr, align: AlignmentType.RIGHT }),
-    ],
-  }));
-
-  // Group by category
-  const grouped = new Map<string, typeof project.costs>();
-  for (const c of project.costs) {
-    const k = c.category.name;
-    if (!grouped.has(k)) grouped.set(k, []);
-    grouped.get(k)!.push(c);
-  }
-
-  let rowIdx = 0;
-  for (const [catName, items] of grouped) {
-    // Category header spanning all columns
-    rows.push(new TableRow({
-      children: [new TableCell({
-        columnSpan: 4,
-        width:    { size: CONTENT_W, type: WidthType.DXA },
-        borders:  cellBorder(),
-        shading:  shading(tmpl.catRow),
-        margins:  { top: 60, bottom: 60, left: 100, right: 100 },
-        children: [new Paragraph({
-          children: [new TextRun({ text: catName, bold: true, color: tmpl.catText, size: 18, font: 'Arial' })],
-        })],
-      })],
-    }));
-
-    const catSubtotal = items.reduce((s, c) => s + n(c.lineTotal), 0);
-
-    for (const c of items) {
-      const bg = rowIdx % 2 === 1 ? tmpl.altRow : 'FFFFFF';
-      rows.push(new TableRow({
-        children: [
-          cell((c.description ?? '—').substring(0, 80), { width: COL.desc,  bg }),
-          cell(String(n(c.quantity)),                    { width: COL.qty,   bg, align: AlignmentType.RIGHT }),
-          cell(fmt(n(c.unitCost)),                       { width: COL.unit,  bg, align: AlignmentType.RIGHT }),
-          cell(fmt(n(c.lineTotal)),                      { width: COL.total, bg, align: AlignmentType.RIGHT }),
-        ],
-      }));
-      rowIdx++;
-    }
-
-    // Subtotal row
-    rows.push(new TableRow({
-      children: [
-        new TableCell({
-          columnSpan: 3,
-          width:   { size: COL.desc + COL.qty + COL.unit, type: WidthType.DXA },
-          borders: cellBorder(),
-          shading: shading(tmpl.subRow),
-          margins: { top: 60, bottom: 60, left: 100, right: 100 },
-          children: [new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children:  [new TextRun({ text: `${catName} Subtotal`, bold: true, color: tmpl.subText, size: 18, font: 'Arial' })],
-          })],
-        }),
-        cell(fmt(catSubtotal), { width: COL.total, bold: true, color: tmpl.subText, bg: tmpl.subRow, align: AlignmentType.RIGHT }),
-      ],
-    }));
-  }
-
-  // Fee summary
-  if (project.feeSummary) {
-    const fs = project.feeSummary;
-    const feeRows: [string, number][] = ([
-      ['Direct Cost Total',      n(fs.directCostTotal)],
-      [`Overhead (${n(fs.overheadPercent).toFixed(1)}%)`, n(fs.overheadAmount)],
-      ['Consulting Fee',         n(fs.consultingFee)],
-      ['Project Management Fee', n(fs.projectManagementFee)],
-      ['Contingency',            n(fs.contingencyAmount)],
-      ['Tax',                    n(fs.taxAmount)],
-    ] as [string, number][]).filter(([, v]) => v > 0);
-
-    for (const [label, val] of feeRows) {
-      rows.push(new TableRow({
-        children: [
-          new TableCell({
-            columnSpan: 3,
-            width:   { size: COL.desc + COL.qty + COL.unit, type: WidthType.DXA },
-            borders: cellBorder(),
-            margins: { top: 40, bottom: 40, left: 100, right: 100 },
-            children: [new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children:  [new TextRun({ text: label, color: '6B7280', size: 16, font: 'Arial' })],
-            })],
-          }),
-          cell(fmt(val), { width: COL.total, color: '111827', align: AlignmentType.RIGHT }),
-        ],
-      }));
-    }
-
-    // Grand total
-    rows.push(new TableRow({
-      children: [
-        new TableCell({
-          columnSpan: 3,
-          width:   { size: COL.desc + COL.qty + COL.unit, type: WidthType.DXA },
-          borders: cellBorder(),
-          shading: shading(tmpl.totalRow),
-          margins: { top: 80, bottom: 80, left: 100, right: 100 },
-          children: [new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children:  [new TextRun({ text: 'GRAND TOTAL', bold: true, color: tmpl.totalText, size: 20, font: 'Arial' })],
-          })],
-        }),
-        cell(fmt(n(fs.grandTotal)), { width: COL.total, bold: true, color: tmpl.totalText, bg: tmpl.totalRow, align: AlignmentType.RIGHT, fontSize: 11 }),
-      ],
-    }));
-  }
-
-  return new Table({
-    width:        { size: CONTENT_W, type: WidthType.DXA },
-    columnWidths: [COL.desc, COL.qty, COL.unit, COL.total],
-    rows,
-  });
-}
-
 // ── Section body text ─────────────────────────────────────────────────────────
 
 function bodyParagraphs(text: string): Paragraph[] {
@@ -369,6 +238,14 @@ export async function generateProposalDocx(
   const tmpl       = TEMPLATES[templateId] ?? TEMPLATES.classic;
   const companyName = company.companyName ?? 'CSMS';
   const tagline     = company.companyTagline ?? 'Camera & Security Management Systems';
+
+  // Compute live cost schedule once — keeps cover Investment Total and the Cost
+  // Schedule table in sync regardless of what is stored in feeSummary.
+  const liveSchedule = buildCostSchedule(
+    (project.cameraLocations ?? []) as Parameters<typeof buildCostSchedule>[0],
+    project.costs               as Parameters<typeof buildCostSchedule>[1],
+    project.feeSummary          as Parameters<typeof buildCostSchedule>[2],
+  );
   const validStr    = validUntilDate
     ? validUntilDate.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : '30 days from date of issue';
@@ -486,13 +363,15 @@ export async function generateProposalDocx(
     cPara(`Valid Until: ${validStr}`, { size: 18, color: '6B7280', spacingAfter: 80 }),
   );
 
-  // ── Investment total ──────────────────────────────────────────────────────────
-  if (project.feeSummary) {
-    const gt = fmt(n(project.feeSummary.grandTotal));
+  // ── Investment total — prefer live schedule; fall back to saved feeSummary ────
+  const coverGrandTotal = liveSchedule.groups.length > 0
+    ? liveSchedule.grandTotal
+    : project.feeSummary ? n(project.feeSummary.grandTotal) : null;
+  if (coverGrandTotal !== null && coverGrandTotal > 0) {
     coverChildren.push(
       cRule(160, 200),
       cPara('Investment Total', { size: 16, bold: true, color: tmpl.primary, spacingAfter: 120 }),
-      cPara(gt, { size: 48, bold: true, color: tmpl.primary, spacingAfter: 80 }),
+      cPara(fmt(coverGrandTotal), { size: 48, bold: true, color: tmpl.primary, spacingAfter: 80 }),
     );
   }
 
@@ -517,11 +396,7 @@ export async function generateProposalDocx(
   for (const key of SECTION_ORDER) {
     // -- Cost Schedule (programmatic table, no AI text) --
     if (key === 'costBreakdown') {
-      const schedule = buildCostSchedule(
-        (project.cameraLocations ?? []) as Parameters<typeof buildCostSchedule>[0],
-        project.costs               as Parameters<typeof buildCostSchedule>[1],
-        project.feeSummary          as Parameters<typeof buildCostSchedule>[2],
-      );
+      const schedule = liveSchedule;   // computed once above — same data as cover total
       if (schedule.groups.length === 0) continue;
 
       // Column widths (sum = CONTENT_W = 10080 DXA)
