@@ -22,11 +22,15 @@ final class SpeechOutputManager: NSObject, ObservableObject, AVSpeechSynthesizer
     override init() {
         super.init()
         synth.delegate = self
-
-        // Route speech through the speaker and bypass the hardware silent switch
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .mixWithOthers])
-        try? session.setActive(true)
+        // setActive is a blocking call — defer it off the main thread so it
+        // doesn't freeze startup. By the time the user triggers any speech
+        // (always after interaction), the session will already be configured.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playback, mode: .spokenAudio,
+                                     options: [.duckOthers, .mixWithOthers])
+            try? session.setActive(true)
+        }
     }
 
     // MARK: - Public API

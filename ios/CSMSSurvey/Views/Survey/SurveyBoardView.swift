@@ -5,13 +5,12 @@ struct SurveyBoardView: View {
     @StateObject private var voice = VoiceCommandManager.shared
     private let speech = SpeechOutputManager.shared
 
-    @State private var showAddSheet    = false
+    @State private var showAddSheet     = false
     @State private var selectedLocation: SurveyLocation?
-    @State private var showQuickRef    = false
-    @State private var showDevTools    = false
+    @State private var showQuickRef     = false
 
-    init(siteId: Int) {
-        _vm = StateObject(wrappedValue: SurveyBoardViewModel(siteId: siteId))
+    init(projectId: Int) {
+        _vm = StateObject(wrappedValue: SurveyBoardViewModel(projectId: projectId))
     }
 
     var body: some View {
@@ -19,7 +18,7 @@ struct SurveyBoardView: View {
             Theme.background.ignoresSafeArea()
 
             Group {
-                if vm.isLoading && vm.site == nil {
+                if vm.isLoading && vm.project == nil {
                     VStack(spacing: 14) {
                         ProgressView().tint(Theme.accent).scaleEffect(1.2)
                         Text("Loading survey…")
@@ -51,19 +50,19 @@ struct SurveyBoardView: View {
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 10)
 
-                            // Buildings + locations
-                            ForEach(vm.filteredBuildings) { building in
-                                Section {
-                                    ForEach(building.locations) { loc in
-                                        LocationRow(location: loc) {
-                                            selectedLocation = loc
-                                        }
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 4)
+                            // Building context header + flat location list
+                            Section {
+                                ForEach(vm.filteredLocations) { loc in
+                                    LocationRow(location: loc) {
+                                        selectedLocation = loc
                                     }
-                                } header: {
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 4)
+                                }
+                            } header: {
+                                if let buildingName = vm.project?.buildingName {
                                     HStack {
-                                        Text(building.buildingName.uppercased())
+                                        Text(buildingName.uppercased())
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(Theme.textSecondary)
                                             .tracking(1.0)
@@ -85,7 +84,6 @@ struct SurveyBoardView: View {
 
             // Floating buttons
             HStack(spacing: 12) {
-                // Voice quick reference
                 Button { showQuickRef = true } label: {
                     Image(systemName: "questionmark.circle.fill")
                         .font(.title3)
@@ -97,7 +95,6 @@ struct SurveyBoardView: View {
                         .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
                 }
 
-                // Add location
                 Button { showAddSheet = true } label: {
                     Label("Add Location", systemImage: "plus")
                         .font(.subheadline.weight(.semibold))
@@ -115,7 +112,7 @@ struct SurveyBoardView: View {
             }
             .padding(20)
         }
-        .navigationTitle(vm.site?.siteName ?? "Survey")
+        .navigationTitle(vm.project?.projectName ?? "Survey")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -130,8 +127,8 @@ struct SurveyBoardView: View {
             }
         }
         .sheet(isPresented: $showAddSheet) {
-            if let site = vm.site {
-                AddLocationSheet(buildings: site.buildings) { newLoc in
+            if let project = vm.project {
+                AddLocationSheet(projectId: project.id) { newLoc in
                     vm.append(newLoc)
                 }
             }
@@ -246,7 +243,6 @@ private struct LocationRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 14) {
-                // Status indicator
                 ZStack {
                     Circle()
                         .fill(location.isDone ? Theme.successSoft : Theme.surfaceElevated)

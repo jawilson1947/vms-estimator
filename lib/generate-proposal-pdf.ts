@@ -17,11 +17,26 @@ export interface ProposalCompanyInfo {
   logoUrl?:        string | null;
 }
 
+export interface ProposalCameraLocation {
+  floor?:           string | null;
+  areaName?:        string | null;
+  mountingLocation?: string | null;
+  coveragePurpose?: string | null;
+  surveyNotes?:     string | null;
+  cameraModel?: {
+    manufacturer?: string | null;
+    model?:        string | null;
+    cameraType?:   string | null;
+    indoorOutdoor?: string | null;
+  } | null;
+}
+
 export interface ProposalProjectData {
   projectName:    string;
   projectNumber?: string | null;
   projectManager?: string | null;
   customer: { customerName: string };
+  cameraLocations?: ProposalCameraLocation[] | null;
   feeSummary: {
     directCostTotal:      number | string | { toString(): string };
     overheadPercent:      number | string | { toString(): string };
@@ -274,6 +289,66 @@ export async function generateProposalPdf(
         doc.y = gtY + 30;
       }
     }
+
+    tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
+  }
+
+  // ── Survey Summary (camera locations) ────────────────────────────────────────
+  const locs = (project.cameraLocations ?? []).filter(
+    l => l.areaName || l.floor || l.cameraModel,
+  );
+  if (locs.length > 0) {
+    newPage();
+    tmpl.sectionHeading(doc, { margin, inner, label: 'Survey Summary' });
+    doc.fillColor(tmpl.tc.bodyText).fontSize(9.5).font('Helvetica');
+    doc.text(
+      'The following camera locations were recorded during the site survey and form the basis of this proposal.',
+      margin, doc.y, { width: inner, lineGap: 2 }
+    );
+    doc.moveDown(0.6);
+
+    // Column layout: Area/Floor | Camera Model | Type | Env | Coverage
+    const sCols  = [margin, margin + 175, margin + 315, margin + 378, margin + 435];
+    const sW     = [172, 137, 60, 54, 77];
+    const sHdrs  = ['Area / Floor', 'Camera Model', 'Type', 'Env.', 'Coverage Purpose'];
+
+    // Header row
+    const shdrY = doc.y;
+    doc.rect(margin, shdrY, inner, 18).fill(tmpl.tc.tableHdr);
+    doc.fillColor(tmpl.tc.tableHdrText).fontSize(7.5).font('Helvetica-Bold');
+    sHdrs.forEach((h, i) =>
+      doc.text(h, sCols[i] + 3, shdrY + 6, { width: sW[i] - 3 })
+    );
+    doc.y = shdrY + 18;
+
+    locs.forEach((loc, idx) => {
+      checkPageBreak(14);
+      const rowY = doc.y;
+      if (idx % 2 === 0) doc.rect(margin, rowY, inner, 14).fill(tmpl.tc.tableAlt);
+      const area      = [loc.floor, loc.areaName].filter(Boolean).join(' – ') || '—';
+      const modelStr  = loc.cameraModel
+        ? [loc.cameraModel.manufacturer, loc.cameraModel.model].filter(Boolean).join(' ') || '—'
+        : '—';
+      const typeStr   = loc.cameraModel?.cameraType   || '—';
+      const envStr    = loc.cameraModel?.indoorOutdoor || '—';
+      const coverage  = loc.coveragePurpose || loc.mountingLocation || '—';
+      const ry = rowY + 3;
+      doc.fillColor(tmpl.tc.bodyText).fontSize(7.5).font('Helvetica');
+      doc.text(area.substring(0, 28),        sCols[0] + 3, ry, { width: sW[0] - 3 });
+      doc.text(modelStr.substring(0, 22),    sCols[1] + 3, ry, { width: sW[1] - 3 });
+      doc.text(typeStr,                       sCols[2] + 3, ry, { width: sW[2] - 3 });
+      doc.text(envStr,                        sCols[3] + 3, ry, { width: sW[3] - 3 });
+      doc.text(coverage.substring(0, 14),    sCols[4] + 3, ry, { width: sW[4] - 3 });
+      doc.y = rowY + 14;
+    });
+
+    // Total row
+    checkPageBreak(16);
+    const totY = doc.y;
+    doc.rect(margin, totY, inner, 16).fill(tmpl.tc.subRow);
+    doc.fillColor(tmpl.tc.subRowText).fontSize(8).font('Helvetica-Bold')
+       .text(`Total camera locations surveyed: ${locs.length}`, margin + 6, totY + 4, { width: inner - 12 });
+    doc.y = totY + 16;
 
     tmpl.pageFooter(doc, { pageW, margin, projectName: project.projectName, pageNum });
   }

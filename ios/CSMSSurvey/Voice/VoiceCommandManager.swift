@@ -127,11 +127,25 @@ final class VoiceCommandManager: NSObject, ObservableObject {
         guard !isListening, permissionGranted, enabled else { return }
         guard recognizer.isAvailable else { return }
 
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .measurement,
-                                  options: [.defaultToSpeaker, .allowBluetooth])
-        try? session.setActive(true)
+        // setCategory / setActive are blocking — bridge to a background thread
+        // via withCheckedContinuation so we don't capture self across actor boundaries
+        // (which causes the Sendable warning) and don't block the main actor.
+        Task {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let session = AVAudioSession.sharedInstance()
+                    try? session.setCategory(.playAndRecord, mode: .measurement,
+                                              options: [.defaultToSpeaker, .allowBluetooth])
+                    try? session.setActive(true)
+                    cont.resume()
+                }
+            }
+            // Resume on the main actor (Task inherits the @MainActor context of startListening)
+            self.startEngine()
+        }
+    }
 
+    private func startEngine() {
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = false
         req.requiresOnDeviceRecognition = false
@@ -149,7 +163,7 @@ final class VoiceCommandManager: NSObject, ObservableObject {
             return
         }
         // Capture req directly to avoid @MainActor unsafeForcedSync on the
-        // real-time audio thread (same fix as VoiceInterviewManager).
+        // real-time audio thread.
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             req.append(buffer)
         }

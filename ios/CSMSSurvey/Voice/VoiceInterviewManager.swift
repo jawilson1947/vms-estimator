@@ -40,8 +40,7 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
     @Published var isListening = false
     @Published var lastAPIError: String? = nil
 
-    var onSave: ((_ building: String,
-                  _ areaName: String,
+    var onSave: ((_ areaName: String,
                   _ floor: String?,
                   _ surveyNotes: String?,
                   _ wantsPhotos: Bool,
@@ -68,28 +67,18 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
 
     // MARK: - Start / Stop
 
-    func start(buildings: [SurveyBuilding],
-               onSave: @escaping (_ building: String,
-                                   _ areaName: String,
-                                   _ floor: String?,
-                                   _ surveyNotes: String?,
-                                   _ wantsPhotos: Bool,
-                                   _ andContinue: Bool) -> Void) {
+    func start(onSave: @escaping (_ areaName: String,
+                                  _ floor: String?,
+                                  _ surveyNotes: String?,
+                                  _ wantsPhotos: Bool,
+                                  _ andContinue: Bool) -> Void) {
         self.onSave = onSave
         collectedValues = [:]
         lastTranscription = ""
         fieldIndex = 0
         lastAPIError = nil
 
-        let buildingNames = buildings.map { $0.buildingName }
-
         fields = [
-            InterviewFieldDef(
-                key: "building", label: "Building",
-                prompt: "Which building? Options are: \(buildingNames.joined(separator: "; ")).",
-                hint: "Pick the closest matching building name from: \(buildingNames.joined(separator: ", "))",
-                isOptional: false, options: buildingNames
-            ),
             InterviewFieldDef(
                 key: "areaName", label: "Area name",
                 prompt: "What is the area name?",
@@ -116,20 +105,26 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
             ),
         ]
 
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .measurement,
-                                  options: [.defaultToSpeaker, .allowBluetooth])
-        try? session.setActive(true)
-
-        voice.setEnabled(false)
-        promptCurrentField()
+        // Activate the audio session off the main actor — setActive is blocking.
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playAndRecord, mode: .measurement,
+                                      options: [.defaultToSpeaker, .allowBluetooth])
+            try? session.setActive(true)
+            await MainActor.run { [weak self] in
+                self?.voice.setEnabled(false)
+                self?.promptCurrentField()
+            }
+        }
     }
 
     func stop() {
         stopSTT()
         pendingCompletion = nil
-        try? AVAudioSession.sharedInstance().setActive(false,
-                                                        options: .notifyOthersOnDeactivation)
+        Task.detached(priority: .userInitiated) {
+            try? AVAudioSession.sharedInstance().setActive(false,
+                                                            options: .notifyOthersOnDeactivation)
+        }
         voice.setEnabled(true)
         state = .idle
     }
@@ -203,34 +198,6 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         if field.isOptional &&
            ["skip", "none", "pass", "nothing", "no"].contains(norm) {
             advanceField()
-            return
-        }
-
-        // Building — use Claude for fuzzy name matching
-        if field.key == "building" {
-            state = .processing(field: field.label)
-            Task {
-                do {
-                    let req = InterviewParseRequest(
-                        fieldKey: field.key,
-                        fieldLabel: field.label,
-                        hint: field.hint,
-                        transcription: transcription,
-                        options: field.options
-                    )
-                    let response = try await claude.parse(req)
-                    self.confirm(value: response.parsedValue,
-                                 phrase: response.confirmPhrase,
-                                 field: field)
-                } catch {
-                    self.lastAPIError = error.localizedDescription
-                    // Fall back to raw transcription
-                    let fallback = transcription.trimmingCharacters(in: .whitespaces)
-                    self.confirm(value: fallback,
-                                 phrase: "I heard \(fallback). Is that correct?",
-                                 field: field)
-                }
-            }
             return
         }
 
@@ -321,7 +288,6 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         stopSTT()
         voice.setEnabled(true)
         onSave?(
-            collectedValues["building"]    ?? "",
             collectedValues["areaName"]    ?? "",
             collectedValues["floor"],
             collectedValues["surveyNotes"],

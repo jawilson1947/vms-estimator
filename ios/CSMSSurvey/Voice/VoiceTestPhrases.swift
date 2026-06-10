@@ -44,7 +44,6 @@ enum VoiceTestPhrases {
             "Closing",
         ]),
         Group(name: "Voice Interview — Prompts", phrases: [
-            "Which building? The options are: Main Building; Annex; Warehouse.",
             "What is the area name?",
             "What floor is this on? Say skip to leave blank.",
             "Any survey notes? Say skip to leave blank.",

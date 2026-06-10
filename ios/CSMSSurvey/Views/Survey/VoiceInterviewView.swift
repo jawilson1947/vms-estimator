@@ -285,7 +285,7 @@ struct VoiceInterviewView: View {
 
     /// Returns collected values in field definition order
     private var orderedCollected: [(String, String)] {
-        let order = ["building", "areaName", "floor", "surveyNotes"]
+        let order = ["areaName", "floor", "surveyNotes"]
         return order.compactMap { key in
             guard let val = manager.collectedValues[key] else { return nil }
             return (key, val)
@@ -294,7 +294,6 @@ struct VoiceInterviewView: View {
 
     private func labelFor(_ key: String) -> String {
         switch key {
-        case "building":    return "Building"
         case "areaName":    return "Area Name"
         case "floor":       return "Floor"
         case "surveyNotes": return "Survey Notes"

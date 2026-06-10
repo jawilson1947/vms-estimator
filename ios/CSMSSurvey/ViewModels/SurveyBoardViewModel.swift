@@ -8,38 +8,30 @@ enum SurveyFilter: String, CaseIterable {
 
 @MainActor
 final class SurveyBoardViewModel: ObservableObject {
-    @Published var site:       SurveySite?
+    @Published var project:    SurveyProject?
     @Published var filter:     SurveyFilter = .all
     @Published var isLoading   = false
     @Published var errorMsg:   String?
 
-    let siteId: Int
+    let projectId: Int
     private let api = APIClient.shared
 
-    init(siteId: Int) { self.siteId = siteId }
+    init(projectId: Int) { self.projectId = projectId }
 
     // MARK: - Derived
 
-    var filteredBuildings: [SurveyBuilding] {
-        guard let site else { return [] }
-        return site.buildings.compactMap { building in
-            let locs = building.locations.filter { loc in
-                switch filter {
-                case .all:     return true
-                case .pending: return !loc.isDone
-                case .done:    return loc.isDone
-                }
+    var filteredLocations: [SurveyLocation] {
+        guard let project else { return [] }
+        return project.locations.filter { loc in
+            switch filter {
+            case .all:     return true
+            case .pending: return !loc.isDone
+            case .done:    return loc.isDone
             }
-            guard !locs.isEmpty else { return nil }
-            var copy = building
-            copy.locations = locs
-            return copy
         }
     }
 
-    var allLocations: [SurveyLocation] {
-        site?.buildings.flatMap(\.locations) ?? []
-    }
+    var allLocations: [SurveyLocation] { project?.locations ?? [] }
 
     var doneCount:  Int { allLocations.filter(\.isDone).count }
     var totalCount: Int { allLocations.count }
@@ -51,7 +43,7 @@ final class SurveyBoardViewModel: ObservableObject {
         isLoading = true
         errorMsg  = nil
         do {
-            site = try await api.fetchSite(siteId)
+            project = try await api.fetchProject(projectId)
         } catch {
             errorMsg = error.localizedDescription
         }
@@ -61,21 +53,15 @@ final class SurveyBoardViewModel: ObservableObject {
     // MARK: - Mutations (optimistic)
 
     func append(_ location: SurveyLocation) {
-        guard let idx = site?.buildings.firstIndex(where: { $0.id == location.buildingId }) else { return }
-        site?.buildings[idx].locations.append(location)
+        project?.locations.append(location)
     }
 
     func update(_ location: SurveyLocation) {
-        guard let bi = site?.buildings.firstIndex(where: { $0.id == location.buildingId }),
-              let li = site?.buildings[bi].locations.firstIndex(where: { $0.id == location.id })
-        else { return }
-        site?.buildings[bi].locations[li] = location
+        guard let idx = project?.locations.firstIndex(where: { $0.id == location.id }) else { return }
+        project?.locations[idx] = location
     }
 
     func remove(locationId: Int) {
-        guard let indices = site?.buildings.indices else { return }
-        for bi in indices {
-            site?.buildings[bi].locations.removeAll { $0.id == locationId }
-        }
+        project?.locations.removeAll { $0.id == locationId }
     }
 }

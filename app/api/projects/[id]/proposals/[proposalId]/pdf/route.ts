@@ -25,9 +25,13 @@ export async function POST(
     prisma.project.findUnique({
       where:   { id: Number(id) },
       include: {
-        customer:   { select: { customerName: true } },
-        feeSummary: true,
-        costs:      { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
+        customer:        { select: { customerName: true } },
+        feeSummary:      true,
+        costs:           { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
+        cameraLocations: {
+          orderBy: [{ floor: 'asc' }, { areaName: 'asc' }] as const,
+          include: { cameraModel: { select: { manufacturer: true, model: true, cameraType: true, indoorOutdoor: true } } },
+        },
       },
     }),
     prisma.user.findUnique({

@@ -156,7 +156,7 @@ Always return valid JSON matching exactly this shape:
 
 If a section key is absent from the includeSections list, set its value to an empty string "".
 
-For scopeOfWork: the project data includes a "building" object with a name and a "cameras" array of placements. Structure the scope of work around the building -- name it explicitly and describe the surveillance coverage planned. Reference specific areas and camera types where provided.
+For scopeOfWork: the project data includes a "cameras" array of surveyed locations. Describe the surveillance coverage planned, referencing specific areas, floors, and camera types where provided. If a building name is available, name it explicitly.
 
 For costBreakdown: always set this field to an empty string "". The cost breakdown is generated programmatically from live project data and does not require AI content.
 
@@ -186,20 +186,20 @@ function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest
     status:          project.projectStatus,
     notes:           project.notes,
     building: building ? {
-      name:        building.buildingName,
-      site:        building.site?.siteName,
-      city:        building.site?.city,
-      state:       building.site?.state,
-      cameraCount: locs.length,
-      cameras: locs.map(l => ({
-        area:             [l.floor, l.areaName].filter(Boolean).join(' - ') || undefined,
-        mountingLocation: l.mountingLocation || undefined,
-        coveragePurpose:  l.coveragePurpose  || undefined,
-        model:            l.cameraModel ? [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') : undefined,
-        type:             l.cameraModel?.cameraType    || undefined,
-        environment:      l.cameraModel?.indoorOutdoor || undefined,
-      })),
+      name: building.buildingName,
+      site: building.site?.siteName,
+      city: building.site?.city,
+      state: building.site?.state,
     } : null,
+    cameraCount: locs.length,
+    cameras: locs.map(l => ({
+      area:             [l.floor, l.areaName].filter(Boolean).join(' – ') || undefined,
+      mountingLocation: l.mountingLocation || undefined,
+      coveragePurpose:  l.coveragePurpose  || undefined,
+      model:            l.cameraModel ? [l.cameraModel.manufacturer, l.cameraModel.model].filter(Boolean).join(' ') : undefined,
+      type:             l.cameraModel?.cameraType    || undefined,
+      environment:      l.cameraModel?.indoorOutdoor || undefined,
+    })),
     costSummary: project.feeSummary ? {
       directCosts:         Number((project.feeSummary as Record<string, unknown>).directCostTotal),
       overhead:            Number((project.feeSummary as Record<string, unknown>).overheadAmount),

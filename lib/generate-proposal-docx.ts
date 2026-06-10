@@ -10,7 +10,7 @@ import {
   TabStopType, TabStopPosition,
 } from 'docx';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
-import type { ProposalProjectData } from '@/lib/generate-proposal-pdf';
+import type { ProposalProjectData, ProposalCameraLocation } from '@/lib/generate-proposal-pdf';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -529,6 +529,86 @@ export async function generateProposalDocx(
         new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
       );
     }
+  }
+
+  // ── Survey Summary (camera locations) ────────────────────────────────────────
+  const surveyLocs = (project.cameraLocations ?? []).filter(
+    (l: ProposalCameraLocation) => l.areaName || l.floor || l.cameraModel,
+  );
+  if (surveyLocs.length > 0) {
+    contentChildren.push(
+      new Paragraph({ children: [new PageBreak()] }),
+      sectionHeading('Survey Summary', tmpl),
+      new Paragraph({
+        spacing: { before: 0, after: 200 },
+        children: [new TextRun({
+          text: 'The following camera locations were recorded during the site survey and form the basis of this proposal.',
+          color: '374151', size: 20, font: 'Arial',
+        })],
+      }),
+    );
+
+    // Column widths (sum = CONTENT_W = 10080)
+    const SC = { area: 2800, model: 2600, type: 1400, env: 1280, coverage: 2000 };
+
+    const surveyRows: TableRow[] = [
+      new TableRow({
+        children: [
+          cell('Area / Floor',    { width: SC.area,     bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Camera Model',    { width: SC.model,    bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Type',            { width: SC.type,     bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Env.',            { width: SC.env,      bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+          cell('Coverage Purpose',{ width: SC.coverage, bold: true, color: tmpl.tableHdrText, bg: tmpl.tableHdr }),
+        ],
+      }),
+    ];
+
+    surveyLocs.forEach((loc: ProposalCameraLocation, idx: number) => {
+      const bg        = idx % 2 === 1 ? tmpl.altRow : 'FFFFFF';
+      const area      = [loc.floor, loc.areaName].filter(Boolean).join(' – ') || '—';
+      const modelStr  = loc.cameraModel
+        ? [loc.cameraModel.manufacturer, loc.cameraModel.model].filter(Boolean).join(' ') || '—'
+        : '—';
+      const typeStr   = loc.cameraModel?.cameraType    || '—';
+      const envStr    = loc.cameraModel?.indoorOutdoor || '—';
+      const coverage  = loc.coveragePurpose || loc.mountingLocation || '—';
+
+      surveyRows.push(new TableRow({
+        children: [
+          cell(area,     { width: SC.area,     bg }),
+          cell(modelStr, { width: SC.model,    bg }),
+          cell(typeStr,  { width: SC.type,     bg }),
+          cell(envStr,   { width: SC.env,      bg }),
+          cell(coverage, { width: SC.coverage, bg }),
+        ],
+      }));
+    });
+
+    // Total footer row spanning all columns
+    surveyRows.push(new TableRow({
+      children: [new TableCell({
+        columnSpan: 5,
+        width:   { size: CONTENT_W, type: WidthType.DXA },
+        borders: cellBorder(),
+        shading: shading(tmpl.subRow),
+        margins: { top: 60, bottom: 60, left: 100, right: 100 },
+        children: [new Paragraph({
+          children: [new TextRun({
+            text: `Total camera locations surveyed: ${surveyLocs.length}`,
+            bold: true, color: tmpl.subText, size: 18, font: 'Arial',
+          })],
+        })],
+      })],
+    }));
+
+    contentChildren.push(
+      new Table({
+        width:        { size: CONTENT_W, type: WidthType.DXA },
+        columnWidths: [SC.area, SC.model, SC.type, SC.env, SC.coverage],
+        rows:         surveyRows,
+      }),
+      new Paragraph({ spacing: { before: 160, after: 0 }, children: [] }),
+    );
   }
 
   // ── Signatory section ────────────────────────────────────────────────────────

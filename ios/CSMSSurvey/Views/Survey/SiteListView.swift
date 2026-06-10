@@ -66,7 +66,7 @@ struct SiteListView: View {
             }
             .navigationTitle("Survey Sites")
             .navigationDestination(for: Int.self) { siteId in
-                SurveyBoardView(siteId: siteId)
+                ProjectListView(siteId: siteId)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -109,7 +109,8 @@ private struct SiteRow: View {
                 Text(site.siteName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(Theme.textPrimary)
-                Text("\(site.buildings.count) building\(site.buildings.count == 1 ? "" : "s")")
+                let projectCount = site.buildings.reduce(0) { $0 + $1.projects.count }
+                Text("\(site.buildings.count) building\(site.buildings.count == 1 ? "" : "s") · \(projectCount) project\(projectCount == 1 ? "" : "s")")
                     .font(.caption)
                     .foregroundStyle(Theme.textSecondary)
             }

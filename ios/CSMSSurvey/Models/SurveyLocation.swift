@@ -2,7 +2,7 @@ import Foundation
 
 struct SurveyLocation: Codable, Identifiable, Hashable {
     let id: Int
-    let buildingId: Int
+    let projectId: Int
     var areaName: String
     var floor: String?
     var surveyNotes: String?
@@ -17,7 +17,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     var isDone: Bool { surveyedAt != nil }
 
     enum CodingKeys: String, CodingKey {
-        case id, buildingId, areaName, floor, surveyNotes, notes
+        case id, projectId, areaName, floor, surveyNotes, notes
         case mountingLocation, coveragePurpose, surveyedAt
         case images, cameras, cameraModel
     }
@@ -30,7 +30,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id               = try c.decode(Int.self,    forKey: .id)
-        buildingId       = try c.decode(Int.self,    forKey: .buildingId)
+        projectId        = try c.decode(Int.self,    forKey: .projectId)
         areaName         = try c.decode(String.self, forKey: .areaName)
         floor            = try c.decodeIfPresent(String.self, forKey: .floor)
         surveyNotes      = try c.decodeIfPresent(String.self, forKey: .surveyNotes)
@@ -47,7 +47,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(id,               forKey: .id)
-        try c.encode(buildingId,       forKey: .buildingId)
+        try c.encode(projectId,        forKey: .projectId)
         try c.encode(areaName,         forKey: .areaName)
         try c.encodeIfPresent(floor,            forKey: .floor)
         try c.encodeIfPresent(surveyNotes,      forKey: .surveyNotes)
@@ -81,7 +81,7 @@ struct CameraModelInfo: Codable {
 // MARK: - Request bodies
 
 struct NewLocationBody: Encodable {
-    let buildingId: Int
+    let projectId: Int
     let areaName: String
     let floor: String?
     let surveyNotes: String?

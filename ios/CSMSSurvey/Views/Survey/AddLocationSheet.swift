@@ -2,7 +2,7 @@ import SwiftUI
 import PhotosUI
 
 struct AddLocationSheet: View {
-    let buildings: [SurveyBuilding]
+    let projectId: Int
     let onSave: (SurveyLocation) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +14,6 @@ struct AddLocationSheet: View {
     @State private var areaName     = ""
     @State private var floor        = ""
     @State private var surveyNotes  = ""
-    @State private var selectedBuilding: SurveyBuilding?
     @State private var pendingPhotos: [UIImage] = []
     @State private var photoItem:    PhotosPickerItem?
     @State private var showCamera    = false
@@ -52,30 +51,6 @@ struct AddLocationSheet: View {
 
     @ViewBuilder
     private var formContent: some View {
-        // Building picker
-        VStack(alignment: .leading, spacing: 10) {
-            DarkSectionHeader(title: "Building")
-            Picker("Building", selection: $selectedBuilding) {
-                Text("Select…")
-                    .foregroundStyle(Theme.textTertiary)
-                    .tag(Optional<SurveyBuilding>(nil))
-                ForEach(buildings) { b in
-                    Text(b.buildingName)
-                        .foregroundStyle(Theme.textPrimary)
-                        .tag(Optional(b))
-                }
-            }
-            .pickerStyle(.menu)
-            .tint(Theme.accent)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(Theme.surfaceElevated)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
-        }
-        .darkCard()
-
         // Location fields
         VStack(alignment: .leading, spacing: 14) {
             DarkSectionHeader(title: "Location")
@@ -189,13 +164,13 @@ struct AddLocationSheet: View {
             } else {
                 Button("Save") { Task { await save(andContinue: false) } }
                     .foregroundStyle(Theme.accent)
-                    .disabled(areaName.isEmpty || selectedBuilding == nil)
+                    .disabled(areaName.isEmpty)
             }
         }
         ToolbarItem(placement: .bottomBar) {
             Button("Save & Next") { Task { await save(andContinue: true) } }
                 .foregroundStyle(Theme.accent)
-                .disabled(areaName.isEmpty || selectedBuilding == nil || isSaving)
+                .disabled(areaName.isEmpty || isSaving)
         }
         ToolbarItem(placement: .bottomBar) {
             Button { startVoiceInterview() } label: {
@@ -236,8 +211,7 @@ struct AddLocationSheet: View {
 
     private func startVoiceInterview() {
         showInterview = true
-        interview.start(buildings: buildings) { building, name, floorVal, notes, wantsPhotos, andContinue in
-            self.selectedBuilding = self.buildings.first { $0.buildingName == building }
+        interview.start { name, floorVal, notes, wantsPhotos, andContinue in
             self.areaName    = name
             self.floor       = floorVal ?? ""
             self.surveyNotes = notes ?? ""
@@ -252,11 +226,11 @@ struct AddLocationSheet: View {
     // MARK: - Save
 
     private func save(andContinue: Bool, promptPhotos: Bool = false) async {
-        guard let building = selectedBuilding, !areaName.isEmpty else { return }
+        guard !areaName.isEmpty else { return }
         isSaving = true
         errorMsg = nil
         do {
-            let body = NewLocationBody(buildingId: building.id,
+            let body = NewLocationBody(projectId: projectId,
                                        areaName: areaName,
                                        floor: floor.isEmpty ? nil : floor,
                                        surveyNotes: surveyNotes.isEmpty ? nil : surveyNotes)
@@ -280,9 +254,9 @@ struct AddLocationSheet: View {
             onSave(saved)
 
             if andContinue {
-                areaName    = ""
-                floor       = ""
-                surveyNotes = ""
+                areaName      = ""
+                floor         = ""
+                surveyNotes   = ""
                 pendingPhotos = []
             } else {
                 dismiss()
@@ -349,13 +323,13 @@ struct AddLocationSheet: View {
                 }
             },
             VoiceCommand(keywords: ["save"]) { _ in
-                guard !areaName.isEmpty, selectedBuilding != nil else {
+                guard !areaName.isEmpty else {
                     speech.speak("Please say a name first"); return
                 }
                 Task { await save(andContinue: false) }
             },
             VoiceCommand(keywords: ["next"]) { _ in
-                guard !areaName.isEmpty, selectedBuilding != nil else {
+                guard !areaName.isEmpty else {
                     speech.speak("Please say a name first"); return
                 }
                 Task { await save(andContinue: true) }

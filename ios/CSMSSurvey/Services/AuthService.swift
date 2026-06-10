@@ -107,7 +107,10 @@ final class AuthService: ObservableObject {
 
     func checkSession() async {
         guard let url = URL(string: base.appendingPathComponent("/api/auth/session").absoluteString) else { return }
-        guard let (data, _) = try? await session.data(from: url) else { return }
+        // Short timeout so the app doesn't freeze at launch if the dev server is unreachable.
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 8
+        guard let (data, _) = try? await session.data(for: req) else { return }
         if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let user = json["user"] as? [String: Any],
            let email = user["email"] as? String {
