@@ -2,7 +2,7 @@
 
 import { XMarkIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import type { FeeSummaryData } from './CostBreakdownTable';
-import type { CostScheduleData } from '@/lib/cost-schedule';
+import { substituteCostTokens, type CostScheduleData } from '@/lib/cost-schedule';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -288,7 +288,9 @@ export function ProposalDocumentPreview({
               }
 
               // Regular text sections
-              const text = content[key];
+              const text = costSchedule
+                ? substituteCostTokens(content[key] ?? '', costSchedule)
+                : content[key];
               if (!text || text.trim() === '') return null;
               return (
                 <div key={key} style={{ padding: '0 48px', marginTop: 36 }}>

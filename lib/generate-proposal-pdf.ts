@@ -5,7 +5,7 @@
 import PDFDocument from 'pdfkit';
 import { getTemplate } from '@/lib/pdf-templates';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
-import { buildCostSchedule } from '@/lib/cost-schedule';
+import { buildCostSchedule, substituteCostTokens } from '@/lib/cost-schedule';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -292,7 +292,7 @@ export async function generateProposalPdf(
     }
 
     // -- Regular text sections --
-    const text = content[key];
+    const text = substituteCostTokens(content[key] ?? '', liveSchedule);
     if (!text || text.trim() === '') continue;
 
     newPage();

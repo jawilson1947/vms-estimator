@@ -54,6 +54,21 @@ interface FeeSummaryInput {
 
 function n(v: unknown): number { return Number(v ?? 0); }
 
+function usd(v: number): string {
+  return v.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+}
+
+/**
+ * Replace cost placeholder tokens ({{DIRECT_TOTAL}}, {{GRAND_TOTAL}}) in
+ * AI-generated proposal text with live figures from the cost schedule, so
+ * prose always agrees with the cost schedule table.
+ */
+export function substituteCostTokens(text: string, schedule: CostScheduleData): string {
+  return text
+    .replace(/\{\{\s*DIRECT_TOTAL\s*\}\}/g, usd(schedule.directTotal))
+    .replace(/\{\{\s*GRAND_TOTAL\s*\}\}/g,  usd(schedule.grandTotal));
+}
+
 export function buildCostSchedule(
   cameraLocations: CamLocInput[],
   costs:           CostInput[],

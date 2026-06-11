@@ -11,7 +11,7 @@ import {
 } from 'docx';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 import type { ProposalProjectData, ProposalCameraLocation } from '@/lib/generate-proposal-pdf';
-import { buildCostSchedule } from '@/lib/cost-schedule';
+import { buildCostSchedule, substituteCostTokens } from '@/lib/cost-schedule';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -487,7 +487,7 @@ export async function generateProposalDocx(
     }
 
     // -- Regular text sections --
-    const text = content[key];
+    const text = substituteCostTokens(content[key] ?? '', liveSchedule);
     if (!text || text.trim() === '') continue;
 
     contentChildren.push(sectionHeading(SECTION_LABELS[key], tmpl));

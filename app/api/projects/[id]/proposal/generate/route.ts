@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { buildCostSchedule } from '@/lib/cost-schedule';
 import Anthropic from '@anthropic-ai/sdk';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -58,10 +59,16 @@ For costBreakdown: always set this field to an empty string "". The cost breakdo
 
 For termsAndConditions: include standard clauses for change orders, warranty (1 year parts and labour), limitation of liability, and proposal validity. For payment terms, use the following specific schedule: the full direct cost is due and payable prior to commencement of work; the remaining balance is due within 30 days of project completion as approved by the project manager.
 
+CRITICAL: Never write literal dollar amounts anywhere in the proposal text. When a payment term or any sentence refers to the direct cost amount, write the exact placeholder token {{DIRECT_TOTAL}}; for the total project price, write {{GRAND_TOTAL}}. These tokens are replaced with live figures from the cost schedule when the document is produced, guaranteeing the text always matches the cost schedule table.
+
 Never include markdown, bullet points, or headers inside any section value.`;
 }
 
-function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest): string {
+function buildUserMessage(
+  project:  Record<string, unknown>,
+  schedule: ReturnType<typeof buildCostSchedule>,
+  req:      GenerateRequest,
+): string {
   type Loc = {
     floor: string | null; areaName: string | null; mountingLocation: string | null;
     coveragePurpose: string | null;
@@ -96,21 +103,22 @@ function buildUserMessage(project: Record<string, unknown>, req: GenerateRequest
       type:             l.cameraModel?.cameraType    || undefined,
       environment:      l.cameraModel?.indoorOutdoor || undefined,
     })),
-    costSummary: project.feeSummary ? {
-      directCosts:         Number((project.feeSummary as Record<string, unknown>).directCostTotal),
-      overhead:            Number((project.feeSummary as Record<string, unknown>).overheadAmount),
-      consultingFee:       Number((project.feeSummary as Record<string, unknown>).consultingFee),
-      projectManagementFee:Number((project.feeSummary as Record<string, unknown>).projectManagementFee),
-      contingency:         Number((project.feeSummary as Record<string, unknown>).contingencyAmount),
-      tax:                 Number((project.feeSummary as Record<string, unknown>).taxAmount),
-      grandTotal:          Number((project.feeSummary as Record<string, unknown>).grandTotal),
-    } : null,
-    costLineItems: (project.costs as Array<Record<string, unknown>>)?.map((c) => ({
-      category:    (c.category as Record<string, unknown>)?.name,
-      description: c.description,
-      quantity:    Number(c.quantity),
-      unitCost:    Number(c.unitCost),
-      lineTotal:   Number(c.lineTotal),
+    // Live-computed from current line items — same source as the cost schedule table
+    costSummary: {
+      directCosts:          schedule.directTotal,
+      overhead:             schedule.overheadAmount,
+      consultingFee:        schedule.consultingFee,
+      projectManagementFee: schedule.projectManagementFee,
+      contingency:          schedule.contingencyAmount,
+      tax:                  schedule.taxAmount,
+      grandTotal:           schedule.grandTotal,
+    },
+    costLineItems: schedule.groups.map((g) => ({
+      category:    g.category,
+      description: g.description,
+      quantity:    g.quantity,
+      unitCost:    g.unitCost,
+      lineTotal:   g.lineTotal,
     })),
     includeSections: req.includeSections,
     additionalContext: req.additionalContext ?? '',
@@ -169,6 +177,14 @@ export async function POST(
   ];
   const sections = includeSections?.length ? includeSections : allSections;
 
+  // Live cost schedule — identical computation to the document generators,
+  // so figures the AI sees always agree with the cost schedule table.
+  const schedule = buildCostSchedule(
+    project.cameraLocations as Parameters<typeof buildCostSchedule>[0],
+    project.costs as unknown as Parameters<typeof buildCostSchedule>[1],
+    project.feeSummary,
+  );
+
   try {
     const response = await client.messages.create({
       model:       'claude-sonnet-4-6',
@@ -193,7 +209,7 @@ export async function POST(
       tool_choice: { type: 'tool' as const, name: 'write_proposal' },
       messages: [{
         role:    'user',
-        content: buildUserMessage(project as Record<string, unknown>, { tone, includeSections: sections, additionalContext }),
+        content: buildUserMessage(project as Record<string, unknown>, schedule, { tone, includeSections: sections, additionalContext }),
       }],
     });
 
