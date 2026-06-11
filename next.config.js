@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['pdfkit'],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '8mb',
+    },
+  },
   images: {
     remotePatterns: [
       {

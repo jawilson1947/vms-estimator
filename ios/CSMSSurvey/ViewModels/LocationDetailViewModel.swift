@@ -58,7 +58,8 @@ final class LocationDetailViewModel: ObservableObject {
         isUploading = true
         errorMsg    = nil
         do {
-            guard let data = image.jpegData(compressionQuality: 0.85) else { return }
+            let resized = image.resizedToMaxDimension(1920)
+            guard let data = resized.jpegData(compressionQuality: 0.82) else { return }
             let photo = try await api.uploadPhoto(locationId: location.id, imageData: data, mimeType: "image/jpeg")
             location.images.append(photo)
             onUpdate?(location)
