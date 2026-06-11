@@ -7,9 +7,10 @@ struct VoiceInterviewView: View {
     @ObservedObject var manager: VoiceInterviewManager
     let onCancel: () -> Void
 
+    @State private var showHelp = false
+
     var body: some View {
         ZStack {
-            // Rich warm charcoal with subtle teal tint
             Theme.background
                 .overlay(
                     LinearGradient(
@@ -20,6 +21,7 @@ struct VoiceInterviewView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
+
                 // Navigation bar
                 HStack {
                     HStack(spacing: 8) {
@@ -31,146 +33,177 @@ struct VoiceInterviewView: View {
                             .foregroundStyle(Theme.textPrimary)
                     }
                     Spacer()
-                    Button(action: {
-                        manager.stop()
-                        onCancel()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(Theme.textTertiary)
+                    HStack(spacing: 14) {
+                        Button { showHelp = true } label: {
+                            Image(systemName: "questionmark.circle")
+                                .font(.title3)
+                                .foregroundStyle(Theme.textSecondary)
+                        }
+                        Button(action: {
+                            manager.stop()
+                            onCancel()
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(Theme.textTertiary)
+                        }
                     }
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 22)
                 .padding(.bottom, 16)
 
-                Divider()
-                    .background(Theme.border)
+                Divider().background(Theme.border)
 
-                Spacer()
+                ScrollView {
 
-                // State-driven content
-                stateView
-                    .padding(.horizontal, 28)
+                    VStack(spacing: 20) {
 
-                Spacer()
+                        // ── Live form fields ──────────────────────────────
+                        liveFieldsPanel
+                            .padding(.horizontal, 20)
+                            .padding(.top, 20)
 
-                // Collected values summary
-                if !manager.collectedValues.isEmpty {
-                    collectedValuesPanel
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
+                        // ── Mic / state indicator ─────────────────────────
+                        micStatusSection
+                            .padding(.horizontal, 20)
+
+                        // ── Command reference ─────────────────────────────
+                        commandHints
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
+                    }
                 }
 
-                // Debug error banner — shows the raw API/parse error
-                if let err = manager.lastAPIError {
-                    Text(err)
-                        .font(.caption2)
-                        .foregroundStyle(Theme.danger.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 12)
-                }
-            }
-        }
-    }
+                Divider().background(Theme.border)
 
-    // MARK: - State view
-
-    @ViewBuilder
-    private var stateView: some View {
-        switch manager.state {
-
-        case .idle:
-            EmptyView()
-
-        case .prompting(let field):
-            VStack(spacing: 18) {
-                fieldBadge(field)
-                ProgressView()
-                    .tint(Theme.accent)
-                    .scaleEffect(1.4)
-                Text("Speaking…")
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.textSecondary)
-            }
-
-        case .listening(let field):
-            VStack(spacing: 22) {
-                fieldBadge(field)
-                PulsingMicView()
-                Text("Listening…")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(Theme.textPrimary)
-                Text("Say \"stop\" or tap Done when finished")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
+                // ── Done button ───────────────────────────────────────────
                 Button {
-                    manager.manualDone()
+                    manager.doneButtonTapped()
                 } label: {
                     Label("Done", systemImage: "checkmark.circle.fill")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Theme.accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.vertical, 16)
+                        .background(manager.areaName.isEmpty ? Theme.accent.opacity(0.35) : Theme.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 4)
+                .disabled(manager.areaName.isEmpty)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
             }
+        }
+        .sheet(isPresented: $showHelp) { VoiceQuickRefView() }
+    }
 
-        case .processing(let field):
-            VStack(spacing: 18) {
-                fieldBadge(field)
-                if !manager.lastTranscription.isEmpty {
-                    Text("\"\(manager.lastTranscription)\"")
-                        .font(.body)
-                        .foregroundStyle(Theme.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .italic()
-                        .padding(.horizontal, 8)
+    // MARK: - Live fields panel
+
+    private var liveFieldsPanel: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("SURVEY FIELDS")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Theme.textTertiary)
+                .tracking(0.8)
+                .padding(.bottom, 6)
+
+            fieldRow(label: "Area Name",
+                     value: manager.areaName,
+                     fieldKey: "areaName",
+                     required: true)
+
+            Divider().background(Theme.border.opacity(0.5))
+
+            fieldRow(label: "Floor",
+                     value: manager.floor,
+                     fieldKey: "floor",
+                     required: false)
+
+            Divider().background(Theme.border.opacity(0.5))
+
+            fieldRow(label: "Notes",
+                     value: manager.surveyNotes,
+                     fieldKey: "surveyNotes",
+                     required: false)
+        }
+        .padding(16)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func fieldRow(label: String, value: String,
+                          fieldKey: String, required: Bool) -> some View {
+        let isActive = manager.activeField == fieldKey
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 4) {
+                    Text(label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isActive ? Theme.accent : Theme.textSecondary)
+                    if required {
+                        Text("*")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Theme.danger)
+                    }
                 }
-                ProgressView()
-                    .tint(Theme.accent)
-                    .scaleEffect(1.4)
-                Text("Checking with Claude…")
+                Text(value.isEmpty ? (required ? "required" : "optional") : value)
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        value.isEmpty ? Theme.textTertiary.opacity(0.6) : Theme.textPrimary
+                    )
+                    .italic(value.isEmpty)
+                    .animation(.easeInOut(duration: 0.2), value: value)
+            }
+            Spacer()
+            if isActive {
+                Image(systemName: "mic.fill")
+                    .font(.caption)
+                    .foregroundStyle(Theme.accent)
+            }
+        }
+        .padding(.vertical, 8)
+        .background(isActive ? Theme.accent.opacity(0.05) : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .animation(.easeInOut(duration: 0.2), value: isActive)
+    }
+
+    // MARK: - Mic status
+
+    @ViewBuilder
+    private var micStatusSection: some View {
+        switch manager.state {
+
+        case .idle:
+            VStack(spacing: 12) {
+                PulsingMicView(active: false)
+                Text("Say "Begin Survey" to start")
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             }
 
-        case .confirming(let field, _, let phrase):
-            VStack(spacing: 22) {
-                fieldBadge(field)
-                Text(phrase)
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(Theme.textPrimary)
-                    .multilineTextAlignment(.center)
-                if manager.isListening {
-                    PulsingMicView()
-                }
-                Text("Say \"yes\" to confirm or \"no\" to try again")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                if manager.isListening {
-                    Button {
-                        manager.manualDone()
-                    } label: {
-                        Label("Done", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.top, 4)
-                }
+        case .active:
+            VStack(spacing: 12) {
+                PulsingMicView(active: manager.isListening)
+                Text(manager.isListening ? "Listening…" : "Ready")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(manager.isListening ? Theme.accent : Theme.textSecondary)
+                    .animation(.easeInOut, value: manager.isListening)
             }
 
-        case .reviewing:
-            VStack(spacing: 18) {
+        case .saving:
+            VStack(spacing: 12) {
+                ProgressView()
+                    .tint(Theme.accent)
+                    .scaleEffect(1.4)
+                Text("Saving…")
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.textSecondary)
+            }
+
+        case .done:
+            VStack(spacing: 12) {
                 ZStack {
                     Circle()
                         .fill(Theme.successSoft)
@@ -179,103 +212,30 @@ struct VoiceInterviewView: View {
                         .font(.system(size: 40))
                         .foregroundStyle(Theme.success)
                 }
-                Text("Review")
-                    .font(.title2.bold())
+                Text("Interview complete")
+                    .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.textPrimary)
-                if manager.isListening {
-                    PulsingMicView()
-                }
-                Text("Say \"save\", \"save and next\", or \"cancel\"")
-                    .font(.caption)
-                    .foregroundStyle(Theme.textSecondary)
-                if manager.isListening {
-                    Button {
-                        manager.manualDone()
-                    } label: {
-                        Label("Done", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Theme.accent)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.top, 4)
-                }
-            }
-
-        case .saving:
-            VStack(spacing: 18) {
-                ProgressView()
-                    .tint(Theme.accent)
-                    .scaleEffect(1.6)
-                Text("Saving…")
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(Theme.textPrimary)
-            }
-
-        case .done:
-            VStack(spacing: 18) {
-                ZStack {
-                    Circle()
-                        .fill(Theme.successSoft)
-                        .frame(width: 80, height: 80)
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(Theme.success)
-                }
-                Text("Done!")
-                    .font(.title2.bold())
-                    .foregroundStyle(Theme.textPrimary)
-            }
-
-        case .failed(let msg):
-            VStack(spacing: 22) {
-                ZStack {
-                    Circle()
-                        .fill(Theme.dangerSoft)
-                        .frame(width: 72, height: 72)
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 36))
-                        .foregroundStyle(Theme.danger)
-                }
-                Text(msg)
-                    .font(.body)
-                    .foregroundStyle(Theme.textPrimary)
-                    .multilineTextAlignment(.center)
-                Button("Close") {
-                    manager.stop()
-                    onCancel()
-                }
-                .foregroundStyle(Theme.accent)
-                .font(.subheadline.weight(.semibold))
             }
         }
     }
 
-    // MARK: - Collected values panel
+    // MARK: - Command hints
 
-    private var collectedValuesPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Collected so far")
+    private var commandHints: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("VOICE COMMANDS")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Theme.textTertiary)
-                .textCase(.uppercase)
                 .tracking(0.8)
-                .padding(.bottom, 2)
+                .padding(.bottom, 4)
 
-            ForEach(orderedCollected, id: \.0) { key, value in
-                HStack {
-                    Text(labelFor(key))
-                        .font(.caption)
-                        .foregroundStyle(Theme.textSecondary)
-                    Spacer()
-                    Text(value)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Theme.textPrimary)
-                }
-            }
+            commandRow(command: "Area Name = [value]",  description: "Set area name")
+            commandRow(command: "Floor = [value]",       description: "Set floor")
+            commandRow(command: "Skip",                  description: "Omit floor")
+            commandRow(command: "Notes = [value]",       description: "Add notes")
+            commandRow(command: "Save and Next",         description: "Save, start next")
+            commandRow(command: "Finish",                description: "End interview")
+            commandRow(command: "Review Survey",         description: "Clear and restart")
         }
         .padding(16)
         .background(Theme.surface)
@@ -283,37 +243,17 @@ struct VoiceInterviewView: View {
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 1))
     }
 
-    /// Returns collected values in field definition order
-    private var orderedCollected: [(String, String)] {
-        let order = ["areaName", "floor", "surveyNotes"]
-        return order.compactMap { key in
-            guard let val = manager.collectedValues[key] else { return nil }
-            return (key, val)
+    private func commandRow(command: String, description: String) -> some View {
+        HStack {
+            Text(command)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Theme.accent)
+            Spacer()
+            Text(description)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
         }
-    }
-
-    private func labelFor(_ key: String) -> String {
-        switch key {
-        case "areaName":    return "Area Name"
-        case "floor":       return "Floor"
-        case "surveyNotes": return "Survey Notes"
-        default:            return key
-        }
-    }
-
-    // MARK: - Helpers
-
-    @ViewBuilder
-    private func fieldBadge(_ field: String) -> some View {
-        Text(field.uppercased())
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(Theme.accent)
-            .tracking(1.4)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .background(Theme.accentSoft)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Theme.accent.opacity(0.25), lineWidth: 1))
+        .padding(.vertical, 5)
     }
 }
 
@@ -321,28 +261,37 @@ struct VoiceInterviewView: View {
 
 struct PulsingMicView: View {
 
+    var active: Bool = true
     @State private var pulse = false
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(Theme.accentSoft)
-                .frame(width: 88, height: 88)
-                .scaleEffect(pulse ? 1.35 : 1.0)
-                .animation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true),
-                           value: pulse)
+            if active {
+                Circle()
+                    .fill(Theme.accentSoft)
+                    .frame(width: 88, height: 88)
+                    .scaleEffect(pulse ? 1.35 : 1.0)
+                    .animation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true),
+                               value: pulse)
 
-            Circle()
-                .fill(Theme.accent.opacity(0.08))
-                .frame(width: 110, height: 110)
-                .scaleEffect(pulse ? 1.2 : 0.9)
-                .animation(.easeInOut(duration: 0.85).repeatForever(autoreverses: true).delay(0.15),
-                           value: pulse)
+                Circle()
+                    .fill(Theme.accent.opacity(0.08))
+                    .frame(width: 110, height: 110)
+                    .scaleEffect(pulse ? 1.2 : 0.9)
+                    .animation(
+                        .easeInOut(duration: 0.85).repeatForever(autoreverses: true).delay(0.15),
+                        value: pulse)
+            } else {
+                Circle()
+                    .fill(Theme.surface)
+                    .frame(width: 88, height: 88)
+            }
 
-            Image(systemName: "mic.fill")
+            Image(systemName: active ? "mic.fill" : "mic.slash")
                 .font(.system(size: 32))
-                .foregroundStyle(Theme.accent)
+                .foregroundStyle(active ? Theme.accent : Theme.textTertiary)
         }
-        .onAppear { pulse = true }
+        .onAppear { if active { pulse = true } }
+        .onChange(of: active) { newVal in pulse = newVal }
     }
 }

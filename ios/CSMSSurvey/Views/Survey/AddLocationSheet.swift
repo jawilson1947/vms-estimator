@@ -21,6 +21,7 @@ struct AddLocationSheet: View {
     @State private var errorMsg:    String?
     @State private var voiceField:  String?   // highlights active field
     @State private var showInterview = false
+    @State private var showHelp      = false
 
     private let maxPhotos = 5
 
@@ -44,6 +45,9 @@ struct AddLocationSheet: View {
         .onDisappear { voice.unregister(id: "quick-add") }
         .fullScreenCover(isPresented: $showInterview) {
             VoiceInterviewView(manager: interview) { showInterview = false }
+        }
+        .sheet(isPresented: $showHelp) {
+            VoiceQuickRefView()
         }
     }
 
@@ -158,6 +162,12 @@ struct AddLocationSheet: View {
             Button("Cancel") { dismiss() }
                 .foregroundStyle(Theme.textSecondary)
         }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            Button { showHelp = true } label: {
+                Image(systemName: "questionmark.circle")
+                    .foregroundStyle(Theme.textSecondary)
+            }
+        }
         ToolbarItem(placement: .confirmationAction) {
             if isSaving {
                 ProgressView().tint(Theme.accent)
@@ -211,21 +221,32 @@ struct AddLocationSheet: View {
 
     private func startVoiceInterview() {
         showInterview = true
-        interview.start { name, floorVal, notes, wantsPhotos, andContinue in
-            self.areaName    = name
-            self.floor       = floorVal ?? ""
-            self.surveyNotes = notes ?? ""
-            self.showInterview = false
-            Task {
-                try? await Task.sleep(for: .milliseconds(150))
-                await self.save(andContinue: andContinue, promptPhotos: wantsPhotos)
+        interview.start(
+            onSaveAndNext: { [self] name, floorVal, notes in
+                // Called by narrative manager after "Save and Next" — manager already speaks
+                areaName    = name
+                floor       = floorVal ?? ""
+                surveyNotes = notes ?? ""
+                Task { await save(andContinue: true, silent: true) }
+            },
+            onFinish: { [self] name, floorVal, notes in
+                // Called by narrative manager after "Finish" — manager already speaks "End Interview"
+                areaName    = name
+                floor       = floorVal ?? ""
+                surveyNotes = notes ?? ""
+                showInterview = false
+                Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    await save(andContinue: false, silent: true)
+                }
             }
-        }
+        )
     }
 
     // MARK: - Save
 
-    private func save(andContinue: Bool, promptPhotos: Bool = false) async {
+    /// - Parameter silent: When `true` suppresses TTS feedback (voice interview manager already speaks).
+    private func save(andContinue: Bool, silent: Bool = false) async {
         guard !areaName.isEmpty else { return }
         isSaving = true
         errorMsg = nil
@@ -236,9 +257,10 @@ struct AddLocationSheet: View {
                                        surveyNotes: surveyNotes.isEmpty ? nil : surveyNotes)
             var saved = try await api.createLocation(body)
 
-            // Upload any pending photos
+            // Upload any pending photos (resize before encoding to stay under server limit)
             for image in pendingPhotos {
-                if let data = image.jpegData(compressionQuality: 0.85) {
+                let resized = image.resizedToMaxDimension(1920)
+                if let data = resized.jpegData(compressionQuality: 0.82) {
                     let photo = try await api.uploadPhoto(locationId: saved.id,
                                                           imageData: data,
                                                           mimeType: "image/jpeg")
@@ -246,10 +268,10 @@ struct AddLocationSheet: View {
                 }
             }
 
-            if promptPhotos {
-                speech.speak("\(areaName) saved. Tap Add Photo to add your photos.")
-            } else {
-                speech.speak(andContinue ? "\(areaName) saved. Ready for next location." : "\(areaName) saved.")
+            if !silent {
+                speech.speak(andContinue
+                    ? "\(areaName) saved. Ready for next location."
+                    : "\(areaName) saved.")
             }
             onSave(saved)
 

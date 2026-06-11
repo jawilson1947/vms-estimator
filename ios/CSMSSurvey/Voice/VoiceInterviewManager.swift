@@ -2,29 +2,13 @@ import Speech
 import AVFoundation
 import Foundation
 
-// MARK: - Field definition
-
-struct InterviewFieldDef {
-    let key: String
-    let label: String
-    let prompt: String
-    let hint: String
-    let isOptional: Bool
-    let options: [String]?
-}
-
 // MARK: - State
 
-enum InterviewState {
-    case idle
-    case prompting(field: String)
-    case listening(field: String)
-    case processing(field: String)
-    case confirming(field: String, value: String, phrase: String)
-    case reviewing
-    case saving
-    case done(andContinue: Bool)
-    case failed(String)
+enum NarrativeState: Equatable {
+    case idle       // waiting for "Begin Survey"
+    case active     // interview running, mic listening
+    case saving     // API call in flight (brief)
+    case done       // interview finished
 }
 
 // MARK: - Manager
@@ -34,86 +18,58 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
 
     static let shared = VoiceInterviewManager()
 
-    @Published var state: InterviewState = .idle
-    @Published var collectedValues: [String: String] = [:]
-    @Published var lastTranscription: String = ""
-    @Published var isListening = false
-    @Published var lastAPIError: String? = nil
+    // Published fields — updated in real time as the user speaks
+    @Published var state:       NarrativeState = .idle
+    @Published var areaName:    String = ""
+    @Published var floor:       String = ""
+    @Published var surveyNotes: String = ""
+    @Published var activeField: String? = nil   // "areaName" | "floor" | "surveyNotes"
+    @Published var isListening: Bool   = false
 
-    var onSave: ((_ areaName: String,
-                  _ floor: String?,
-                  _ surveyNotes: String?,
-                  _ wantsPhotos: Bool,
-                  _ andContinue: Bool) -> Void)?
+    // Callbacks set by AddLocationSheet before start()
+    var onSaveAndNext: ((String, String?, String?) -> Void)?
+    var onFinish:      ((String, String?, String?) -> Void)?
 
-    private let speech = SpeechOutputManager.shared
-    private let claude = ClaudeInterviewClient.shared
-    private let voice  = VoiceCommandManager.shared
+    private let speech     = SpeechOutputManager.shared
+    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))!
 
-    private var fields:     [InterviewFieldDef] = []
-    private var fieldIndex  = 0
-
-    private let recognizer   = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))!
-    private var recognitionReq:  SFSpeechAudioBufferRecognitionRequest?
-    private var recognitionTask: SFSpeechRecognitionTask?
-    private var silenceTimer:    Task<Void, Never>?
-    private var timeoutTimer:    Task<Void, Never>?
-    private var lastPartial:      String = ""
-    private var completionFired   = false
-    private var activeEngine:     AVAudioEngine?
+    private var recognitionReq:    SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask:   SFSpeechRecognitionTask?
+    private var silenceTimer:      Task<Void, Never>?
+    private var timeoutTimer:      Task<Void, Never>?
+    private var activeEngine:      AVAudioEngine?
+    private var lastPartial:       String = ""
+    private var completionFired    = false
     private var pendingCompletion: ((String) -> Void)?
+
+    // Pre-compiled regex patterns (cached — called on every partial result)
+    private static let areaRegex  = try! NSRegularExpression(
+        pattern: #"(?i)\barea[\s\-]+name\s*(?:=|equals?)\s*(.+?)(?=\s+\b(?:floor|notes?|skip|save|finish|review)\b|$)"#
+    )
+    private static let floorRegex = try! NSRegularExpression(
+        pattern: #"(?i)\bfloor\s*(?:=|equals?)\s*(.+?)(?=\s+\b(?:area|notes?|skip|save|finish|review)\b|$)"#
+    )
+    private static let notesRegex = try! NSRegularExpression(
+        pattern: #"(?i)\bnotes?\s*(?:=|equals?)\s*(.+?)(?=\s+\b(?:area|floor|skip|save|finish|review)\b|$)"#
+    )
 
     private override init() { super.init() }
 
-    // MARK: - Start / Stop
+    // MARK: - Public API
 
-    func start(onSave: @escaping (_ areaName: String,
-                                  _ floor: String?,
-                                  _ surveyNotes: String?,
-                                  _ wantsPhotos: Bool,
-                                  _ andContinue: Bool) -> Void) {
-        self.onSave = onSave
-        collectedValues = [:]
-        lastTranscription = ""
-        fieldIndex = 0
-        lastAPIError = nil
+    func start(onSaveAndNext: @escaping (String, String?, String?) -> Void,
+               onFinish:      @escaping (String, String?, String?) -> Void) {
+        self.onSaveAndNext = onSaveAndNext
+        self.onFinish      = onFinish
+        resetFields()
 
-        fields = [
-            InterviewFieldDef(
-                key: "areaName", label: "Area name",
-                prompt: "What is the area name?",
-                hint: "Short name like Server Room or Lobby",
-                isOptional: false, options: nil
-            ),
-            InterviewFieldDef(
-                key: "floor", label: "Floor",
-                prompt: "Which floor? Say skip to leave blank.",
-                hint: "Floor number or name",
-                isOptional: true, options: nil
-            ),
-            InterviewFieldDef(
-                key: "surveyNotes", label: "Survey notes",
-                prompt: "Any survey notes? Say skip to leave blank.",
-                hint: "Brief notes about the location",
-                isOptional: true, options: nil
-            ),
-            InterviewFieldDef(
-                key: "wantsPhotos", label: "Photos",
-                prompt: "Do you need to add photos? Say yes or no.",
-                hint: "yes or no",
-                isOptional: false, options: ["yes", "no"]
-            ),
-        ]
-
-        // Activate the audio session off the main actor — setActive is blocking.
         Task.detached(priority: .userInitiated) { [weak self] in
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playAndRecord, mode: .measurement,
-                                      options: [.defaultToSpeaker, .allowBluetoothHFP])
+                                     options: [.defaultToSpeaker, .allowBluetoothHFP])
             try? session.setActive(true)
             await MainActor.run { [weak self] in
-                self?.voice.setEnabled(false)
-                self?.promptCurrentField()
+                self?.listenForBegin()
             }
         }
     }
@@ -123,204 +79,180 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         pendingCompletion = nil
         Task.detached(priority: .userInitiated) {
             try? AVAudioSession.sharedInstance().setActive(false,
-                                                            options: .notifyOthersOnDeactivation)
+                                                           options: .notifyOthersOnDeactivation)
         }
-        voice.setEnabled(true)
         state = .idle
     }
 
-    /// Called by the Done button — immediately fires with whatever has been heard so far.
-    func manualDone() {
-        guard isListening, let completion = pendingCompletion else { return }
-        let captured = lastPartial
+    /// Done button — identical to saying "Finish".
+    func doneButtonTapped() {
         stopSTT()
-        pendingCompletion = nil
-        if !captured.isEmpty {
-            fireCompletion(captured, completion: completion)
-        } else {
-            speech.speak("I didn't catch anything. Please try again.") { [weak self] in
-                self?.startListeningForField()
-            }
-        }
+        triggerFinish()
     }
 
-    // MARK: - Field flow
+    // MARK: - Field helpers
 
-    private func promptCurrentField() {
-        guard fieldIndex < fields.count else {
-            reviewAll()
-            return
-        }
-        let field = fields[fieldIndex]
-        state = .prompting(field: field.label)
-        speech.speak(field.prompt) { [weak self] in
-            self?.startListeningForField()
-        }
+    private func resetFields() {
+        areaName    = ""
+        floor       = ""
+        surveyNotes = ""
+        activeField = nil
     }
 
-    private func startListeningForField() {
-        guard fieldIndex < fields.count else { return }
-        let field = fields[fieldIndex]
-        state = .listening(field: field.label)
-        Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            self.startSTT { [weak self] transcription in
-                self?.process(transcription: transcription, field: field)
-            }
-        }
-    }
+    // MARK: - Wait for "Begin Survey"
 
-    private func process(transcription: String, field: InterviewFieldDef) {
-        lastTranscription = transcription
-        let norm = transcription.lowercased().trimmingCharacters(in: .whitespaces)
-
-        // Yes/No fields — resolve locally
-        if field.key == "wantsPhotos" {
-            let yes = norm.contains("yes") || norm.contains("yeah") ||
-                      norm.contains("yep") || norm == "sure"
-            let no  = norm.contains("no")  || norm.contains("nope") ||
-                      norm.contains("skip")
-            if yes {
-                collectedValues["wantsPhotos"] = "yes"
-                speech.speak("Got it.") { [weak self] in self?.advanceField() }
-            } else if no {
-                collectedValues["wantsPhotos"] = "no"
-                advanceField()
+    private func listenForBegin() {
+        state = .idle
+        startSTT(onPartial: nil) { [weak self] transcript in
+            guard let self else { return }
+            let lower = transcript.lowercased()
+            if lower.contains("begin survey") || lower.contains("begin") ||
+               lower.contains("start survey") {
+                self.speech.speak("Proceed with Survey") { [weak self] in
+                    self?.state = .active
+                    self?.listen()
+                }
             } else {
-                speech.speak("Please say yes or no.") { [weak self] in
-                    self?.startListeningForField()
-                }
+                self.listenForBegin()
+            }
+        }
+    }
+
+    // MARK: - Main narrative loop
+
+    private func listen() {
+        guard state == .active else { return }
+        startSTT(onPartial: { [weak self] partial in
+            // Update form fields in real time on every partial result
+            self?.parseFields(from: partial)
+        }) { [weak self] transcript in
+            guard let self else { return }
+            // Final pass then check for commands
+            self.parseFields(from: transcript)
+            self.handleCommands(in: transcript)
+        }
+    }
+
+    private func handleCommands(in transcript: String) {
+        let lower = transcript.lowercased().trimmingCharacters(in: .whitespaces)
+
+        if lower.contains("review survey") {
+            resetFields()
+            speech.speak("Proceed with Survey") { [weak self] in
+                self?.listen()
             }
             return
         }
 
-        // Skip for optional fields
-        if field.isOptional &&
-           ["skip", "none", "pass", "nothing", "no"].contains(norm) {
-            advanceField()
+        if lower.contains("save and next") || lower.contains("save in next") {
+            triggerSaveAndNext()
             return
         }
 
-        // All other fields — accept transcription directly
-        let value = transcription.trimmingCharacters(in: .whitespaces)
-        confirm(value: value,
-                phrase: "\(field.label): \(value). Is that correct?",
-                field: field)
-    }
-
-    private func confirm(value: String, phrase: String, field: InterviewFieldDef) {
-        state = .confirming(field: field.label, value: value, phrase: phrase)
-        speech.speak(phrase) { [weak self] in
-            self?.waitForConfirmation(value: value, field: field)
+        if lower.contains("finish") {
+            triggerFinish()
+            return
         }
+
+        // Pure field data — continue listening
+        listen()
     }
 
-    private func waitForConfirmation(value: String, field: InterviewFieldDef) {
-        Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            self.startSTT { [weak self] transcription in
-                guard let self else { return }
-                let norm = transcription.lowercased().trimmingCharacters(in: .whitespaces)
-                let yes  = norm.contains("yes")   || norm.contains("correct") ||
-                           norm.contains("right") || norm.contains("yeah")    ||
-                           norm.contains("yep")   || norm == "sure"
-                let no   = norm.contains("no")    || norm.contains("nope")  ||
-                           norm.contains("wrong") || norm.contains("change")
-                if yes {
-                    self.collectedValues[field.key] = value
-                    self.advanceField()
-                } else if no {
-                    self.speech.speak("Okay, let's try again.") { [weak self] in
-                        self?.startListeningForField()
-                    }
-                } else {
-                    self.process(transcription: transcription, field: field)
-                }
+    // MARK: - Save actions
+
+    private func triggerSaveAndNext() {
+        guard !areaName.isEmpty else {
+            speech.speak("Area name is required.") { [weak self] in
+                self?.listen()
             }
+            return
+        }
+        let name     = areaName
+        let floorVal = floor.isEmpty ? nil : floor
+        let notesVal = surveyNotes.isEmpty ? nil : surveyNotes
+        onSaveAndNext?(name, floorVal, notesVal)
+        resetFields()
+        speech.speak("\(name) saved. Ready for next location.") { [weak self] in
+            self?.listen()
         }
     }
 
-    private func advanceField() {
-        fieldIndex += 1
-        promptCurrentField()
-    }
-
-    // MARK: - Review & save
-
-    private func reviewAll() {
-        state = .reviewing
-        var summary = "Here is what I have. "
-        for field in fields where field.key != "wantsPhotos" {
-            if let val = collectedValues[field.key] {
-                summary += "\(field.label): \(val). "
+    private func triggerFinish() {
+        let name     = areaName
+        let floorVal = floor.isEmpty ? nil : floor
+        let notesVal = surveyNotes.isEmpty ? nil : surveyNotes
+        speech.speak("End Interview") { [weak self] in
+            guard let self else { return }
+            if !name.isEmpty {
+                self.onFinish?(name, floorVal, notesVal)
             }
-        }
-        summary += "Say save, save and next, or cancel."
-        speech.speak(summary) { [weak self] in
-            self?.listenForSaveCommand()
+            self.state = .done
         }
     }
 
-    private func listenForSaveCommand() {
-        Task {
-            try? await Task.sleep(for: .milliseconds(400))
-            self.startSTT { [weak self] transcription in
-                guard let self else { return }
-                let norm = transcription.lowercased()
-                if norm.contains("save and next") || norm.contains("next") {
-                    self.finalize(andContinue: true)
-                } else if norm.contains("save") {
-                    self.finalize(andContinue: false)
-                } else if norm.contains("cancel") || norm.contains("stop") ||
-                          norm.contains("exit") {
-                    self.stop()
-                } else {
-                    self.speech.speak("Say save, save and next, or cancel.") { [weak self] in
-                        self?.listenForSaveCommand()
-                    }
-                }
-            }
+    // MARK: - Real-time field parsing
+
+    private func parseFields(from transcript: String) {
+        let text  = transcript.trimmingCharacters(in: .whitespaces)
+        let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
+
+        if let v = match(Self.areaRegex, in: text) {
+            areaName    = v
+            activeField = "areaName"
+        }
+
+        if let v = match(Self.floorRegex, in: text) {
+            floor       = v
+            activeField = "floor"
+        }
+
+        if let v = match(Self.notesRegex, in: text) {
+            surveyNotes = v
+            activeField = "surveyNotes"
+        }
+
+        // "Skip" — clears floor and releases active field
+        if ["skip", "floor skip", "skip floor",
+            "floor equals skip", "floor = skip"].contains(lower) {
+            floor       = ""
+            activeField = nil
         }
     }
 
-    private func finalize(andContinue: Bool) {
-        state = .saving
-        stopSTT()
-        voice.setEnabled(true)
-        onSave?(
-            collectedValues["areaName"]    ?? "",
-            collectedValues["floor"],
-            collectedValues["surveyNotes"],
-            collectedValues["wantsPhotos"] == "yes",
-            andContinue
-        )
-        state = .done(andContinue: andContinue)
+    private func match(_ regex: NSRegularExpression, in text: String) -> String? {
+        let nsRange = NSRange(text.startIndex..., in: text)
+        guard let m = regex.firstMatch(in: text, range: nsRange),
+              m.numberOfRanges > 1 else { return nil }
+        let cr = m.range(at: 1)
+        guard cr.location != NSNotFound,
+              let swiftRange = Range(cr, in: text) else { return nil }
+        let value = String(text[swiftRange]).trimmingCharacters(in: .whitespaces)
+        return value.isEmpty ? nil : value
     }
 
     // MARK: - STT engine
 
-    private func startSTT(completion: @escaping (String) -> Void) {
+    private func startSTT(onPartial: ((String) -> Void)?,
+                          completion: @escaping (String) -> Void) {
         stopSTT()
         completionFired = false
 
-        // Fresh engine each cycle — avoids stale hardware state after multiple sessions
-        let engine = AVAudioEngine()
-        activeEngine = engine
+        let engine    = AVAudioEngine()
+        activeEngine  = engine
         let inputNode = engine.inputNode
-        let format = inputNode.outputFormat(forBus: 0)
+        let format    = inputNode.outputFormat(forBus: 0)
 
         guard format.sampleRate > 0 else {
-            // Format not ready — retry after a short delay
             activeEngine = nil
-            Task {
+            Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(700))
-                self.startSTT(completion: completion)
+                self?.startSTT(onPartial: onPartial, completion: completion)
             }
             return
         }
 
         let req = SFSpeechAudioBufferRecognitionRequest()
-        req.shouldReportPartialResults = true
+        req.shouldReportPartialResults  = true
         req.requiresOnDeviceRecognition = false
         recognitionReq = req
 
@@ -337,13 +269,13 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
             return
         }
 
-        isListening = true
-        lastPartial = ""
+        isListening       = true
+        lastPartial       = ""
         pendingCompletion = completion
 
-        // 12-second hard timeout — prevents infinite hangs if mic goes silent
+        // 30-second timeout — narrative sessions can have natural long pauses
         timeoutTimer = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(12))
+            try? await Task.sleep(for: .seconds(30))
             guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in
                 guard let self, self.isListening else { return }
@@ -351,46 +283,28 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
                 self.stopSTT()
                 if !captured.isEmpty {
                     self.fireCompletion(captured, completion: completion)
-                } else {
-                    self.speech.speak("I didn't catch that. Please try again.") { [weak self] in
-                        self?.startListeningForField()
-                    }
+                } else if self.state == .active {
+                    self.listen()
                 }
             }
         }
 
         recognitionTask = recognizer.recognitionTask(with: req) { [weak self] result, error in
-            let text    = result?.bestTranscription.formattedString
-                              .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let isFinal = result?.isFinal ?? false
+            let text     = result?.bestTranscription.formattedString
+                               .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let isFinal  = result?.isFinal ?? false
             let hadError = error != nil
 
             Task { @MainActor [weak self] in
                 guard let self, self.isListening else { return }
 
                 if !text.isEmpty {
-                    // Check for "stop" terminator — strip it and fire immediately
-                    let words = text.lowercased().components(separatedBy: .whitespaces)
-                    if words.last == "stop" {
-                        let withoutStop = text
-                            .components(separatedBy: .whitespaces)
-                            .dropLast()
-                            .joined(separator: " ")
-                            .trimmingCharacters(in: .whitespaces)
-                        self.silenceTimer?.cancel()
-                        self.stopSTT()
-                        self.pendingCompletion = nil
-                        let result = withoutStop.isEmpty ? self.lastPartial : withoutStop
-                        if !result.isEmpty {
-                            self.fireCompletion(result, completion: completion)
-                        }
-                        return
-                    }
-
                     self.lastPartial = text
+                    onPartial?(text)
+
                     self.silenceTimer?.cancel()
                     self.silenceTimer = Task { [weak self] in
-                        try? await Task.sleep(for: .seconds(4))
+                        try? await Task.sleep(for: .seconds(3))
                         guard !Task.isCancelled else { return }
                         await MainActor.run { [weak self] in
                             guard let self, self.isListening else { return }
@@ -414,13 +328,14 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
                     self.pendingCompletion = nil
                     if !captured.isEmpty {
                         self.fireCompletion(captured, completion: completion)
+                    } else if self.state == .active {
+                        self.listen()
                     }
                 }
             }
         }
     }
 
-    /// Ensures completion fires exactly once per STT session
     private func fireCompletion(_ text: String, completion: @escaping (String) -> Void) {
         guard !completionFired else { return }
         completionFired = true
@@ -428,18 +343,15 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
     }
 
     private func stopSTT() {
-        timeoutTimer?.cancel()
-        timeoutTimer = nil
-        silenceTimer?.cancel()
-        silenceTimer = nil
+        timeoutTimer?.cancel(); timeoutTimer = nil
+        silenceTimer?.cancel(); silenceTimer = nil
         if let engine = activeEngine {
             if engine.isRunning { engine.stop() }
             engine.inputNode.removeTap(onBus: 0)
             activeEngine = nil
         }
-        recognitionTask?.cancel()
-        recognitionTask = nil
+        recognitionTask?.cancel(); recognitionTask = nil
         recognitionReq  = nil
-        isListening = false
+        isListening     = false
     }
 }

@@ -3,133 +3,214 @@ import SwiftUI
 struct VoiceQuickRefView: View {
     @Environment(\.dismiss) private var dismiss
 
-    private struct CommandRow { let say: String; let responds: String; let note: String? }
-    private struct Section    { let title: String; let subtitle: String?; let commands: [CommandRow] }
+    // MARK: - Data model
+
+    private struct Cmd {
+        let say: String
+        let responds: String
+        let note: String?
+        init(_ say: String, _ responds: String, note: String? = nil) {
+            self.say = say; self.responds = responds; self.note = note
+        }
+    }
+
+    private struct Section {
+        let icon: String
+        let title: String
+        let subtitle: String
+        let commands: [Cmd]
+    }
 
     private let sections: [Section] = [
-        Section(title: "Survey Board", subtitle: "Once inside a site", commands: [
-            CommandRow(say: "\"Add location\" / \"New location\"", responds: "\"Opening add location\"", note: nil),
-        ]),
-        Section(title: "Add Location — Fields", subtitle: "While the Add Location sheet is open", commands: [
-            CommandRow(say: "\"Name\" -> speak value",          responds: "\"Say the area name\" / \"Name set to [val]\"", note: nil),
-            CommandRow(say: "\"Floor\" -> speak value",         responds: "\"Say the floor\" / \"Floor [val]\"",          note: nil),
-            CommandRow(say: "\"Notes\" -> speak value",         responds: "\"Say your notes\" / \"Notes recorded\"",      note: nil),
-            CommandRow(say: "\"Photo\"",                        responds: "\"Tap to capture a photo\"",                   note: "★ one tap"),
-            CommandRow(say: "\"Save\"",                         responds: "\"[Name] saved\"",                             note: nil),
-            CommandRow(say: "\"Next\"",                         responds: "\"[Name] saved. Ready for next.\"",            note: nil),
-            CommandRow(say: "\"Exit\" / \"Cancel\" / \"Close\"",responds: "\"Closing\"",                                  note: nil),
-        ]),
-        Section(title: "Location Detail", subtitle: "While a location is open", commands: [
-            CommandRow(say: "\"Save\" / \"Mark surveyed\"",     responds: "\"[Name] marked as surveyed\"",                note: nil),
-            CommandRow(say: "\"Photo\"",                        responds: "\"Tap to add a photo\"",                       note: "★ one tap"),
-            CommandRow(say: "\"Close\" / \"Back\" / \"Exit\"",  responds: "\"Closing\"",                                  note: nil),
-        ]),
+        Section(
+            icon: "waveform.and.mic",
+            title: "Voice Interview",
+            subtitle: "Tap \"Voice Interview\" on the Add Location sheet",
+            commands: [
+                Cmd("Begin Survey",              "Proceed with Survey"),
+                Cmd("Area Name = [value]",        "Area Name field fills in real time"),
+                Cmd("Floor = [value]",            "Floor field fills in real time"),
+                Cmd("Skip",                       "Floor omitted"),
+                Cmd("Notes = [value]",            "Notes field fills in real time"),
+                Cmd("Save and Next",              "[Name] saved. Ready for next location."),
+                Cmd("Finish",                     "End Interview — saves & closes"),
+                Cmd("Review Survey",              "Proceed with Survey — clears and restarts"),
+            ]
+        ),
+        Section(
+            icon: "rectangle.and.pencil.and.ellipsis",
+            title: "Add Location — Quick Commands",
+            subtitle: "Field-by-field shortcut while the sheet is open",
+            commands: [
+                Cmd("\"Name\" → speak value",    "Say the area name / Name set to [val]"),
+                Cmd("\"Floor\" → speak value",   "Say the floor / Floor [val]"),
+                Cmd("\"Notes\" → speak value",   "Say your notes / Notes recorded"),
+                Cmd("\"Photo\"",                 "Tap to capture a photo",            note: "★ tap"),
+                Cmd("\"Save\"",                  "[Name] saved"),
+                Cmd("\"Next\"",                  "[Name] saved. Ready for next."),
+                Cmd("\"Exit\" / \"Cancel\"",     "Closing"),
+            ]
+        ),
+        Section(
+            icon: "map",
+            title: "Survey Board",
+            subtitle: "While on the main survey board",
+            commands: [
+                Cmd("\"Add location\" / \"New location\"", "Opening add location"),
+            ]
+        ),
+        Section(
+            icon: "doc.text.magnifyingglass",
+            title: "Location Detail",
+            subtitle: "While a location record is open",
+            commands: [
+                Cmd("\"Save\" / \"Mark surveyed\"", "[Name] marked as surveyed"),
+                Cmd("\"Photo\"",                    "Tap to add a photo",         note: "★ tap"),
+                Cmd("\"Close\" / \"Back\"",         "Closing"),
+            ]
+        ),
     ]
+
+    // MARK: - Body
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Tip banner
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("★").font(.body)
-                        Text("**Photo capture** is the only step requiring a screen tap. Everything else is fully hands-free.")
-                            .font(.caption)
-                    }
-                    .padding(12)
-                    .background(Color.orange.opacity(0.1))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.orange.opacity(0.3)))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            ZStack {
+                Theme.background.ignoresSafeArea()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
 
-                    // Sections
-                    ForEach(sections.indices, id: \.self) { si in
-                        let section = sections[si]
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(section.title)
-                                .font(.caption.bold())
-                                .foregroundStyle(.blue)
-                                .textCase(.uppercase)
-                            if let sub = section.subtitle {
-                                Text(sub)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
+                        // Tip banner
+                        tipBanner(
+                            icon: "★",
+                            iconColor: .orange,
+                            text: "Photo capture is the only step requiring a screen tap. Everything else is fully hands-free."
+                        )
 
-                            VStack(spacing: 0) {
-                                // Header row
-                                HStack(spacing: 0) {
-                                    Text("You say")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.blue)
-                                    Text("Device responds")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.white)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.blue)
-                                }
-
-                                ForEach(section.commands.indices, id: \.self) { ci in
-                                    let cmd  = section.commands[ci]
-                                    let even = ci % 2 == 0
-                                    HStack(spacing: 0) {
-                                        HStack(spacing: 4) {
-                                            Text(cmd.say)
-                                                .font(.system(.caption, design: .monospaced))
-                                                .foregroundStyle(.blue)
-                                            if let note = cmd.note {
-                                                Text(note)
-                                                    .font(.caption2.bold())
-                                                    .foregroundStyle(.orange)
-                                            }
-                                        }
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(even ? Color(.systemBackground) : Color(.secondarySystemBackground))
-
-                                        Text(cmd.responds)
-                                            .font(.caption)
-                                            .italic()
-                                            .foregroundStyle(.green)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(even ? Color(.systemBackground) : Color(.secondarySystemBackground))
-                                    }
-                                    Divider()
-                                }
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(.systemGray4)))
+                        ForEach(sections.indices, id: \.self) { i in
+                            sectionCard(sections[i])
                         }
-                    }
 
-                    // Timeout note
-                    HStack(alignment: .top, spacing: 8) {
-                        Text("⏱").font(.body)
-                        Text("After a field prompt, you have **6 seconds** to speak the value. If missed, the device says *\"Timed out. Try again.\"* — repeat the field command to retry.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        // Timeout note
+                        tipBanner(
+                            icon: "⏱",
+                            iconColor: Theme.textTertiary,
+                            text: "Quick-command field prompts time out after 6 seconds. Say the field command again to retry. The narrative Voice Interview has no timeout — speak at your own pace."
+                        )
                     }
-                    .padding(12)
-                    .background(Color(.secondarySystemBackground))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(16)
                 }
-                .padding()
             }
             .navigationTitle("Voice Commands")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
+                        .foregroundStyle(Theme.accent)
                 }
             }
         }
+    }
+
+    // MARK: - Section card
+
+    @ViewBuilder
+    private func sectionCard(_ section: Section) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: section.icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(section.title)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(Theme.textPrimary)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                    Text(section.subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            }
+
+            // Table
+            VStack(spacing: 0) {
+                // Column headers
+                HStack(spacing: 0) {
+                    tableHeaderCell("You say")
+                    tableHeaderCell("Device responds")
+                }
+
+                ForEach(section.commands.indices, id: \.self) { ci in
+                    let cmd  = section.commands[ci]
+                    let even = ci % 2 == 0
+
+                    HStack(spacing: 0) {
+                        // Say cell
+                        HStack(spacing: 4) {
+                            Text(cmd.say)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(Theme.accent)
+                            if let note = cmd.note {
+                                Text(note)
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 7)
+                        .background(even ? Theme.surface : Theme.surfaceElevated)
+
+                        // Responds cell
+                        Text(cmd.responds)
+                            .font(.caption)
+                            .italic()
+                            .foregroundStyle(Theme.success)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 7)
+                            .background(even ? Theme.surface : Theme.surfaceElevated)
+                    }
+
+                    if ci < section.commands.count - 1 {
+                        Divider().background(Theme.border.opacity(0.5))
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
+        }
+    }
+
+    @ViewBuilder
+    private func tableHeaderCell(_ label: String) -> some View {
+        Text(label)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Theme.accent)
+    }
+
+    // MARK: - Tip banner
+
+    @ViewBuilder
+    private func tipBanner(icon: String, iconColor: Color, text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(icon)
+                .font(.body)
+                .foregroundStyle(iconColor)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(Theme.textSecondary)
+        }
+        .padding(12)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
     }
 }
