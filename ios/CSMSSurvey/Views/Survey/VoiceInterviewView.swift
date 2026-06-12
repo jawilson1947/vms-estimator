@@ -178,7 +178,7 @@ struct VoiceInterviewView: View {
         case .idle:
             VStack(spacing: 12) {
                 PulsingMicView(active: false)
-                Text("Say "Begin Survey" to start")
+                Text("Say \"Begin Survey\" to start")
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             }
