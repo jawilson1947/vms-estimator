@@ -264,6 +264,109 @@ async function main() {
   });
 
   console.log('✓ Fee summary created');
+
+  // ── Access Control: artifact types, access methods, default BOMs ───────────
+  const artifactTypeNames = [
+    'Reader Controller',
+    'Solid State Relay',
+    'Single Maglock',
+    'Double Maglock',
+    'REX Device',
+    'PIR Motion Sensor',
+    'Pigtail',
+    'Cable - AWG 12/2',
+    'Cable - AWG 14/2',
+    'Cable - AWG 18/4',
+    'Cat6 UTP Network Cable',
+    'Cat5e UTP Network Cable',
+    'XLR',
+    'Electric Strike',
+    'Power Supply',
+    'Credential',
+    'Storeroom Lock',
+    'Door Closer',
+  ];
+  const artifactTypeIds: Record<string, number> = {};
+  for (let i = 0; i < artifactTypeNames.length; i++) {
+    const t = await prisma.artifactType.upsert({
+      where:  { name: artifactTypeNames[i] },
+      update: {},
+      create: { name: artifactTypeNames[i], sortOrder: i + 1 },
+    });
+    artifactTypeIds[t.name] = t.id;
+  }
+
+  const MAGLOCK_NOTE =
+    'Or 2 single maglocks - one leaf may be energized with a single strike, other leaf permanently secured';
+  const singleDoorBom = [
+    { type: 'Reader Controller', quantity: 1 },
+    { type: 'Electric Strike',   quantity: 1 },
+    { type: 'Pigtail',           quantity: 1 },
+    { type: 'Door Closer',       quantity: 1 },
+    { type: 'Storeroom Lock',    quantity: 1 },
+  ];
+  const doubleDoorBom = [
+    { type: 'Reader Controller', quantity: 1 },
+    { type: 'Pigtail',           quantity: 1 },
+    { type: 'REX Device',        quantity: 1 },
+    { type: 'PIR Motion Sensor', quantity: 1 },
+    { type: 'Double Maglock',    quantity: 1, notes: MAGLOCK_NOTE },
+    { type: 'Solid State Relay', quantity: 1 },
+    { type: 'Door Closer',       quantity: 2 },
+  ];
+  const otherBom = [
+    { type: 'Reader Controller', quantity: 1 },
+    { type: 'Pigtail',           quantity: 1 },
+    { type: 'Solid State Relay', quantity: 1 },
+  ];
+  const accessMethods: {
+    name: string;
+    grouping: string;
+    items: { type: string; quantity: number; notes?: string }[];
+  }[] = [
+    { name: 'Internal Single Door', grouping: 'Internal', items: singleDoorBom },
+    { name: 'Internal Double Door', grouping: 'Internal', items: doubleDoorBom },
+    { name: 'External Single Door', grouping: 'External', items: singleDoorBom },
+    { name: 'External Double Door', grouping: 'External', items: doubleDoorBom },
+    { name: 'Sliding Door',         grouping: 'Other',    items: otherBom },
+    { name: 'Automatic Door',       grouping: 'Other',    items: otherBom },
+    { name: 'Elevator',             grouping: 'Other',    items: otherBom },
+    { name: 'Gate',                 grouping: 'Other',    items: otherBom },
+    { name: 'Rim Panic Bar',        grouping: 'Other',    items: otherBom },
+  ];
+  for (let i = 0; i < accessMethods.length; i++) {
+    const def = accessMethods[i];
+    const method = await prisma.accessMethod.upsert({
+      where:  { name: def.name },
+      update: {},
+      create: { name: def.name, grouping: def.grouping, sortOrder: i + 1 },
+    });
+    for (const item of def.items) {
+      await prisma.accessMethodItem.upsert({
+        where: {
+          accessMethodId_artifactTypeId: {
+            accessMethodId: method.id,
+            artifactTypeId: artifactTypeIds[item.type],
+          },
+        },
+        update: {},
+        create: {
+          accessMethodId: method.id,
+          artifactTypeId: artifactTypeIds[item.type],
+          quantity:       item.quantity,
+          notes:          item.notes ?? null,
+        },
+      });
+    }
+  }
+
+  await prisma.lineItemCategory.upsert({
+    where:  { name: 'Access Control Equipment' },
+    update: {},
+    create: { name: 'Access Control Equipment', sortOrder: 14 },
+  });
+
+  console.log('✓ Access control artifact types and methods created');
   console.log('\n✅ Seed complete!');
   console.log('\n🔑 Login credentials:');
   console.log('   Admin:   admin / Admin1234!');

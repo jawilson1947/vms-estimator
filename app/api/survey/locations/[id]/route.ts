@@ -18,7 +18,7 @@ export async function PATCH(
   const {
     areaName, floor, projectId, surveyNotes, notes,
     mountingLocation, coveragePurpose, markSurveyed,
-    cameraModelId,
+    cameraModelId, accessMethodId,
   } = body;
 
   const updateData: Record<string, unknown> = {};
@@ -32,6 +32,9 @@ export async function PATCH(
   if (markSurveyed)                   updateData.surveyedAt       = new Date();
   if (cameraModelId    !== undefined) {
     updateData.cameraModelId = typeof cameraModelId === 'number' ? cameraModelId : null;
+  }
+  if (accessMethodId   !== undefined) {
+    updateData.accessMethodId = typeof accessMethodId === 'number' ? accessMethodId : null;
   }
 
   const location = await prisma.cameraLocation.update({
@@ -51,6 +54,7 @@ export async function PATCH(
           indoorOutdoor:   true,
         },
       },
+      accessMethod: { select: { id: true, name: true } },
       images: {
         where:  { imageType: 'SITE_SURVEY' },
         select: { id: true, fileUrl: true, description: true, uploadedAt: true },
@@ -69,6 +73,7 @@ export async function PATCH(
     coveragePurpose:  location.coveragePurpose,
     surveyedAt:       location.surveyedAt ? new Date(location.surveyedAt).toISOString() : null,
     cameraModel:      location.cameraModel ?? null,
+    accessMethod:     location.accessMethod ?? null,
     images: location.images.map(img => ({
       id:        img.id,
       imageUrl:  img.fileUrl ?? '',

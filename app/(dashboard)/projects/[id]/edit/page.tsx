@@ -36,6 +36,7 @@ export default async function EditProjectPage({ params }: { params: Promise<{ id
           customerId:          String(project.customerId),
           projectName:         project.projectName,
           projectNumber:       project.projectNumber       ?? '',
+          projectType:         project.projectType,
           projectStatus:       project.projectStatus,
           startDate:           fmt(project.startDate),
           completionDate:      fmt(project.completionDate),

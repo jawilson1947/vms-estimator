@@ -9,6 +9,7 @@ interface ProjectFormData {
   customerId:          string;
   projectName:         string;
   projectNumber:       string;
+  projectType:         string;
   projectStatus:       string;
   startDate:           string;
   completionDate:      string;
@@ -28,6 +29,7 @@ const empty: ProjectFormData = {
   customerId:          '',
   projectName:         '',
   projectNumber:       '',
+  projectType:         'VIDEO_SURVEILLANCE',
   projectStatus:       'PROPOSED',
   startDate:           '',
   completionDate:      '',
@@ -36,6 +38,11 @@ const empty: ProjectFormData = {
   overheadRatePercent: '',
   notes:               '',
 };
+
+const typeOptions = [
+  { value: 'VIDEO_SURVEILLANCE', label: 'Video Surveillance' },
+  { value: 'ACCESS_CONTROL',     label: 'Access Control'     },
+];
 
 const statusOptions = [
   { value: 'PROPOSED',    label: 'Proposed'     },
@@ -140,8 +147,24 @@ export function ProjectForm({ customers, initialData, projectId }: Props) {
         </div>
       </div>
 
-      {/* Status / PM */}
-      <div className="grid sm:grid-cols-2 gap-4">
+      {/* Type / Status / PM */}
+      <div className="grid sm:grid-cols-3 gap-4">
+        <div>
+          <label htmlFor="projectType" className="form-label">Project Type</label>
+          <select
+            id="projectType" name="projectType"
+            value={form.projectType} onChange={handleChange}
+            disabled={isEdit}
+            className="form-select disabled:bg-gray-100 disabled:text-gray-500"
+          >
+            {typeOptions.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          {isEdit && (
+            <p className="mt-1 text-xs text-gray-500">Project type is set at creation.</p>
+          )}
+        </div>
         <div>
           <label htmlFor="projectStatus" className="form-label">Status</label>
           <select

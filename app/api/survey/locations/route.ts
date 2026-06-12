@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { projectId, areaName, floor, surveyNotes } = body;
+  const { projectId, areaName, floor, surveyNotes, accessMethodId } = body;
 
   if (!projectId || !areaName) {
     return NextResponse.json({ error: 'projectId and areaName are required' }, { status: 400 });
@@ -19,9 +19,13 @@ export async function POST(req: NextRequest) {
     data: {
       projectId: parseInt(projectId),
       areaName,
-      floor:       floor ?? null,
-      surveyNotes: surveyNotes ?? null,
-      surveyedAt:  new Date(),
+      floor:          floor ?? null,
+      surveyNotes:    surveyNotes ?? null,
+      accessMethodId: typeof accessMethodId === 'number' ? accessMethodId : null,
+      surveyedAt:     new Date(),
+    },
+    include: {
+      accessMethod: { select: { id: true, name: true } },
     },
   });
 
@@ -37,6 +41,7 @@ export async function POST(req: NextRequest) {
     coveragePurpose:  null,
     surveyedAt:       location.surveyedAt ? new Date(location.surveyedAt).toISOString() : new Date().toISOString(),
     cameraModel:      null,
+    accessMethod:     location.accessMethod ?? null,
     images,
   }, { status: 201 });
 }

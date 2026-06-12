@@ -7,6 +7,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import { useSpeak } from '@/hooks/useSpeak';
+import { matchOption } from '@/lib/voiceMatch';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,59 +53,8 @@ export function useVoice() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function normalize(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-}
-
-function levenshtein(a: string, b: string): number {
-  const m = a.length, n = b.length;
-  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
-  );
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i - 1] === b[j - 1]
-        ? dp[i - 1][j - 1]
-        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
-  return dp[m][n];
-}
-
-interface MatchCandidate { site: VoiceSite; label: string; }
-
-function buildCandidates(sites: VoiceSite[]): MatchCandidate[] {
-  const out: MatchCandidate[] = [];
-  for (const site of sites) {
-    out.push({ site, label: normalize(site.siteName) });
-    for (const b of site.buildings) {
-      out.push({ site, label: normalize(b.buildingName) });
-    }
-  }
-  return out;
-}
-
 function matchSite(spoken: string, sites: VoiceSite[]): VoiceSite | null {
-  const norm = normalize(spoken);
-  if (!norm || sites.length === 0) return null;
-
-  const candidates = buildCandidates(sites);
-
-  // 1. Exact match on site name or building name
-  const exact = candidates.find(c => c.label === norm);
-  if (exact) return exact.site;
-
-  // 2. Substring match
-  const sub = candidates.find(c => c.label.includes(norm) || norm.includes(c.label));
-  if (sub) return sub.site;
-
-  // 3. Levenshtein closest within 40% threshold
-  let bestSite: VoiceSite | null = null;
-  let bestDist = Infinity;
-  for (const c of candidates) {
-    const d = levenshtein(norm, c.label);
-    if (d < bestDist) { bestDist = d; bestSite = c.site; }
-  }
-  const threshold = Math.ceil(norm.length * 0.4);
-  return bestDist <= threshold ? bestSite : null;
+  return matchOption(spoken, sites, s => [s.siteName, ...s.buildings.map(b => b.buildingName)]);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────

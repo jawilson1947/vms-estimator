@@ -6,6 +6,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 import { SurveyBoard } from '@/components/SurveyBoard';
+import { AccessSurveyBoard } from '@/components/AccessSurveyBoard';
 
 export async function generateMetadata({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -29,6 +30,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
     select: {
       id:          true,
       projectName: true,
+      projectType: true,
       building: {
         select: {
           id:           true,
@@ -45,6 +47,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
               resolution: true, resolutionClass: true, imageUrl: true, ptz: true, indoorOutdoor: true,
             },
           },
+          accessMethod: { select: { id: true, name: true } },
           images: {
             where:   { imageType: 'SITE_SURVEY' },
             select:  { id: true, fileUrl: true, description: true, uploadedAt: true },
@@ -56,6 +59,8 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
   });
 
   if (!project) notFound();
+
+  const isAccessControl = project.projectType === 'ACCESS_CONTROL';
 
   interface FloorPlanRow {
     plan_id: number; building_id: number; floor: string;
@@ -71,39 +76,32 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
     } catch { /* table may not exist yet */ }
   }
 
-  const normalizedProject = {
-    id:          project.id,
-    projectName: project.projectName,
-    building: project.building ? {
-      id:           project.building.id,
-      buildingName: project.building.buildingName,
-      siteName:     project.building.site?.siteName ?? null,
-      floorPlans:   floorPlans.map(r => ({
-        id: r.plan_id, floor: r.floor,
-        originalFileName: r.original_file_name, fileUrl: r.file_url,
-      })),
-    } : null,
-    locations: project.cameraLocations.map(l => ({
-      id:               l.id,
-      projectId:        l.projectId,
-      areaName:         l.areaName,
-      floor:            l.floor,
-      surveyNotes:      l.surveyNotes ?? null,
-      notes:            l.notes,
-      mountingLocation: l.mountingLocation,
-      coveragePurpose:  l.coveragePurpose,
-      surveyedAt:       l.surveyedAt ? new Date(l.surveyedAt).toISOString() : null,
-      cameraModel:      l.cameraModel ?? null,
-      images:           l.images.map(img => ({
-        id:        img.id,
-        imageUrl:  img.fileUrl ?? '',
-        caption:   img.description ?? null,
-        createdAt: img.uploadedAt.toISOString(),
-      })),
+  const building = project.building ? {
+    id:           project.building.id,
+    buildingName: project.building.buildingName,
+    siteName:     project.building.site?.siteName ?? null,
+    floorPlans:   floorPlans.map(r => ({
+      id: r.plan_id, floor: r.floor,
+      originalFileName: r.original_file_name, fileUrl: r.file_url,
     })),
-  };
+  } : null;
 
-  const totalLocations = normalizedProject.locations.length;
+  const baseLocations = project.cameraLocations.map(l => ({
+    id:          l.id,
+    projectId:   l.projectId,
+    areaName:    l.areaName,
+    floor:       l.floor,
+    surveyNotes: l.surveyNotes ?? null,
+    surveyedAt:  l.surveyedAt ? new Date(l.surveyedAt).toISOString() : null,
+    images:      l.images.map(img => ({
+      id:        img.id,
+      imageUrl:  img.fileUrl ?? '',
+      caption:   img.description ?? null,
+      createdAt: img.uploadedAt.toISOString(),
+    })),
+  }));
+
+  const totalLocations = baseLocations.length;
 
   return (
     <div>
@@ -117,12 +115,42 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
             {project.building?.buildingName ?? 'No building assigned'}
             {project.building?.site?.siteName && <> &middot; {project.building.site.siteName}</>}
             {' · '}
-            {totalLocations} location{totalLocations !== 1 ? 's' : ''}
+            {totalLocations} {isAccessControl ? 'access point' : 'location'}{totalLocations !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
 
-      <SurveyBoard initialProject={normalizedProject} />
+      {isAccessControl ? (
+        <AccessSurveyBoard
+          initialProject={{
+            id:          project.id,
+            projectName: project.projectName,
+            building,
+            locations: baseLocations.map((loc, i) => ({
+              ...loc,
+              accessMethod: project.cameraLocations[i].accessMethod ?? null,
+            })),
+          }}
+        />
+      ) : (
+        <SurveyBoard
+          initialProject={{
+            id:          project.id,
+            projectName: project.projectName,
+            building,
+            locations: baseLocations.map((loc, i) => {
+              const l = project.cameraLocations[i];
+              return {
+                ...loc,
+                notes:            l.notes,
+                mountingLocation: l.mountingLocation,
+                coveragePurpose:  l.coveragePurpose,
+                cameraModel:      l.cameraModel ?? null,
+              };
+            }),
+          }}
+        />
+      )}
     </div>
   );
 }

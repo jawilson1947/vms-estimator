@@ -11,6 +11,8 @@ import {
   MicrophoneIcon,
   WifiIcon,
   ChatBubbleBottomCenterTextIcon,
+  KeyIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
@@ -48,6 +50,24 @@ const MENU_ITEMS: MenuItem[] = [
     iconColor:   'text-amber-600',
     title:       'Line Item Categories',
     description: 'Manage the category list used in cost estimates',
+    adminOnly:   true,
+  },
+  {
+    href:        '/settings/artifacts',
+    icon:        KeyIcon,
+    iconBg:      'bg-indigo-50',
+    iconColor:   'text-indigo-600',
+    title:       'Access Control Artifacts',
+    description: 'Manage the artifact catalog used for access control estimates',
+    adminOnly:   true,
+  },
+  {
+    href:        '/settings/access-methods',
+    icon:        LockClosedIcon,
+    iconBg:      'bg-fuchsia-50',
+    iconColor:   'text-fuchsia-600',
+    title:       'Access Methods',
+    description: 'Door templates and their default bill of materials',
     adminOnly:   true,
   },
   {

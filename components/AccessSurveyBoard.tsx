@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   PlusIcon,
-  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CameraIcon,
@@ -13,16 +12,16 @@ import {
   PhotoIcon,
   XMarkIcon,
   MicrophoneIcon,
-  MagnifyingGlassIcon,
   DocumentIcon,
   ArrowTopRightOnSquareIcon,
   QuestionMarkCircleIcon,
-  SparklesIcon,
+  LockClosedIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
 import { useVoice, useWaitForValue } from '@/context/VoiceContext';
-import { SurveyAgentChat } from '@/components/SurveyAgentChat';
 import { PhotoLightbox } from '@/components/survey/PhotoLightbox';
+import { AccessMethodPicker, AccessMethodOption } from '@/components/survey/AccessMethodPicker';
+import { matchOption } from '@/lib/voiceMatch';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,30 +32,20 @@ interface SurveyImage {
   createdAt: string;
 }
 
-interface AssignedCameraModel {
-  id:              number;
-  manufacturer:    string | null;
-  model:           string | null;
-  cameraType:      string | null;
-  resolution:      string | null;
-  resolutionClass: string | null;
-  imageUrl:        string | null;
-  ptz:             boolean;
-  indoorOutdoor:   string | null;
+interface AssignedAccessMethod {
+  id:   number;
+  name: string;
 }
 
-interface SurveyLocation {
-  id:               number;
-  projectId:        number | null;
-  areaName:         string | null;
-  floor:            string | null;
-  surveyNotes:      string | null;
-  notes:            string | null;
-  mountingLocation: string | null;
-  coveragePurpose:  string | null;
-  surveyedAt:       string | null;
-  cameraModel:      AssignedCameraModel | null;
-  images:           SurveyImage[];
+interface AccessPoint {
+  id:           number;
+  projectId:    number | null;
+  areaName:     string | null;
+  floor:        string | null;
+  surveyNotes:  string | null;
+  surveyedAt:   string | null;
+  accessMethod: AssignedAccessMethod | null;
+  images:       SurveyImage[];
 }
 
 interface SurveyFloorPlan {
@@ -73,34 +62,20 @@ interface SurveyBuilding {
   floorPlans:   SurveyFloorPlan[];
 }
 
-interface SurveyProject {
+interface AccessSurveyProject {
   id:          number;
   projectName: string;
   building:    SurveyBuilding | null;
-  locations:   SurveyLocation[];
+  locations:   AccessPoint[];
 }
 
 type Filter = 'all' | 'pending' | 'done';
 
-// Camera picker types
-interface CatalogModel {
-  id:              number;
-  manufacturer:    string | null;
-  model:           string | null;
-  cameraType:      string | null;
-  resolution:      string | null;
-  resolutionClass: string | null;
-  imageUrl:        string | null;
-  ptz:             boolean;
-  indoorOutdoor:   string | null;
-  cost:            number | null;
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function isDone(loc: SurveyLocation) { return !!loc.surveyedAt; }
+function isDone(loc: AccessPoint) { return !!loc.surveyedAt; }
 
-function statusChip(loc: SurveyLocation) {
+function statusChip(loc: AccessPoint) {
   if (isDone(loc)) {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
@@ -117,140 +92,21 @@ function statusChip(loc: SurveyLocation) {
   );
 }
 
-function cameraModelLabel(m: AssignedCameraModel | CatalogModel) {
-  return [m.manufacturer, m.model].filter(Boolean).join(' ') || 'Unknown model';
-}
-
-// ── Camera picker ─────────────────────────────────────────────────────────────
-
-interface CameraPickerProps {
-  assignedModel: AssignedCameraModel | null;
-  onAssign: (modelId: number | null) => Promise<void>;
-  assigning: boolean;
-}
-
-function CameraPicker({ assignedModel, onAssign, assigning }: CameraPickerProps) {
-  const [catalog,  setCatalog]  = useState<CatalogModel[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState('');
-  const [open,     setOpen]     = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch('/api/survey/cameras')
-      .then(r => r.json())
-      .then((d: CatalogModel[]) => setCatalog(d))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, []);
-
-  const q = search.toLowerCase();
-  const filtered = catalog.filter(m =>
-    !q ||
-    (m.manufacturer  ?? '').toLowerCase().includes(q) ||
-    (m.model         ?? '').toLowerCase().includes(q) ||
-    (m.cameraType    ?? '').toLowerCase().includes(q) ||
-    (m.resolution    ?? '').toLowerCase().includes(q)
-  );
-
-  async function pick(modelId: number | null) { setOpen(false); setSearch(''); await onAssign(modelId); }
-
-  return (
-    <div ref={containerRef} className="relative">
-      <div className="flex items-center gap-2 mb-2">
-        {assignedModel ? (
-          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-            {assignedModel.imageUrl
-              ? <img src={assignedModel.imageUrl} alt="" className="w-8 h-8 object-contain rounded shrink-0" />
-              : <CameraIcon className="w-4 h-4 text-blue-500 shrink-0" />}
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-blue-800 truncate">{cameraModelLabel(assignedModel)}</p>
-              <p className="text-xs text-blue-500 truncate">
-                {[assignedModel.cameraType, assignedModel.resolution, assignedModel.ptz ? 'PTZ' : null].filter(Boolean).join(' · ')}
-              </p>
-            </div>
-            <button onClick={() => pick(null)} disabled={assigning} className="shrink-0 text-blue-400 hover:text-red-500 transition-colors disabled:opacity-40" title="Unassign camera">
-              <XMarkIcon className="w-4 h-4" />
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs text-gray-400 italic flex-1">No camera assigned</p>
-        )}
-        <button
-          onClick={() => setOpen(o => !o)}
-          disabled={assigning || loading}
-          className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-40 shrink-0"
-        >
-          {assigning ? <span className="w-3 h-3 border border-blue-500 border-t-transparent rounded-full animate-spin" /> : <CameraIcon className="w-3.5 h-3.5" />}
-          {assignedModel ? 'Change' : 'Assign'}
-        </button>
-      </div>
-
-      {open && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-72 overflow-y-auto">
-          <div className="sticky top-0 bg-white border-b border-gray-100 px-3 py-2">
-            <div className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 rounded-lg">
-              <MagnifyingGlassIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-              <input
-                autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search make, model, type…"
-                className="flex-1 bg-transparent text-xs outline-none text-gray-700 placeholder-gray-400"
-              />
-            </div>
-          </div>
-          {assignedModel && (
-            <button onClick={() => pick(null)} className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-red-600 hover:bg-red-50 transition-colors border-b border-gray-50">
-              <XMarkIcon className="w-3.5 h-3.5" />Remove camera assignment
-            </button>
-          )}
-          {filtered.map(m => (
-            <button key={m.id} onClick={() => pick(m.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors ${assignedModel?.id === m.id ? 'bg-blue-50' : ''}`}
-            >
-              {m.imageUrl ? <img src={m.imageUrl} alt="" className="w-7 h-7 object-contain rounded shrink-0" /> : <CameraIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-900 truncate">{cameraModelLabel(m)}</p>
-                <p className="text-xs text-gray-400 truncate">
-                  {[m.cameraType, m.resolution, m.ptz ? 'PTZ' : null, m.indoorOutdoor].filter(Boolean).join(' · ') || 'No details'}
-                </p>
-              </div>
-              {m.cost != null && <span className="text-xs text-gray-400 shrink-0">${Number(m.cost).toFixed(0)}</span>}
-              {assignedModel?.id === m.id && <CheckCircleSolid className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <p className="px-4 py-4 text-xs text-gray-400 text-center">
-              {search ? 'No cameras match your search.' : 'No cameras in catalog yet.'}
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Add location modal ────────────────────────────────────────────────────────
+// ── Add access point modal ────────────────────────────────────────────────────
 
 const MAX_PHOTOS = 5;
 
 interface QuickAddProps {
   projectId: number;
-  onSave:    (loc: SurveyLocation) => void;
+  methods:   AccessMethodOption[];
+  methodsLoading: boolean;
+  onSave:    (loc: AccessPoint) => void;
   onClose:   () => void;
 }
 
 interface PendingPhoto { file: File; preview: string; }
 
-function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
+function AccessQuickAddSheet({ projectId, methods, methodsLoading, onSave, onClose }: QuickAddProps) {
   const [areaName,    setAreaName]    = useState('');
   const [floor,       setFloor]       = useState('');
   const [surveyNotes, setSurveyNotes] = useState('');
@@ -260,8 +116,7 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
   const [voiceField,  setVoiceField]  = useState<string | null>(null);
   const [photoPrompted, setPhotoPrompted] = useState(false);
   const [expandedPreview, setExpandedPreview] = useState<string | null>(null);
-  const [pendingCameraModelId, setPendingCameraModelId] = useState<number | null>(null);
-  const [pendingCameraObj,     setPendingCameraObj]     = useState<AssignedCameraModel | null>(null);
+  const [pendingMethod, setPendingMethod] = useState<AssignedAccessMethod | null>(null);
   const areaRef    = useRef<HTMLInputElement>(null);
   const photoRef   = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
@@ -271,11 +126,23 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
   const { registerCommands, mode, activeField, speak } = useVoice();
   const waitForValue = useWaitForValue();
 
+  const methodsRef = useRef(methods);
+  methodsRef.current = methods;
+
   useEffect(() => {
-    const unregister = registerCommands('quick-add', [
-      { keywords: ['name'],  action: () => { setVoiceField('areaName'); waitForValue('Name',  (val) => { setAreaName(val);    setVoiceField(null); }, { promptText: 'What is the name?',   captureText: (v) => `Name set to ${v}.` }); } },
-      { keywords: ['floor'], action: () => { setVoiceField('floor');    waitForValue('Floor', (val) => { setFloor(val);       setVoiceField(null); }, { promptText: 'Which floor?',         captureText: (v) => `Floor set to ${v}.` }); } },
+    const unregister = registerCommands('access-quick-add', [
+      { keywords: ['name'],  action: () => { setVoiceField('areaName'); waitForValue('Name',  (val) => { setAreaName(val); setVoiceField(null); }, { promptText: 'What is the name?', captureText: (v) => `Name set to ${v}.` }); } },
+      { keywords: ['floor'], action: () => { setVoiceField('floor');    waitForValue('Floor', (val) => { setFloor(val);    setVoiceField(null); }, { promptText: 'Which floor?',       captureText: (v) => `Floor set to ${v}.` }); } },
       { keywords: ['notes', 'note'], action: () => { setVoiceField('notes'); waitForValue('Notes', (val) => { setSurveyNotes(val); setVoiceField(null); }, { promptText: 'Go ahead with your notes.', captureText: 'Notes saved.' }); } },
+      { keywords: ['method', 'access method', 'door'], action: () => {
+        setVoiceField('method');
+        waitForValue('Method', (val) => {
+          const matched = matchOption(val, methodsRef.current, m => [m.name]);
+          if (matched) { setPendingMethod({ id: matched.id, name: matched.name }); speak(`Access method set to ${matched.name}.`); }
+          else speak('No matching access method.');
+          setVoiceField(null);
+        }, { promptText: 'Which access method?' });
+      } },
       { keywords: ['photo'], action: () => { if (atLimit) { speak('Photo limit reached. Five photos maximum.'); } else { speak('Ready for photo.'); setPhotoPrompted(true); } } },
       { keywords: ['save'],  action: () => { handleSave(false); } },
       { keywords: ['next'],  action: () => { handleSave(true);  } },
@@ -306,18 +173,19 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
     if (!areaName.trim()) { speak('Please say a name first'); areaRef.current?.focus(); return; }
     setSaving(true);
     try {
-      setSaveLabel('Creating location…');
+      setSaveLabel('Creating access point…');
       const res = await fetch('/api/survey/locations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId, areaName: areaName.trim(), floor: floor.trim() || null, surveyNotes: surveyNotes.trim() || null }),
+        body: JSON.stringify({
+          projectId,
+          areaName:       areaName.trim(),
+          floor:          floor.trim() || null,
+          surveyNotes:    surveyNotes.trim() || null,
+          accessMethodId: pendingMethod?.id ?? null,
+        }),
       });
-      const loc: SurveyLocation = await res.json();
-
-      if (pendingCameraModelId !== null) {
-        setSaveLabel('Assigning camera…');
-        await fetch(`/api/survey/locations/${loc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cameraModelId: pendingCameraModelId }) });
-      }
+      const loc: AccessPoint = await res.json();
 
       const uploaded: SurveyImage[] = [];
       for (let i = 0; i < pending.length; i++) {
@@ -330,12 +198,12 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
       onSave({ ...loc, images: uploaded });
 
       if (andNext) {
-        speak('Saved. Ready for next location.');
+        speak('Saved. Ready for next access point.');
         setAreaName(''); setFloor(''); setSurveyNotes(''); setPending([]); setSaveLabel('');
-        setPendingCameraModelId(null); setPendingCameraObj(null);
+        setPendingMethod(null);
         setTimeout(() => areaRef.current?.focus(), 50);
       } else {
-        speak('Location saved.'); onClose();
+        speak('Access point saved.'); onClose();
       }
     } finally { setSaving(false); setSaveLabel(''); }
   }
@@ -344,17 +212,17 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <h3 className="text-base font-semibold text-gray-900">Add Location</h3>
+          <h3 className="text-base font-semibold text-gray-900">Add Access Point</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
         </div>
 
         <div className="p-5 space-y-4">
           {/* Area name */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Area / Location Name <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Area / Door Name <span className="text-red-500">*</span></label>
             <input ref={areaRef} autoFocus value={areaName} onChange={e => setAreaName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleSave(true); }}
-              placeholder="e.g. Front Lobby, Parking Lot East"
+              placeholder="e.g. Main Entrance, Server Room Door"
               className={`input-field text-sm w-full ${voicePulse('areaName')}`} />
           </div>
 
@@ -369,19 +237,22 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
             <textarea value={surveyNotes} onChange={e => setSurveyNotes(e.target.value)} rows={2}
-              placeholder="Quick observations, mounting ideas…"
+              placeholder="Door material, frame condition, power nearby…"
               className={`input-field text-sm w-full resize-none ${voicePulse('notes')}`} />
           </div>
 
-          {/* Camera */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Assigned Camera</label>
-            <CameraPicker
-              assignedModel={pendingCameraObj}
+          {/* Access method */}
+          <div className={`rounded-lg ${voicePulse('method')}`}>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Access Method</label>
+            <AccessMethodPicker
+              assignedMethod={pendingMethod}
+              methods={methods}
+              loading={methodsLoading}
               assigning={false}
-              onAssign={async (modelId) => {
-                if (modelId === null) { setPendingCameraModelId(null); setPendingCameraObj(null); }
-                else { setPendingCameraModelId(modelId); setPendingCameraObj({ id: modelId, manufacturer: null, model: null, cameraType: null, resolution: null, resolutionClass: null, imageUrl: null, ptz: false, indoorOutdoor: null }); }
+              onAssign={(methodId) => {
+                if (methodId === null) { setPendingMethod(null); return; }
+                const m = methods.find(x => x.id === methodId);
+                setPendingMethod(m ? { id: m.id, name: m.name } : null);
               }}
             />
           </div>
@@ -389,7 +260,7 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
           {/* Voice hint */}
           <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
             <MicrophoneIcon className="w-3 h-3 text-gray-400 shrink-0" />
-            <span className="text-xs text-gray-400">Say: <strong className="text-gray-600">Name · Floor · Notes · Photo · Save · Next · Exit</strong></span>
+            <span className="text-xs text-gray-400">Say: <strong className="text-gray-600">Name · Floor · Notes · Method · Photo · Save · Next · Exit</strong></span>
           </div>
 
           {/* Photos */}
@@ -446,18 +317,20 @@ function QuickAddSheet({ projectId, onSave, onClose }: QuickAddProps) {
   );
 }
 
-// ── Location detail panel ─────────────────────────────────────────────────────
+// ── Access point detail panel ─────────────────────────────────────────────────
 
 interface LocationPanelProps {
-  location:  SurveyLocation;
-  onUpdate:  (loc: SurveyLocation) => void;
+  location:  AccessPoint;
+  methods:   AccessMethodOption[];
+  methodsLoading: boolean;
+  onUpdate:  (loc: AccessPoint) => void;
   onDelete:  (id: number) => void;
   onClose:   () => void;
 }
 
-function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelProps) {
+function AccessLocationPanel({ location, methods, methodsLoading, onUpdate, onDelete, onClose }: LocationPanelProps) {
   const [surveyNotes,   setSurveyNotes]   = useState(location.surveyNotes ?? '');
-  const [cameraModel,   setCameraModel]   = useState(location.cameraModel);
+  const [accessMethod,  setAccessMethod]  = useState(location.accessMethod);
   const [images,        setImages]        = useState(location.images);
   const [saving,        setSaving]        = useState(false);
   const [uploading,     setUploading]     = useState(false);
@@ -474,10 +347,21 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
   const libraryInputRef = useRef<HTMLInputElement>(null);
 
   const { registerCommands, speak } = useVoice();
+  const waitForValue = useWaitForValue();
+
+  const methodsRef = useRef(methods);
+  methodsRef.current = methods;
 
   useEffect(() => {
-    const unregister = registerCommands('location-panel', [
+    const unregister = registerCommands('access-location-panel', [
       { keywords: ['save', 'mark surveyed'], action: () => { saveNotes(); } },
+      { keywords: ['method', 'access method', 'door'], action: () => {
+        waitForValue('Method', (val) => {
+          const matched = matchOption(val, methodsRef.current, m => [m.name]);
+          if (matched) { assignMethod(matched.id); speak(`Access method set to ${matched.name}.`); }
+          else speak('No matching access method.');
+        }, { promptText: 'Which access method?' });
+      } },
       { keywords: ['photo'], action: () => { if (images.length >= MAX_PHOTOS) { speak('Photo limit reached.'); } else { speak('Tap the screen to add a photo'); photoInputRef.current?.click(); } } },
       { keywords: ['close', 'back', 'exit'], action: () => { speak('Closing'); onClose(); } },
     ]);
@@ -487,11 +371,11 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
 
   const atLimit = images.length >= MAX_PHOTOS;
 
-  async function assignCamera(modelId: number | null) {
+  async function assignMethod(methodId: number | null) {
     setAssigning(true);
     try {
-      const res = await fetch(`/api/survey/locations/${location.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cameraModelId: modelId }) });
-      if (res.ok) { const updated: SurveyLocation = await res.json(); setCameraModel(updated.cameraModel); onUpdate({ ...updated, images }); }
+      const res = await fetch(`/api/survey/locations/${location.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accessMethodId: methodId }) });
+      if (res.ok) { const updated: AccessPoint = await res.json(); setAccessMethod(updated.accessMethod); onUpdate({ ...updated, images }); }
     } finally { setAssigning(false); }
   }
 
@@ -499,7 +383,7 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
     setDeletingId(photoId);
     try {
       const res = await fetch(`/api/survey/locations/${location.id}/photos/${photoId}`, { method: 'DELETE' });
-      if (res.ok) { const updated = images.filter(img => img.id !== photoId); setImages(updated); onUpdate({ ...location, surveyNotes, cameraModel, images: updated }); }
+      if (res.ok) { const updated = images.filter(img => img.id !== photoId); setImages(updated); onUpdate({ ...location, surveyNotes, accessMethod, images: updated }); }
     } finally { setDeletingId(null); }
   }
 
@@ -507,7 +391,7 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
     setSavingEdits(true);
     try {
       const res = await fetch(`/api/survey/locations/${location.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ areaName: editAreaName.trim() || location.areaName, floor: editFloor.trim() || null }) });
-      if (res.ok) { const updated = await res.json(); onUpdate({ ...updated, images, cameraModel }); setEditMode(false); }
+      if (res.ok) { const updated = await res.json(); onUpdate({ ...updated, images, accessMethod }); setEditMode(false); }
     } finally { setSavingEdits(false); }
   }
 
@@ -515,7 +399,7 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
     speak('Saving'); setSaving(true);
     try {
       const res = await fetch(`/api/survey/locations/${location.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ surveyNotes, markSurveyed: true }) });
-      const updated = await res.json(); onUpdate({ ...updated, images, cameraModel });
+      const updated = await res.json(); onUpdate({ ...updated, images, accessMethod });
       speak(`${location.areaName} marked as surveyed`); onClose();
     } finally { setSaving(false); }
   }
@@ -537,7 +421,7 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
       const res = await fetch(`/api/survey/locations/${location.id}/photos`, { method: 'POST', body: fd });
       if (res.ok) {
         const newImg = await res.json(); const updated = [...images, newImg]; setImages(updated);
-        onUpdate({ ...location, surveyNotes, cameraModel, images: updated, surveyedAt: new Date().toISOString() });
+        onUpdate({ ...location, surveyNotes, accessMethod, images: updated, surveyedAt: new Date().toISOString() });
         speak(`Photo added. ${updated.length} of ${MAX_PHOTOS}.`);
       }
     } finally { setUploading(false); if (photoInputRef.current) photoInputRef.current.value = ''; }
@@ -574,11 +458,11 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
         </div>
 
         <div className="p-5 space-y-5">
-          <div className="flex items-center gap-2">{statusChip({ ...location, cameraModel, images })}</div>
+          <div className="flex items-center gap-2">{statusChip({ ...location, accessMethod, images })}</div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Assigned Camera</label>
-            <CameraPicker assignedModel={cameraModel} onAssign={assignCamera} assigning={assigning} />
+            <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Access Method</label>
+            <AccessMethodPicker assignedMethod={accessMethod} methods={methods} loading={methodsLoading} onAssign={assignMethod} assigning={assigning} />
           </div>
 
           {/* Photos */}
@@ -619,7 +503,7 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
 
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Survey Notes</label>
-            <textarea value={surveyNotes} onChange={e => setSurveyNotes(e.target.value)} rows={4} placeholder="Observations, mounting type, obstructions, lighting conditions…" className="input-field text-sm w-full resize-none" />
+            <textarea value={surveyNotes} onChange={e => setSurveyNotes(e.target.value)} rows={4} placeholder="Door material, frame condition, power availability, cable path…" className="input-field text-sm w-full resize-none" />
           </div>
 
           <button onClick={saveNotes} disabled={saving || deleting} className="btn-primary w-full text-sm flex items-center justify-center gap-2">
@@ -627,7 +511,7 @@ function LocationPanel({ location, onUpdate, onDelete, onClose }: LocationPanelP
           </button>
 
           {!confirmDelete ? (
-            <button onClick={() => setConfirmDelete(true)} disabled={deleting} className="w-full text-xs text-gray-400 hover:text-red-500 transition-colors py-1">Delete this location</button>
+            <button onClick={() => setConfirmDelete(true)} disabled={deleting} className="w-full text-xs text-gray-400 hover:text-red-500 transition-colors py-1">Delete this access point</button>
           ) : (
             <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
               <p className="flex-1 text-xs text-red-700 font-medium">Delete permanently?</p>
@@ -676,18 +560,20 @@ function FloorPlanPopover({ building }: { building: SurveyBuilding }) {
 // ── Voice quick-reference ─────────────────────────────────────────────────────
 
 const QUICK_REF_SECTIONS = [
-  { title: 'Survey Board', commands: [{ say: '"Add location" / "New location"', responds: '"Opening add location"' }] },
-  { title: 'Add Location — Fields', commands: [
-    { say: '"Name"  ->  speak value',      responds: '"Say the area name" -> "Name set to [value]"' },
-    { say: '"Floor"  ->  speak value',     responds: '"Say the floor" -> "Floor [value]"' },
-    { say: '"Notes"  ->  speak value',     responds: '"Say your notes" -> "Notes recorded"' },
+  { title: 'Survey Board', commands: [{ say: '"Add location" / "New location"', responds: '"Adding new location"' }] },
+  { title: 'Add Access Point — Fields', commands: [
+    { say: '"Name"  ->  speak value',      responds: '"What is the name?" -> "Name set to [value]"' },
+    { say: '"Floor"  ->  speak value',     responds: '"Which floor?" -> "Floor set to [value]"' },
+    { say: '"Notes"  ->  speak value',     responds: '"Go ahead with your notes" -> "Notes saved"' },
+    { say: '"Method" / "Door"  ->  speak value', responds: '"Which access method?" -> "Access method set to [value]"' },
     { say: '"Photo"',                      responds: '"Tap the screen to capture a photo"', note: '★ tap required' },
-    { say: '"Save"',                       responds: '"[Name] saved"' },
-    { say: '"Next"',                       responds: '"[Name] saved. Ready for next location."' },
+    { say: '"Save"',                       responds: '"Access point saved"' },
+    { say: '"Next"',                       responds: '"Saved. Ready for next access point."' },
     { say: '"Exit" / "Cancel" / "Close"',  responds: '"Closing"' },
   ]},
-  { title: 'Location Detail', commands: [
+  { title: 'Access Point Detail', commands: [
     { say: '"Save" / "Mark surveyed"',     responds: '"[Name] marked as surveyed"' },
+    { say: '"Method" / "Door"  ->  speak value', responds: '"Which access method?" -> "Access method set to [value]"' },
     { say: '"Photo"',                      responds: '"Tap the screen to add a photo"', note: '★ tap required' },
     { say: '"Close" / "Back" / "Exit"',    responds: '"Closing"' },
   ]},
@@ -743,23 +629,33 @@ function VoiceQuickRefButton() {
   );
 }
 
-// ── Main SurveyBoard ──────────────────────────────────────────────────────────
+// ── Main AccessSurveyBoard ────────────────────────────────────────────────────
 
 const PAGE_SIZE = 6;
 
-interface Props { initialProject: SurveyProject; }
+interface Props { initialProject: AccessSurveyProject; }
 
-export function SurveyBoard({ initialProject }: Props) {
-  const [project,   setProject]   = useState<SurveyProject>(initialProject);
+export function AccessSurveyBoard({ initialProject }: Props) {
+  const [project,   setProject]   = useState<AccessSurveyProject>(initialProject);
   const [filter,    setFilter]    = useState<Filter>('all');
   const [showAdd,   setShowAdd]   = useState(false);
-  const [showAgent, setShowAgent] = useState(false);
-  const [detailLoc, setDetailLoc] = useState<SurveyLocation | null>(null);
+  const [detailLoc, setDetailLoc] = useState<AccessPoint | null>(null);
   const [page,      setPage]      = useState(0);
+
+  const [methods, setMethods]               = useState<AccessMethodOption[]>([]);
+  const [methodsLoading, setMethodsLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/access-methods')
+      .then(r => r.json())
+      .then((d: AccessMethodOption[]) => setMethods(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setMethodsLoading(false));
+  }, []);
 
   const { registerCommands } = useVoice();
   useEffect(() => {
-    const unregister = registerCommands('survey-board', [{ keywords: ['add location', 'new location'], ack: 'Adding new location.', action: () => { setShowAdd(true); } }]);
+    const unregister = registerCommands('access-survey-board', [{ keywords: ['add location', 'new location'], ack: 'Adding new location.', action: () => { setShowAdd(true); } }]);
     return unregister;
   }, [registerCommands]);
 
@@ -777,11 +673,11 @@ export function SurveyBoard({ initialProject }: Props) {
   const total     = project.locations.length;
   const pct       = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
-  const handleLocationUpdate = useCallback((updated: SurveyLocation) => {
+  const handleLocationUpdate = useCallback((updated: AccessPoint) => {
     setProject(prev => ({ ...prev, locations: prev.locations.map(l => l.id === updated.id ? updated : l) }));
   }, []);
 
-  const handleLocationAdd = useCallback((newLoc: SurveyLocation) => {
+  const handleLocationAdd = useCallback((newLoc: AccessPoint) => {
     setProject(prev => ({ ...prev, locations: [...prev.locations, newLoc] }));
   }, []);
 
@@ -800,7 +696,7 @@ export function SurveyBoard({ initialProject }: Props) {
               {project.building.siteName && <> · {project.building.siteName}</>}
             </p>
           )}
-          <p className="text-xs text-gray-400">{total} location{total !== 1 ? 's' : ''} · {doneCount} surveyed</p>
+          <p className="text-xs text-gray-400">{total} access point{total !== 1 ? 's' : ''} · {doneCount} surveyed</p>
         </div>
         <div className="flex items-center gap-3">
           {project.building && <FloorPlanPopover building={project.building} />}
@@ -830,11 +726,11 @@ export function SurveyBoard({ initialProject }: Props) {
         ))}
       </div>
 
-      {/* Locations list */}
+      {/* Access points list */}
       <div className="card overflow-hidden mb-4">
         {visibleLocs.length === 0 ? (
           <p className="px-4 py-6 text-sm text-gray-400 italic text-center">
-            {filter === 'all' ? 'No locations yet — add one below.' : 'No locations match this filter.'}
+            {filter === 'all' ? 'No access points yet — add one below.' : 'No access points match this filter.'}
           </p>
         ) : (
           <>
@@ -847,9 +743,9 @@ export function SurveyBoard({ initialProject }: Props) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{loc.areaName}</p>
                   {loc.floor && <p className="text-xs text-gray-400">Floor {loc.floor}</p>}
-                  {loc.cameraModel && (
-                    <p className="text-xs text-blue-500 truncate mt-0.5 flex items-center gap-1">
-                      <CameraIcon className="w-3 h-3 inline shrink-0" />{cameraModelLabel(loc.cameraModel)}
+                  {loc.accessMethod && (
+                    <p className="text-xs text-fuchsia-500 truncate mt-0.5 flex items-center gap-1">
+                      <LockClosedIcon className="w-3 h-3 inline shrink-0" />{loc.accessMethod.name}
                     </p>
                   )}
                 </div>
@@ -866,7 +762,7 @@ export function SurveyBoard({ initialProject }: Props) {
                 <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={safePage === 0} className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   <ChevronLeftIcon className="w-3.5 h-3.5" />Prev
                 </button>
-                <span className="text-xs text-gray-400">{safePage + 1} / {pageCount} <span className="text-gray-300">({visibleLocs.length} locations)</span></span>
+                <span className="text-xs text-gray-400">{safePage + 1} / {pageCount} <span className="text-gray-300">({visibleLocs.length} access points)</span></span>
                 <button onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={safePage === pageCount - 1} className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                   Next<ChevronRightIcon className="w-3.5 h-3.5" />
                 </button>
@@ -879,10 +775,7 @@ export function SurveyBoard({ initialProject }: Props) {
       {/* Actions */}
       <div className="flex justify-center gap-3">
         <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
-          <PlusIcon className="w-5 h-5" />Add Location
-        </button>
-        <button onClick={() => setShowAgent(true)} className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-blue-600 border border-blue-300 bg-white rounded-xl hover:bg-blue-50 transition-colors shadow-sm">
-          <SparklesIcon className="w-4 h-4" />Survey Chat
+          <PlusIcon className="w-5 h-5" />Add Access Point
         </button>
       </div>
 
@@ -890,28 +783,23 @@ export function SurveyBoard({ initialProject }: Props) {
       <div className="fixed bottom-6 right-6 z-40"><VoiceQuickRefButton /></div>
 
       {showAdd && (
-        <QuickAddSheet
+        <AccessQuickAddSheet
           projectId={project.id}
+          methods={methods}
+          methodsLoading={methodsLoading}
           onSave={loc => { handleLocationAdd(loc); setShowAdd(false); }}
           onClose={() => setShowAdd(false)}
         />
       )}
 
       {detailLoc && (
-        <LocationPanel
+        <AccessLocationPanel
           location={detailLoc}
+          methods={methods}
+          methodsLoading={methodsLoading}
           onUpdate={updated => { handleLocationUpdate(updated); setDetailLoc(updated); }}
           onDelete={id => { handleLocationDelete(id); setDetailLoc(null); }}
           onClose={() => setDetailLoc(null)}
-        />
-      )}
-
-      {showAgent && (
-        <SurveyAgentChat
-          projectId={project.id}
-          buildingName={project.building?.buildingName ?? 'Main Building'}
-          onLocationSaved={loc => { handleLocationAdd(loc as unknown as SurveyLocation); }}
-          onExit={() => setShowAgent(false)}
         />
       )}
     </div>

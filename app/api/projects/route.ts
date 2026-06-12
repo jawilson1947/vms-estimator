@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { Prisma, ProjectStatus } from '@prisma/client';
+import { Prisma, ProjectStatus, ProjectType } from '@prisma/client';
 
 // GET /api/projects
 export async function GET(req: NextRequest) {
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const {
-    customerId, projectName, projectNumber, projectStatus,
+    customerId, projectName, projectNumber, projectStatus, projectType,
     startDate, completionDate, projectManager,
     consultingRate, overheadRatePercent, notes,
   } = body;
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
       projectName,
       projectNumber:       projectNumber       || null,
       projectStatus:       projectStatus       || ProjectStatus.PROPOSED,
+      projectType:         projectType         || ProjectType.VIDEO_SURVEILLANCE,
       startDate:           startDate           ? new Date(startDate)      : null,
       completionDate:      completionDate      ? new Date(completionDate) : null,
       projectManager:      projectManager      || null,

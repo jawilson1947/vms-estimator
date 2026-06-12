@@ -69,6 +69,7 @@ model Project {
   projectName         String        @map("project_name") @db.VarChar(200)
   projectNumber       String?       @map("project_number") @db.VarChar(50)
   projectStatus       ProjectStatus @default(PROPOSED) @map("project_status")
+  projectType         ProjectType   @default(VIDEO_SURVEILLANCE) @map("project_type")
   startDate           DateTime?     @map("start_date") @db.Date
   completionDate      DateTime?     @map("completion_date") @db.Date
   projectManager      String?       @map("project_manager") @db.VarChar(150)
@@ -84,6 +85,11 @@ model Project {
   cameraLocations     CameraLocation[]
 
   @@map("projects")
+}
+
+enum ProjectType {
+  VIDEO_SURVEILLANCE @map("Video Surveillance")
+  ACCESS_CONTROL     @map("Access Control")
 }
 
 enum ProjectStatus {
@@ -149,6 +155,7 @@ model CameraLocation {
   id               Int                   @id @default(autoincrement()) @map("location_id")
   projectId        Int?                  @map("project_id")
   cameraModelId    Int?                  @map("camera_model_id")
+  accessMethodId   Int?                  @map("access_method_id")
   floor            String?               @db.VarChar(50)
   areaName         String?               @map("area_name") @db.VarChar(150)
   mountingLocation String?               @map("mounting_location") @db.VarChar(150)
@@ -159,6 +166,7 @@ model CameraLocation {
 
   project          Project?              @relation(fields: [projectId], references: [id], onDelete: SetNull)
   cameraModel      CameraModel?          @relation(fields: [cameraModelId], references: [id], onDelete: SetNull)
+  accessMethod     AccessMethod?         @relation(fields: [accessMethodId], references: [id], onDelete: SetNull)
   images           CameraLocationImage[]
   projectCosts     ProjectCost[]
 
@@ -246,6 +254,66 @@ enum ImageType {
   OTHER             @map("Other")
 }
 
+// ─── Access Control ──────────────────────────────────────────────────────────
+
+model ArtifactType {
+  id          Int                @id @default(autoincrement())
+  name        String             @unique @db.VarChar(100)
+  sortOrder   Int                @default(0) @map("sort_order")
+  active      Boolean            @default(true)
+
+  artifacts   ArtifactModel[]
+  methodItems AccessMethodItem[]
+  projectCosts ProjectCost[]
+
+  @@map("artifact_types")
+}
+
+model ArtifactModel {
+  id             Int           @id @default(autoincrement()) @map("artifact_id")
+  artifactTypeId Int           @map("artifact_type_id")
+  manufacturer   String?       @db.VarChar(100)
+  modelName      String?       @map("model_name") @db.VarChar(150)
+  variant        String?       @db.VarChar(50)
+  description    String?       @db.Text
+  imageUrl       String?       @map("image_url") @db.VarChar(500)
+  cost           Decimal?      @db.Decimal(10, 2)
+  comment        String?       @db.Text
+  active         Boolean       @default(true)
+
+  artifactType   ArtifactType  @relation(fields: [artifactTypeId], references: [id])
+  projectCosts   ProjectCost[]
+
+  @@map("artifact_models")
+}
+
+model AccessMethod {
+  id        Int                @id @default(autoincrement())
+  name      String             @unique @db.VarChar(100)
+  grouping  String?            @db.VarChar(50)
+  sortOrder Int                @default(0) @map("sort_order")
+  active    Boolean            @default(true)
+
+  items     AccessMethodItem[]
+  locations CameraLocation[]
+
+  @@map("access_methods")
+}
+
+model AccessMethodItem {
+  id             Int          @id @default(autoincrement())
+  accessMethodId Int          @map("access_method_id")
+  artifactTypeId Int          @map("artifact_type_id")
+  quantity       Int          @default(1)
+  notes          String?      @db.Text
+
+  accessMethod   AccessMethod @relation(fields: [accessMethodId], references: [id], onDelete: Cascade)
+  artifactType   ArtifactType @relation(fields: [artifactTypeId], references: [id])
+
+  @@unique([accessMethodId, artifactTypeId])
+  @@map("access_method_items")
+}
+
 // ─── Line Item Categories ─────────────────────────────────────────────────────
 
 model LineItemCategory {
@@ -277,11 +345,15 @@ model ProjectCost {
   notes           String?          @db.Text
 
   surveyLocationId  Int?             @map("survey_location_id")
+  artifactTypeId    Int?             @map("artifact_type_id")
+  artifactModelId   Int?             @map("artifact_model_id")
 
   project           Project          @relation(fields: [projectId], references: [id])
   category          LineItemCategory @relation(fields: [categoryId], references: [id])
   cameraModel       CameraModel?     @relation(fields: [cameraModelId], references: [id], onDelete: SetNull)
   surveyLocation    CameraLocation?  @relation(fields: [surveyLocationId], references: [id], onDelete: SetNull)
+  artifactType      ArtifactType?    @relation(fields: [artifactTypeId], references: [id], onDelete: SetNull)
+  artifactModel     ArtifactModel?   @relation(fields: [artifactModelId], references: [id], onDelete: SetNull)
 
   @@map("project_costs")
 }

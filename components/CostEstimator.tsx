@@ -62,6 +62,41 @@ interface SurveyOverride {
   markupPercent: number;
 }
 
+interface BomItem {
+  artifactTypeId: number;     // group key
+  typeName:       string;
+  quantity:       number;     // aggregated across access points
+  notes:          string[];
+}
+
+interface BomOverride {
+  costId:          number;
+  artifactModelId: number | null;
+  quantity:        number;
+  unitCost:        number;
+  markupPercent:   number;
+}
+
+interface ArtifactOption {
+  id:             number;
+  artifactTypeId: number;
+  manufacturer:   string | null;
+  modelName:      string | null;
+  variant:        string | null;
+  cost:           number | null;
+}
+
+interface BomRowState {
+  artifactModelId: number;    // 0 = not picked
+  quantity:        number;
+  unitCost:        number;
+  markupPercent:   number;
+}
+
+function artifactLabel(a: ArtifactOption) {
+  return [a.manufacturer, a.modelName, a.variant].filter(Boolean).join(' ') || `Artifact #${a.id}`;
+}
+
 interface Props {
   projectId:       number;
   overheadRateDefault: number;
@@ -69,6 +104,8 @@ interface Props {
   initialSummary:  FeeSummary | null;
   surveyItems?:    SurveyItem[];
   surveyOverrides?: Record<number, SurveyOverride>;
+  bomItems?:       BomItem[];
+  bomOverrides?:   Record<number, BomOverride>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -90,7 +127,7 @@ function fmtNum(n: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary, surveyItems = [], surveyOverrides = {} }: Props) {
+export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary, surveyItems = [], surveyOverrides = {}, bomItems = [], bomOverrides = {} }: Props) {
   const [costs, setCosts]         = useState<CostLine[]>(initialCosts);
   const [summary, setSummary]     = useState<FeeSummary | null>(initialSummary);
   const [editId, setEditId]       = useState<number | 'new' | null>(null);
@@ -145,6 +182,83 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     setDirtyMarkups(prev => { const n = { ...prev }; delete n[key]; return n; });
   }
 
+  // ── Access Control BOM rows — keyed by artifactTypeId ──────────────────────
+  const [artifacts, setArtifacts] = useState<ArtifactOption[]>([]);
+  const [bomState, setBomState] = useState<Record<number, BomRowState>>(() => {
+    const out: Record<number, BomRowState> = {};
+    for (const item of bomItems) {
+      const ov = bomOverrides[item.artifactTypeId];
+      out[item.artifactTypeId] = ov
+        ? { artifactModelId: ov.artifactModelId ?? 0, quantity: item.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent }
+        : { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 };
+    }
+    return out;
+  });
+  // Committed snapshot per type — drives totals; undefined until first commit
+  const [bomSaved, setBomSaved] = useState<Record<number, BomRowState>>(() => {
+    const out: Record<number, BomRowState> = {};
+    for (const [key, ov] of Object.entries(bomOverrides)) {
+      out[Number(key)] = { artifactModelId: ov.artifactModelId ?? 0, quantity: ov.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent };
+    }
+    return out;
+  });
+  const [savingBom, setSavingBom] = useState<Record<number, boolean>>({});
+
+  function bomRowDirty(typeId: number) {
+    const cur = bomState[typeId];
+    const saved = bomSaved[typeId];
+    if (!cur) return false;
+    if (!saved) return cur.artifactModelId !== 0 || cur.markupPercent !== 0;
+    return cur.artifactModelId !== saved.artifactModelId
+      || cur.quantity      !== saved.quantity
+      || cur.unitCost      !== saved.unitCost
+      || cur.markupPercent !== saved.markupPercent;
+  }
+
+  function updateBomRow(typeId: number, patch: Partial<BomRowState>) {
+    setBomState(prev => ({ ...prev, [typeId]: { ...prev[typeId], ...patch } }));
+  }
+
+  function pickBomModel(typeId: number, modelId: number) {
+    const model = artifacts.find(a => a.id === modelId);
+    updateBomRow(typeId, {
+      artifactModelId: modelId,
+      unitCost: model?.cost != null ? Number(model.cost) : 0,
+    });
+  }
+
+  async function commitBomRow(item: BomItem) {
+    const key = item.artifactTypeId;
+    const st  = bomState[key];
+    if (!st) return;
+    const model = artifacts.find(a => a.id === st.artifactModelId);
+    setSavingBom(prev => ({ ...prev, [key]: true }));
+    const res = await fetch(`/api/projects/${projectId}/access-bom`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        artifactTypeId:  key,
+        artifactModelId: st.artifactModelId || null,
+        quantity:        st.quantity,
+        unitCost:        st.unitCost,
+        markupPercent:   st.markupPercent,
+        description:     model ? `${item.typeName} — ${artifactLabel(model)}` : item.typeName,
+      }),
+    });
+    setSavingBom(prev => ({ ...prev, [key]: false }));
+    if (res.ok) setBomSaved(prev => ({ ...prev, [key]: { ...st } }));
+  }
+
+  function revertBomRow(item: BomItem) {
+    const saved = bomSaved[item.artifactTypeId];
+    setBomState(prev => ({
+      ...prev,
+      [item.artifactTypeId]: saved
+        ? { ...saved, quantity: item.quantity }
+        : { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 },
+    }));
+  }
+
   useEffect(() => {
     fetch('/api/line-item-categories')
       .then(r => r.json())
@@ -154,6 +268,13 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       .then(r => r.json())
       .then((data: CameraOption[]) => setCameras(data))
       .catch(() => {});
+    if (bomItems.length > 0) {
+      fetch('/api/artifacts')
+        .then(r => r.json())
+        .then((data: ArtifactOption[]) => setArtifacts(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Derived totals ──────────────────────────────────────────────────────────
@@ -164,11 +285,15 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     }, 0),
     [surveyItems, surveyMarkups]
   );
-  const directTotal   = useMemo(() => costs.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal, [costs, surveyTotal]);
+  const bomTotal = useMemo(
+    () => Object.values(bomSaved).reduce((s, r) => s + r.unitCost * r.quantity * (1 + r.markupPercent / 100), 0),
+    [bomSaved]
+  );
+  const directTotal   = useMemo(() => costs.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal, [costs, surveyTotal, bomTotal]);
 
   const overheadAmount  = directTotal * (fees.overheadPercent / 100);
   const grandTotal      = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount;
-  const billableTotal   = costs.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal;
+  const billableTotal   = costs.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal;
   const margin          = grandTotal > 0 ? ((grandTotal - directTotal) / grandTotal) * 100 : 0;
 
   // ── Category totals for charts ──────────────────────────────────────────────
@@ -176,10 +301,11 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     const map: Record<string, number> = {};
     costs.forEach(c => { map[c.categoryName] = (map[c.categoryName] ?? 0) + c.lineTotal; });
     if (surveyTotal > 0) map['Camera'] = (map['Camera'] ?? 0) + surveyTotal;
+    if (bomTotal > 0)    map['Access Control'] = (map['Access Control'] ?? 0) + bomTotal;
     return Object.entries(map)
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total);
-  }, [costs, surveyTotal]);
+  }, [costs, surveyTotal, bomTotal]);
 
   // ── Line item CRUD ──────────────────────────────────────────────────────────
   function startNew()        { setLineForm({ ...emptyLine, categoryId: categories[0]?.id ?? 0 }); setEditId('new'); }
@@ -396,6 +522,76 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                                     <CheckIcon className="w-3.5 h-3.5" />
                                   </button>
                                   <button onClick={() => revertSurveyMarkup(key)}
+                                    className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmt(lineTotal)}</td>
+                          <td className="px-3 py-2" />
+                        </tr>
+                      );
+                    })}
+
+                    {bomItems.map(item => {
+                      const key      = item.artifactTypeId;
+                      const st       = bomState[key] ?? { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 };
+                      const isDirty  = bomRowDirty(key);
+                      const isSaving = savingBom[key] ?? false;
+                      const typeModels = artifacts.filter(a => a.artifactTypeId === key);
+                      const lineTotal  = st.unitCost * st.quantity * (1 + st.markupPercent / 100);
+                      return (
+                        <tr key={`bom-${key}`} className="hover:bg-violet-50/30">
+                          <td className="px-3 py-2">
+                            <span className="badge bg-violet-100 text-violet-700 text-xs whitespace-nowrap">Access Control</span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            <div>{item.typeName}</div>
+                            <select
+                              value={st.artifactModelId}
+                              onChange={e => pickBomModel(key, Number(e.target.value))}
+                              className="form-select text-xs py-1 w-full mt-1"
+                            >
+                              <option value={0}>-- Select model --</option>
+                              {typeModels.map(a => (
+                                <option key={a.id} value={a.id}>
+                                  {artifactLabel(a)}{a.cost != null ? ` -- $${Number(a.cost).toFixed(2)}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {st.artifactModelId === 0 && (
+                              <div className="text-xs text-amber-600 mt-0.5">Pick a model to price this item</div>
+                            )}
+                            {item.notes.map((n, i) => (
+                              <div key={i} className="text-xs text-gray-400 mt-0.5 italic">{n}</div>
+                            ))}
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number" min="0" step="1"
+                              value={st.quantity}
+                              onChange={e => updateBomRow(key, { quantity: Math.max(0, Number(e.target.value) || 0) })}
+                              className="form-input text-xs py-0.5 w-14 text-right"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right text-gray-600">{fmt(st.unitCost)}</td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number" min="0" step="0.1"
+                                value={st.markupPercent}
+                                onChange={e => updateBomRow(key, { markupPercent: Number(e.target.value) || 0 })}
+                                className="form-input text-xs py-0.5 w-16 text-right"
+                              />
+                              {isDirty && (
+                                <>
+                                  <button onClick={() => commitBomRow(item)} disabled={isSaving}
+                                    className="p-1 text-green-600 hover:text-green-700 rounded">
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => revertBomRow(item)}
                                     className="p-1 text-gray-400 hover:text-gray-600 rounded">
                                     <XMarkIcon className="w-3.5 h-3.5" />
                                   </button>

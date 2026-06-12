@@ -19,12 +19,17 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
       feeSummary: true,
       cameraLocations: {
         orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
-        include: { cameraModel: true },
+        include: {
+          cameraModel:  true,
+          accessMethod: { include: { items: { include: { artifactType: true } } } },
+        },
       },
     },
   });
 
   if (!project) notFound();
+
+  const isAccessControl = project.projectType === 'ACCESS_CONTROL';
 
   // Load stored markup overrides for survey camera rows (keyed by cameraModelId)
   const surveyOverrideRows = await prisma.projectCost.findMany({
@@ -68,6 +73,53 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
   }
   const surveyItems = Array.from(groupMap.values());
 
+  // ── Access Control BOM: aggregate method items across access points ────────
+  type BomItem = { artifactTypeId: number; typeName: string; quantity: number; notes: string[]; sortOrder: number };
+  const bomMap = new Map<number, BomItem>();
+  if (isAccessControl) {
+    for (const l of project.cameraLocations) {
+      if (!l.accessMethod) continue;
+      for (const item of l.accessMethod.items) {
+        const existing = bomMap.get(item.artifactTypeId);
+        if (existing) {
+          existing.quantity += item.quantity;
+          if (item.notes && !existing.notes.includes(item.notes)) existing.notes.push(item.notes);
+        } else {
+          bomMap.set(item.artifactTypeId, {
+            artifactTypeId: item.artifactTypeId,
+            typeName:       item.artifactType.name,
+            quantity:       item.quantity,
+            notes:          item.notes ? [item.notes] : [],
+            sortOrder:      item.artifactType.sortOrder,
+          });
+        }
+      }
+    }
+  }
+  const bomItems = Array.from(bomMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // Persisted BOM overrides (committed ProjectCost rows keyed by artifactTypeId)
+  const bomOverrideRows = isAccessControl
+    ? await prisma.projectCost.findMany({
+        where:  { projectId: Number(projectId), artifactTypeId: { not: null } },
+        select: { id: true, artifactTypeId: true, artifactModelId: true, quantity: true, unitCost: true, markupPercent: true },
+      })
+    : [];
+  const bomOverrides: Record<number, { costId: number; artifactModelId: number | null; quantity: number; unitCost: number; markupPercent: number }> = {};
+  const bomOverrideIds = new Set<number>();
+  for (const row of bomOverrideRows) {
+    if (row.artifactTypeId != null) {
+      bomOverrides[row.artifactTypeId] = {
+        costId:          row.id,
+        artifactModelId: row.artifactModelId,
+        quantity:        Number(row.quantity),
+        unitCost:        Number(row.unitCost),
+        markupPercent:   Number(row.markupPercent),
+      };
+      bomOverrideIds.add(row.id);
+    }
+  }
+
   return (
     <div>
       <nav className="flex items-center gap-1 text-sm text-gray-500 mb-6">
@@ -94,7 +146,9 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         overheadRateDefault={project.overheadRatePercent ? Number(project.overheadRatePercent) : 15}
         surveyItems={surveyItems}
         surveyOverrides={surveyOverrides}
-        initialCosts={project.costs.filter(c => !surveyOverrideIds.has(c.id)).map(c => ({
+        bomItems={bomItems.map(({ sortOrder: _s, ...rest }) => rest)}
+        bomOverrides={bomOverrides}
+        initialCosts={project.costs.filter(c => !surveyOverrideIds.has(c.id) && !bomOverrideIds.has(c.id)).map(c => ({
           id:            c.id,
           categoryId:    c.categoryId,
           categoryName:  c.category.name,
