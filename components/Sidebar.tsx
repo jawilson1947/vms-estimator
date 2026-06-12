@@ -24,12 +24,14 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   DocumentPlusIcon,
+  KeyIcon,
 } from '@heroicons/react/24/outline';
 
 const nav = [
   { label: 'Survey',      href: '/survey',      icon: MapPinIcon,            color: 'text-teal-500'    },
   { label: 'Dashboard',   href: '/dashboard',   icon: HomeIcon,              color: 'text-blue-500'    },
   { label: 'Cameras',     href: '/cameras',     icon: CameraIcon,            color: 'text-indigo-500'  },
+  { label: 'Artifacts',   href: '/artifacts',   icon: KeyIcon,               color: 'text-fuchsia-500' },
   { label: 'Projects',    href: '/projects',    icon: FolderIcon,            color: 'text-violet-500'  },
   { label: 'Customers',   href: '/customers',   icon: UsersIcon,             color: 'text-orange-500'  },
   { label: 'Sites',       href: '/sites',       icon: BuildingOffice2Icon,   color: 'text-green-500'   },
