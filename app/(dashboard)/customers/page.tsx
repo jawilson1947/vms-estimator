@@ -1,30 +1,49 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { PlusIcon, MagnifyingGlassIcon, BuildingOffice2Icon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon, MagnifyingGlassIcon, BuildingOffice2Icon,
+  ChevronLeftIcon, ChevronRightIcon,
+} from '@heroicons/react/24/outline';
 
-async function getCustomers(search: string) {
-  return prisma.customer.findMany({
-    where: search
-      ? {
-          OR: [
-            { customerName: { contains: search } },
-            { contactName:  { contains: search } },
-            { email:        { contains: search } },
-          ],
-        }
-      : undefined,
-    include: { _count: { select: { projects: true, sites: true } } },
-    orderBy: { customerName: 'asc' },
-  });
+const PAGE_SIZE = 10;
+
+function customerWhere(search: string) {
+  return search
+    ? {
+        OR: [
+          { customerName: { contains: search } },
+          { contactName:  { contains: search } },
+          { contactTitle: { contains: search } },
+          { email:        { contains: search } },
+          { phone:        { contains: search } },
+        ],
+      }
+    : undefined;
 }
 
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: { search?: string };
+  searchParams: Promise<{ search?: string; page?: string }>;
 }) {
-  const search    = searchParams.search ?? '';
-  const customers = await getCustomers(search);
+  const params = await searchParams;
+  const search = params.search ?? '';
+  const where  = customerWhere(search);
+
+  const total       = await prisma.customer.count({ where });
+  const totalPages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, Number(params.page) || 1), totalPages);
+
+  const customers = await prisma.customer.findMany({
+    where,
+    include: { _count: { select: { projects: true, sites: true } } },
+    orderBy: { customerName: 'asc' },
+    skip:    (currentPage - 1) * PAGE_SIZE,
+    take:    PAGE_SIZE,
+  });
+
+  const pageHref = (p: number) =>
+    `/customers?${new URLSearchParams({ ...(search ? { search } : {}), ...(p > 1 ? { page: String(p) } : {}) })}`;
 
   return (
     <div>
@@ -32,7 +51,7 @@ export default async function CustomersPage({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Customers</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{customers.length} total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
         </div>
         <Link href="/customers/new" className="btn-primary">
           <PlusIcon className="w-4 h-4" />
@@ -47,7 +66,7 @@ export default async function CustomersPage({
           <input
             name="search"
             defaultValue={search}
-            placeholder="Search customers…"
+            placeholder="Search name, contact, email, phone…"
             className="form-input pl-9 w-full"
           />
         </form>
@@ -108,6 +127,32 @@ export default async function CustomersPage({
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+              <span>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
+                  <Link href={pageHref(currentPage - 1)} title="Previous page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronLeftIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronLeftIcon className="w-4 h-4" /></span>
+                )}
+                <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+                {currentPage < totalPages ? (
+                  <Link href={pageHref(currentPage + 1)} title="Next page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronRightIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronRightIcon className="w-4 h-4" /></span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

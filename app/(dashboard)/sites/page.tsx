@@ -1,21 +1,45 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { PlusIcon, MapPinIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon, MapPinIcon, MagnifyingGlassIcon, BuildingOfficeIcon,
+  ChevronLeftIcon, ChevronRightIcon,
+} from '@heroicons/react/24/outline';
+
+const PAGE_SIZE = 8;
 
 interface ProjectLink { id: number; projectName: string }
 interface SiteProjectRow { siteId: number; id: number; projectName: string }
 
-async function getSites(search: string) {
+function siteWhere(search: string) {
+  return search
+    ? {
+        OR: [
+          { siteName: { contains: search } },
+          { city:     { contains: search } },
+          { state:    { contains: search } },
+          { customer:  { customerName: { contains: search } } },
+          { buildings: { some: { buildingName: { contains: search } } } },
+        ],
+      }
+    : undefined;
+}
+
+async function getSites(search: string, page: number) {
+  const where = siteWhere(search);
+  const total = await prisma.site.count({ where });
+  const totalPages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+
   const sites = await prisma.site.findMany({
-    where: search
-      ? { OR: [{ siteName: { contains: search } }, { city: { contains: search } }, { state: { contains: search } }] }
-      : undefined,
+    where,
     include: {
-      customer: { select: { id: true, customerName: true } },
-      _count:   { select: { buildings: true } },
+      customer:  { select: { id: true, customerName: true } },
+      buildings: { select: { id: true, buildingName: true }, orderBy: { buildingName: 'asc' } },
     },
     orderBy: { siteName: 'asc' },
+    skip:    (currentPage - 1) * PAGE_SIZE,
+    take:    PAGE_SIZE,
   });
 
   const siteIds = sites.map(s => s.id);
@@ -35,31 +59,49 @@ async function getSites(search: string) {
     projectsBySite.set(row.siteId, list);
   }
 
-  return sites.map(s => ({ ...s, projects: projectsBySite.get(s.id) ?? [] }));
+  return {
+    sites: sites.map(s => ({ ...s, projects: projectsBySite.get(s.id) ?? [] })),
+    total,
+    totalPages,
+    currentPage,
+  };
 }
 
-export default async function SitesPage({ searchParams }: { searchParams: { search?: string } }) {
-  const search = searchParams.search ?? '';
-  const sites  = await getSites(search);
+export default async function SitesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string; page?: string }>;
+}) {
+  const params = await searchParams;
+  const search = params.search ?? '';
+  const { sites, total, totalPages, currentPage } = await getSites(search, Number(params.page) || 1);
+
+  const pageHref = (p: number) =>
+    `/sites?${new URLSearchParams({ ...(search ? { search } : {}), ...(p > 1 ? { page: String(p) } : {}) })}`;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Sites</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{sites.length} total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
         </div>
         <Link href="/sites/new" className="btn-primary">
           <PlusIcon className="w-4 h-4" /> Add Site
         </Link>
       </div>
 
-      <form className="mb-4">
-        <input
-          name="search" defaultValue={search}
-          placeholder="Search sites…" className="form-input w-56"
-        />
-      </form>
+      {/* Search */}
+      <div className="relative mb-4 max-w-sm">
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <form>
+          <input
+            name="search" defaultValue={search}
+            placeholder="Search site, city, customer, building…"
+            className="form-input pl-9 w-full"
+          />
+        </form>
+      </div>
 
       {sites.length === 0 ? (
         <div className="card p-12 text-center">
@@ -82,12 +124,12 @@ export default async function SitesPage({ searchParams }: { searchParams: { sear
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Customer</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Projects</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-600">Buildings</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Buildings</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {sites.map(s => (
-                <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={s.id} className="hover:bg-gray-50 transition-colors align-top">
                   <td className="px-4 py-3">
                     <Link href={`/sites/${s.id}`} className="font-medium text-blue-600 hover:underline">
                       {s.siteName}
@@ -109,13 +151,55 @@ export default async function SitesPage({ searchParams }: { searchParams: { sear
                       </span>
                     ))}
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="badge bg-gray-100 text-gray-600">{s._count.buildings}</span>
+                  <td className="px-4 py-3">
+                    {s.buildings.length === 0 ? (
+                      <span className="text-gray-400">—</span>
+                    ) : (
+                      <div className="w-48">
+                        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                          <BuildingOfficeIcon className="w-3.5 h-3.5" />
+                          {s.buildings.length} building{s.buildings.length === 1 ? '' : 's'}
+                        </div>
+                        <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-28 overflow-y-auto bg-white">
+                          {s.buildings.map(b => (
+                            <li key={b.id} className="px-2.5 py-1.5 text-xs text-gray-600 truncate" title={b.buildingName}>
+                              {b.buildingName}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+              <span>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
+                  <Link href={pageHref(currentPage - 1)} title="Previous page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronLeftIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronLeftIcon className="w-4 h-4" /></span>
+                )}
+                <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+                {currentPage < totalPages ? (
+                  <Link href={pageHref(currentPage + 1)} title="Next page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronRightIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronRightIcon className="w-4 h-4" /></span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

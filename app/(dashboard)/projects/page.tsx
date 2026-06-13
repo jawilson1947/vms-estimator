@@ -1,8 +1,13 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { PlusIcon, FolderIcon } from '@heroicons/react/24/outline';
+import {
+  PlusIcon, FolderIcon, MagnifyingGlassIcon,
+  ChevronLeftIcon, ChevronRightIcon,
+} from '@heroicons/react/24/outline';
 import { ProjectStatus } from '@prisma/client';
+
+const PAGE_SIZE = 8;
 
 const statusColors: Record<string, string> = {
   PROPOSED:    'bg-gray-100 text-gray-600',
@@ -40,24 +45,35 @@ interface BuildingRow {
   siteName:     string;
 }
 
-async function getProjects(search: string, status: string) {
+async function getProjects(search: string, status: string, page: number) {
+  const where = {
+    ...(status ? { projectStatus: status as ProjectStatus } : {}),
+    ...(search
+      ? {
+          OR: [
+            { projectName:    { contains: search } },
+            { projectNumber:  { contains: search } },
+            { projectManager: { contains: search } },
+            { customer: { customerName: { contains: search } } },
+            { building: { buildingName: { contains: search } } },
+            { building: { site: { siteName: { contains: search } } } },
+          ],
+        }
+      : {}),
+  };
+
+  const total = await prisma.project.count({ where });
+  const totalPages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+
   const projects = await prisma.project.findMany({
-    where: {
-      ...(status ? { projectStatus: status as ProjectStatus } : {}),
-      ...(search
-        ? {
-            OR: [
-              { projectName:    { contains: search } },
-              { projectNumber:  { contains: search } },
-              { projectManager: { contains: search } },
-            ],
-          }
-        : {}),
-    },
+    where,
     include: {
       customer: { select: { id: true, customerName: true } },
     },
     orderBy: { projectName: 'asc' },
+    skip:    (currentPage - 1) * PAGE_SIZE,
+    take:    PAGE_SIZE,
   });
 
   const projectIds = projects.map(p => p.id);
@@ -81,17 +97,30 @@ async function getProjects(search: string, status: string) {
     buildingRows.map(r => [r.projectId, { id: r.buildingId, buildingName: r.buildingName, siteId: r.siteId, siteName: r.siteName }])
   );
 
-  return projects.map(p => ({ ...p, building: buildingByProject.get(p.id) ?? null }));
+  return {
+    projects: projects.map(p => ({ ...p, building: buildingByProject.get(p.id) ?? null })),
+    total,
+    totalPages,
+    currentPage,
+  };
 }
 
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: { search?: string; status?: string };
+  searchParams: Promise<{ search?: string; status?: string; page?: string }>;
 }) {
-  const search   = searchParams.search ?? '';
-  const status   = searchParams.status ?? '';
-  const projects = await getProjects(search, status);
+  const params = await searchParams;
+  const search = params.search ?? '';
+  const status = params.status ?? '';
+  const { projects, total, totalPages, currentPage } = await getProjects(search, status, Number(params.page) || 1);
+
+  const pageHref = (p: number) =>
+    `/projects?${new URLSearchParams({
+      ...(search ? { search } : {}),
+      ...(status ? { status } : {}),
+      ...(p > 1 ? { page: String(p) } : {}),
+    })}`;
 
   return (
     <div>
@@ -99,7 +128,7 @@ export default async function ProjectsPage({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Projects</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{projects.length} total</p>
+          <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
         </div>
         <Link href="/projects/new" className="btn-primary">
           <PlusIcon className="w-4 h-4" />
@@ -109,12 +138,15 @@ export default async function ProjectsPage({
 
       {/* Filters */}
       <form className="flex gap-3 mb-4 flex-wrap">
-        <input
-          name="search"
-          defaultValue={search}
-          placeholder="Search projects..."
-          className="form-input w-56"
-        />
+        <div className="relative">
+          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            name="search"
+            defaultValue={search}
+            placeholder="Search project, customer, building…"
+            className="form-input pl-9 w-72"
+          />
+        </div>
         <select name="status" defaultValue={status} className="form-select w-44">
           {statusFilterOptions.map(o => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -199,6 +231,32 @@ export default async function ProjectsPage({
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+              <span>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
+                  <Link href={pageHref(currentPage - 1)} title="Previous page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronLeftIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronLeftIcon className="w-4 h-4" /></span>
+                )}
+                <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+                {currentPage < totalPages ? (
+                  <Link href={pageHref(currentPage + 1)} title="Next page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronRightIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronRightIcon className="w-4 h-4" /></span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
