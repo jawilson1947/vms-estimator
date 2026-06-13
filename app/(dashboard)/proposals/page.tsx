@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { DocumentPlusIcon, ArrowDownTrayIcon, FolderIcon } from '@heroicons/react/24/outline';
+import {
+  DocumentPlusIcon, FolderIcon, MagnifyingGlassIcon,
+  ChevronLeftIcon, ChevronRightIcon,
+} from '@heroicons/react/24/outline';
 import { ProposalsDownloadButton } from '@/components/ProposalsDownloadButton';
+
+const PAGE_SIZE = 8;
 
 const STATUS_COLORS: Record<string, string> = {
   draft:    'bg-gray-100 text-gray-600',
@@ -10,24 +15,66 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: 'bg-red-50 text-red-600',
 };
 
-export default async function ProposalsPage() {
-  const proposals = await prisma.proposal.findMany({
-    where:   { project: { id: { gt: 0 } } },
-    orderBy: { createdAt: 'desc' },
-    include: { project: { include: { customer: { select: { customerName: true } } } } },
-  });
+function proposalWhere(search: string) {
+  return {
+    // Excludes orphaned proposals whose project row no longer exists
+    project: { id: { gt: 0 } },
+    ...(search
+      ? {
+          OR: [
+            { title:  { contains: search } },
+            { status: { contains: search } },
+            { tone:   { contains: search } },
+            { project: { projectName: { contains: search } } },
+            { project: { customer: { customerName: { contains: search } } } },
+          ],
+        }
+      : {}),
+  };
+}
 
+export default async function ProposalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string; page?: string }>;
+}) {
+  const params = await searchParams;
+  const search = params.search ?? '';
+  const where  = proposalWhere(search);
+
+  // Portfolio-wide KPIs (independent of search/page)
+  const statusGroups = await prisma.proposal.groupBy({
+    by: ['status'],
+    _count: { _all: true },
+    where: { project: { id: { gt: 0 } } },
+  });
+  const byStatus = Object.fromEntries(statusGroups.map(g => [g.status, g._count._all]));
   const counts = {
-    total:    proposals.length,
-    draft:    proposals.filter(p => p.status === 'draft').length,
-    sent:     proposals.filter(p => p.status === 'sent').length,
-    accepted: proposals.filter(p => p.status === 'accepted').length,
-    rejected: proposals.filter(p => p.status === 'rejected').length,
+    total:    statusGroups.reduce((s, g) => s + g._count._all, 0),
+    draft:    byStatus['draft']    ?? 0,
+    sent:     byStatus['sent']     ?? 0,
+    accepted: byStatus['accepted'] ?? 0,
+    rejected: byStatus['rejected'] ?? 0,
   };
 
   const winRate = counts.accepted + counts.rejected > 0
     ? Math.round((counts.accepted / (counts.accepted + counts.rejected)) * 100)
     : null;
+
+  const total       = await prisma.proposal.count({ where });
+  const totalPages  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, Number(params.page) || 1), totalPages);
+
+  const proposals = await prisma.proposal.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    include: { project: { include: { customer: { select: { customerName: true } } } } },
+    skip:    (currentPage - 1) * PAGE_SIZE,
+    take:    PAGE_SIZE,
+  });
+
+  const pageHref = (p: number) =>
+    `/proposals?${new URLSearchParams({ ...(search ? { search } : {}), ...(p > 1 ? { page: String(p) } : {}) })}`;
 
   return (
     <div>
@@ -54,14 +101,33 @@ export default async function ProposalsPage() {
         ))}
       </div>
 
+      {/* Search */}
+      <div className="relative mb-4 max-w-sm">
+        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <form>
+          <input
+            name="search"
+            defaultValue={search}
+            placeholder="Search title, project, customer, status…"
+            className="form-input pl-9 w-full"
+          />
+        </form>
+      </div>
+
       {proposals.length === 0 ? (
         <div className="card p-12 text-center">
           <DocumentPlusIcon className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm font-medium text-gray-500">No proposals yet.</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Open a project and click <strong>Prepare Proposal</strong> to get started.
+          <p className="text-sm font-medium text-gray-500">
+            {search ? 'No proposals match your search.' : 'No proposals yet.'}
           </p>
-          <Link href="/projects" className="btn-primary mt-4 inline-flex">Browse Projects</Link>
+          {!search && (
+            <>
+              <p className="text-xs text-gray-400 mt-1">
+                Open a project and click <strong>Prepare Proposal</strong> to get started.
+              </p>
+              <Link href="/projects" className="btn-primary mt-4 inline-flex">Browse Projects</Link>
+            </>
+          )}
         </div>
       ) : (
         <div className="card overflow-hidden">
@@ -127,6 +193,32 @@ export default async function ProposalsPage() {
               })}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+              <span>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
+                  <Link href={pageHref(currentPage - 1)} title="Previous page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronLeftIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronLeftIcon className="w-4 h-4" /></span>
+                )}
+                <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+                {currentPage < totalPages ? (
+                  <Link href={pageHref(currentPage + 1)} title="Next page"
+                    className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                    <ChevronRightIcon className="w-4 h-4" />
+                  </Link>
+                ) : (
+                  <span className="p-1 opacity-30"><ChevronRightIcon className="w-4 h-4" /></span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
