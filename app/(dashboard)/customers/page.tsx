@@ -4,6 +4,7 @@ import {
   PlusIcon, MagnifyingGlassIcon, BuildingOffice2Icon,
   ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline';
+import { SiteBuildingsList, type BuildingEntry } from '@/components/SiteBuildingsList';
 
 const PAGE_SIZE = 10;
 
@@ -36,11 +37,50 @@ export default async function CustomersPage({
 
   const customers = await prisma.customer.findMany({
     where,
-    include: { _count: { select: { projects: true, sites: true } } },
+    include: {
+      _count: { select: { projects: true, sites: true } },
+      sites: {
+        select: {
+          siteName: true,
+          buildings: {
+            select: {
+              id:           true,
+              buildingName: true,
+              projects: {
+                select: {
+                  cameraLocations: {
+                    select:  { id: true, areaName: true, floor: true },
+                    orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
+                  },
+                },
+              },
+            },
+            orderBy: { buildingName: 'asc' },
+          },
+        },
+        orderBy: { siteName: 'asc' },
+      },
+    },
     orderBy: { customerName: 'asc' },
     skip:    (currentPage - 1) * PAGE_SIZE,
     take:    PAGE_SIZE,
   });
+
+  // Roll each customer's buildings (across sites) into listbox entries with
+  // their survey locations; building labels carry the site name when the
+  // customer has more than one site.
+  const buildingEntriesByCustomer = new Map<number, BuildingEntry[]>(
+    customers.map(c => [
+      c.id,
+      c.sites.flatMap(s =>
+        s.buildings.map((b): BuildingEntry => ({
+          id:           b.id,
+          buildingName: c.sites.length > 1 ? `${b.buildingName} · ${s.siteName}` : b.buildingName,
+          locations:    b.projects.flatMap(p => p.cameraLocations),
+        }))
+      ),
+    ])
+  );
 
   const pageHref = (p: number) =>
     `/customers?${new URLSearchParams({ ...(search ? { search } : {}), ...(p > 1 ? { page: String(p) } : {}) })}`;
@@ -95,12 +135,12 @@ export default async function CustomersPage({
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Phone</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Email</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Projects</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-600">Sites</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Buildings</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {customers.map(c => (
-                <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={c.id} className="hover:bg-gray-50 transition-colors align-top">
                   <td className="px-4 py-3">
                     <Link
                       href={`/customers/${c.id}`}
@@ -120,8 +160,8 @@ export default async function CustomersPage({
                   <td className="px-4 py-3 text-center">
                     <span className="badge bg-blue-50 text-blue-700">{c._count.projects}</span>
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="badge bg-gray-100 text-gray-600">{c._count.sites}</span>
+                  <td className="px-4 py-3">
+                    <SiteBuildingsList buildings={buildingEntriesByCustomer.get(c.id) ?? []} />
                   </td>
                 </tr>
               ))}
