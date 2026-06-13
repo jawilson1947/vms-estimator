@@ -11,7 +11,6 @@ import { AddBuildingForm } from '@/components/AddBuildingForm';
 import { BuildingActions } from '@/components/BuildingActions';
 import { BuildingFloorPlans } from '@/components/BuildingFloorPlans';
 import { LinkToProjectButton } from '@/components/LinkToProjectButton';
-import { ProjectLocationsList } from '@/components/ProjectLocationsList';
 
 const BUILDINGS_PER_PAGE = 6;
 
@@ -175,8 +174,21 @@ export default async function SiteDetailPage({
               {bLocations.length === 0 ? (
                 <p className="px-5 py-4 text-sm text-gray-400">No camera locations yet.</p>
               ) : (
-                <div className="px-5 py-3">
-                  <ProjectLocationsList locations={bLocations} className="max-w-md" />
+                <div className="px-5 py-3 max-w-sm">
+                  <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
+                    <MapPinIcon className="w-3.5 h-3.5" />
+                    {bLocations.length} location{bLocations.length === 1 ? '' : 's'}
+                  </div>
+                  <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-8 overflow-y-auto">
+                    {bLocations.map(loc => (
+                      <li key={loc.id} className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-gray-600">
+                        <span className="flex-1 min-w-0 truncate" title={loc.areaName ?? undefined}>
+                          {loc.areaName || 'Unnamed location'}
+                        </span>
+                        {loc.floor && <span className="text-gray-400 shrink-0">Fl {loc.floor}</span>}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               )}
             </div>
