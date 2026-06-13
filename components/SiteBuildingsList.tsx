@@ -2,11 +2,8 @@
 
 import { useState } from 'react';
 import {
-  BuildingOfficeIcon, MapPinIcon,
-  ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon,
+  BuildingOfficeIcon, MapPinIcon, ChevronDownIcon,
 } from '@heroicons/react/24/outline';
-
-const PAGE_SIZE = 6;
 
 export interface BuildingEntry {
   id:           number;
@@ -15,14 +12,9 @@ export interface BuildingEntry {
 }
 
 export function SiteBuildingsList({ buildings }: { buildings: BuildingEntry[] }) {
-  const [page,   setPage]   = useState(1);
   const [openId, setOpenId] = useState<number | null>(null);
 
   if (buildings.length === 0) return <span className="text-gray-400">—</span>;
-
-  const totalPages  = Math.max(1, Math.ceil(buildings.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageRows    = buildings.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="w-60">
@@ -30,8 +22,9 @@ export function SiteBuildingsList({ buildings }: { buildings: BuildingEntry[] })
         <BuildingOfficeIcon className="w-3.5 h-3.5" />
         {buildings.length} building{buildings.length === 1 ? '' : 's'}
       </div>
-      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white">
-        {pageRows.map(b => {
+      {/* Listbox restricted to a single row tall; remaining buildings scroll. */}
+      <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 bg-white max-h-8 overflow-y-auto">
+        {buildings.map(b => {
           const open = openId === b.id;
           return (
             <div key={b.id}>
@@ -70,29 +63,6 @@ export function SiteBuildingsList({ buildings }: { buildings: BuildingEntry[] })
           );
         })}
       </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-1 text-xs text-gray-400">
-          <button
-            type="button"
-            onClick={() => setPage(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="p-0.5 rounded hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
-            title="Previous buildings"
-          >
-            <ChevronLeftIcon className="w-3.5 h-3.5" />
-          </button>
-          <span className="tabular-nums">{currentPage} / {totalPages}</span>
-          <button
-            type="button"
-            onClick={() => setPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="p-0.5 rounded hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
-            title="Next buildings"
-          >
-            <ChevronRightIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
