@@ -73,50 +73,65 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
   }
   const surveyItems = Array.from(groupMap.values());
 
-  // ── Access Control BOM: aggregate method items across access points ────────
-  type BomItem = { artifactTypeId: number; typeName: string; quantity: number; notes: string[]; sortOrder: number };
-  const bomMap = new Map<number, BomItem>();
+  // ── Access Control BOM: aggregate method items across access points,
+  //    keyed per (access method, artifact type) so e.g. internal vs external
+  //    door equipment prices independently ──────────────────────────────────
+  type BomItem = {
+    accessMethodId: number; methodName: string; artifactTypeId: number; typeName: string;
+    quantity: number; doorCount: number; notes: string[]; methodSort: number; sortOrder: number;
+  };
+  const bomMap = new Map<string, BomItem>();
   if (isAccessControl) {
     for (const l of project.cameraLocations) {
       if (!l.accessMethod) continue;
       for (const item of l.accessMethod.items) {
-        const existing = bomMap.get(item.artifactTypeId);
+        const key = `${l.accessMethod.id}:${item.artifactTypeId}`;
+        const existing = bomMap.get(key);
         if (existing) {
-          existing.quantity += item.quantity;
+          existing.quantity  += item.quantity;
+          existing.doorCount += 1;
           if (item.notes && !existing.notes.includes(item.notes)) existing.notes.push(item.notes);
         } else {
-          bomMap.set(item.artifactTypeId, {
+          bomMap.set(key, {
+            accessMethodId: l.accessMethod.id,
+            methodName:     l.accessMethod.name,
             artifactTypeId: item.artifactTypeId,
             typeName:       item.artifactType.name,
             quantity:       item.quantity,
+            doorCount:      1,
             notes:          item.notes ? [item.notes] : [],
+            methodSort:     l.accessMethod.sortOrder,
             sortOrder:      item.artifactType.sortOrder,
           });
         }
       }
     }
   }
-  const bomItems = Array.from(bomMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+  const bomItems = Array.from(bomMap.values())
+    .sort((a, b) => a.methodSort - b.methodSort || a.sortOrder - b.sortOrder);
 
-  // Persisted BOM overrides (committed ProjectCost rows keyed by artifactTypeId)
+  // Persisted BOM overrides (committed ProjectCost rows keyed by accessMethodId:artifactTypeId)
   const bomOverrideRows = isAccessControl
     ? await prisma.projectCost.findMany({
         where:  { projectId: Number(projectId), artifactTypeId: { not: null } },
-        select: { id: true, artifactTypeId: true, artifactModelId: true, quantity: true, unitCost: true, markupPercent: true },
+        select: { id: true, accessMethodId: true, artifactTypeId: true, artifactModelId: true, quantity: true, unitCost: true, markupPercent: true },
       })
     : [];
-  const bomOverrides: Record<number, { costId: number; artifactModelId: number | null; quantity: number; unitCost: number; markupPercent: number }> = {};
+  const bomOverrides: Record<string, { costId: number; artifactModelId: number | null; quantity: number; unitCost: number; markupPercent: number; removed: boolean }> = {};
   const bomOverrideIds = new Set<number>();
   for (const row of bomOverrideRows) {
-    if (row.artifactTypeId != null) {
-      bomOverrides[row.artifactTypeId] = {
+    // Rows are excluded from the plain line-item list even if legacy (null accessMethodId)
+    bomOverrideIds.add(row.id);
+    if (row.artifactTypeId != null && row.accessMethodId != null) {
+      bomOverrides[`${row.accessMethodId}:${row.artifactTypeId}`] = {
         costId:          row.id,
         artifactModelId: row.artifactModelId,
         quantity:        Number(row.quantity),
         unitCost:        Number(row.unitCost),
         markupPercent:   Number(row.markupPercent),
+        // quantity-0 marker = row removed from the cost list (legit rows are always >= 1)
+        removed:         Number(row.quantity) === 0,
       };
-      bomOverrideIds.add(row.id);
     }
   }
 
@@ -146,7 +161,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         overheadRateDefault={project.overheadRatePercent ? Number(project.overheadRatePercent) : 15}
         surveyItems={surveyItems}
         surveyOverrides={surveyOverrides}
-        bomItems={bomItems.map(({ sortOrder: _s, ...rest }) => rest)}
+        bomItems={bomItems.map(({ sortOrder: _s, methodSort: _m, ...rest }) => rest)}
         bomOverrides={bomOverrides}
         initialCosts={project.costs.filter(c => !surveyOverrideIds.has(c.id) && !bomOverrideIds.has(c.id)).map(c => ({
           id:            c.id,

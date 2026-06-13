@@ -296,6 +296,7 @@ model AccessMethod {
 
   items     AccessMethodItem[]
   locations CameraLocation[]
+  costs     ProjectCost[]
 
   @@map("access_methods")
 }
@@ -347,6 +348,7 @@ model ProjectCost {
   surveyLocationId  Int?             @map("survey_location_id")
   artifactTypeId    Int?             @map("artifact_type_id")
   artifactModelId   Int?             @map("artifact_model_id")
+  accessMethodId    Int?             @map("access_method_id")
 
   project           Project          @relation(fields: [projectId], references: [id])
   category          LineItemCategory @relation(fields: [categoryId], references: [id])
@@ -354,6 +356,7 @@ model ProjectCost {
   surveyLocation    CameraLocation?  @relation(fields: [surveyLocationId], references: [id], onDelete: SetNull)
   artifactType      ArtifactType?    @relation(fields: [artifactTypeId], references: [id], onDelete: SetNull)
   artifactModel     ArtifactModel?   @relation(fields: [artifactModelId], references: [id], onDelete: SetNull)
+  accessMethod      AccessMethod?    @relation(fields: [accessMethodId], references: [id], onDelete: SetNull)
 
   @@map("project_costs")
 }

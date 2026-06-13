@@ -110,8 +110,9 @@ export function buildCostSchedule(
     });
   }
 
-  // -- Manual costs (exclude survey markup override records) --
-  for (const c of costs.filter(c => c.surveyLocationId == null)) {
+  // -- Manual costs (exclude survey markup overrides and quantity-0 rows,
+  //    which are "removed BOM item" markers — legit rows always have qty >= 1) --
+  for (const c of costs.filter(c => c.surveyLocationId == null && n(c.quantity) > 0)) {
     groups.push({
       category:      c.category.name,
       description:   c.description ?? '',

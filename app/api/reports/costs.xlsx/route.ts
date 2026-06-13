@@ -219,7 +219,8 @@ export async function GET(_req: NextRequest) {
       rowIdx++; rowCount++;
     }
 
-    const manualCosts = project.costs.filter(c => c.surveyLocationId == null);
+    // Quantity-0 rows are "removed BOM item" markers — never real cost lines
+    const manualCosts = project.costs.filter(c => c.surveyLocationId == null && Number(c.quantity) > 0);
     let manualTotal = 0;
     manualCosts.forEach(c => {
       const row      = ws.getRow(rowIdx);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { PlusIcon, TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { LinkedDescription } from '@/components/LinkedDescription';
 import {
@@ -63,10 +63,19 @@ interface SurveyOverride {
 }
 
 interface BomItem {
-  artifactTypeId: number;     // group key
+  accessMethodId: number;
+  methodName:     string;
+  artifactTypeId: number;
   typeName:       string;
-  quantity:       number;     // aggregated across access points
+  quantity:       number;     // aggregated across access points using this method
+  doorCount:      number;
   notes:          string[];
+}
+
+// Rows are keyed per (access method, artifact type) so the same artifact
+// prices independently for e.g. internal vs external doors.
+function bomKey(item: { accessMethodId: number; artifactTypeId: number }) {
+  return `${item.accessMethodId}:${item.artifactTypeId}`;
 }
 
 interface BomOverride {
@@ -75,6 +84,7 @@ interface BomOverride {
   quantity:        number;
   unitCost:        number;
   markupPercent:   number;
+  removed?:        boolean;
 }
 
 interface ArtifactOption {
@@ -105,7 +115,7 @@ interface Props {
   surveyItems?:    SurveyItem[];
   surveyOverrides?: Record<number, SurveyOverride>;
   bomItems?:       BomItem[];
-  bomOverrides?:   Record<number, BomOverride>;
+  bomOverrides?:   Record<string, BomOverride>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -182,31 +192,40 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     setDirtyMarkups(prev => { const n = { ...prev }; delete n[key]; return n; });
   }
 
-  // ── Access Control BOM rows — keyed by artifactTypeId ──────────────────────
+  // ── Access Control BOM rows — keyed by `${accessMethodId}:${artifactTypeId}` ──
   const [artifacts, setArtifacts] = useState<ArtifactOption[]>([]);
-  const [bomState, setBomState] = useState<Record<number, BomRowState>>(() => {
-    const out: Record<number, BomRowState> = {};
+  const [bomState, setBomState] = useState<Record<string, BomRowState>>(() => {
+    const out: Record<string, BomRowState> = {};
     for (const item of bomItems) {
-      const ov = bomOverrides[item.artifactTypeId];
-      out[item.artifactTypeId] = ov
+      const key = bomKey(item);
+      const ov  = bomOverrides[key];
+      out[key] = ov && !ov.removed
         ? { artifactModelId: ov.artifactModelId ?? 0, quantity: item.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent }
         : { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 };
     }
     return out;
   });
-  // Committed snapshot per type — drives totals; undefined until first commit
-  const [bomSaved, setBomSaved] = useState<Record<number, BomRowState>>(() => {
-    const out: Record<number, BomRowState> = {};
+  // Committed snapshot per row — drives totals; undefined until first commit
+  const [bomSaved, setBomSaved] = useState<Record<string, BomRowState>>(() => {
+    const out: Record<string, BomRowState> = {};
     for (const [key, ov] of Object.entries(bomOverrides)) {
-      out[Number(key)] = { artifactModelId: ov.artifactModelId ?? 0, quantity: ov.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent };
+      if (ov.removed) continue;
+      out[key] = { artifactModelId: ov.artifactModelId ?? 0, quantity: ov.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent };
     }
     return out;
   });
-  const [savingBom, setSavingBom] = useState<Record<number, boolean>>({});
+  const [savingBom, setSavingBom] = useState<Record<string, boolean>>({});
+  const [bomRemoved, setBomRemoved] = useState<Record<string, boolean>>(() => {
+    const out: Record<string, boolean> = {};
+    for (const [key, ov] of Object.entries(bomOverrides)) {
+      if (ov.removed) out[key] = true;
+    }
+    return out;
+  });
 
-  function bomRowDirty(typeId: number) {
-    const cur = bomState[typeId];
-    const saved = bomSaved[typeId];
+  function bomRowDirty(key: string) {
+    const cur = bomState[key];
+    const saved = bomSaved[key];
     if (!cur) return false;
     if (!saved) return cur.artifactModelId !== 0 || cur.markupPercent !== 0;
     return cur.artifactModelId !== saved.artifactModelId
@@ -215,20 +234,20 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       || cur.markupPercent !== saved.markupPercent;
   }
 
-  function updateBomRow(typeId: number, patch: Partial<BomRowState>) {
-    setBomState(prev => ({ ...prev, [typeId]: { ...prev[typeId], ...patch } }));
+  function updateBomRow(key: string, patch: Partial<BomRowState>) {
+    setBomState(prev => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }
 
-  function pickBomModel(typeId: number, modelId: number) {
+  function pickBomModel(key: string, modelId: number) {
     const model = artifacts.find(a => a.id === modelId);
-    updateBomRow(typeId, {
+    updateBomRow(key, {
       artifactModelId: modelId,
       unitCost: model?.cost != null ? Number(model.cost) : 0,
     });
   }
 
   async function commitBomRow(item: BomItem) {
-    const key = item.artifactTypeId;
+    const key = bomKey(item);
     const st  = bomState[key];
     if (!st) return;
     const model = artifacts.find(a => a.id === st.artifactModelId);
@@ -237,12 +256,13 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
-        artifactTypeId:  key,
+        accessMethodId:  item.accessMethodId,
+        artifactTypeId:  item.artifactTypeId,
         artifactModelId: st.artifactModelId || null,
         quantity:        st.quantity,
         unitCost:        st.unitCost,
         markupPercent:   st.markupPercent,
-        description:     model ? `${item.typeName} — ${artifactLabel(model)}` : item.typeName,
+        description:     `${item.methodName} — ${item.typeName}${model ? ` — ${artifactLabel(model)}` : ''}`,
       }),
     });
     setSavingBom(prev => ({ ...prev, [key]: false }));
@@ -250,13 +270,34 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   }
 
   function revertBomRow(item: BomItem) {
-    const saved = bomSaved[item.artifactTypeId];
+    const key = bomKey(item);
+    const saved = bomSaved[key];
     setBomState(prev => ({
       ...prev,
-      [item.artifactTypeId]: saved
+      [key]: saved
         ? { ...saved, quantity: item.quantity }
         : { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 },
     }));
+  }
+
+  async function setBomRowRemoved(item: BomItem, removed: boolean) {
+    const key = bomKey(item);
+    setSavingBom(prev => ({ ...prev, [key]: true }));
+    const res = await fetch(`/api/projects/${projectId}/access-bom`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        accessMethodId: item.accessMethodId,
+        artifactTypeId: item.artifactTypeId,
+        removed,
+        description:    `${item.methodName} — ${item.typeName}`,
+      }),
+    });
+    setSavingBom(prev => ({ ...prev, [key]: false }));
+    if (!res.ok) return;
+    setBomRemoved(prev => ({ ...prev, [key]: removed }));
+    setBomSaved(prev => { const n = { ...prev }; delete n[key]; return n; });
+    setBomState(prev => ({ ...prev, [key]: { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 } }));
   }
 
   useEffect(() => {
@@ -276,6 +317,9 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const visibleBomItems = useMemo(() => bomItems.filter(i => !bomRemoved[bomKey(i)]), [bomItems, bomRemoved]);
+  const removedBomItems = useMemo(() => bomItems.filter(i =>  bomRemoved[bomKey(i)]), [bomItems, bomRemoved]);
 
   // ── Derived totals ──────────────────────────────────────────────────────────
   const surveyTotal   = useMemo(
@@ -535,15 +579,27 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                       );
                     })}
 
-                    {bomItems.map(item => {
-                      const key      = item.artifactTypeId;
+                    {visibleBomItems.map((item, idx) => {
+                      const key      = bomKey(item);
                       const st       = bomState[key] ?? { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 };
                       const isDirty  = bomRowDirty(key);
                       const isSaving = savingBom[key] ?? false;
-                      const typeModels = artifacts.filter(a => a.artifactTypeId === key);
+                      const typeModels = artifacts.filter(a => a.artifactTypeId === item.artifactTypeId);
                       const lineTotal  = st.unitCost * st.quantity * (1 + st.markupPercent / 100);
+                      const newMethod  = idx === 0 || visibleBomItems[idx - 1].accessMethodId !== item.accessMethodId;
                       return (
-                        <tr key={`bom-${key}`} className="hover:bg-violet-50/30">
+                        <Fragment key={`bom-${key}`}>
+                        {newMethod && (
+                          <tr className="bg-violet-50/60">
+                            <td colSpan={7} className="px-3 py-1.5 text-xs font-semibold text-violet-700">
+                              {item.methodName}
+                              <span className="font-normal text-violet-400 ml-2">
+                                {item.doorCount} access point{item.doorCount === 1 ? '' : 's'}
+                              </span>
+                            </td>
+                          </tr>
+                        )}
+                        <tr className="hover:bg-violet-50/30">
                           <td className="px-3 py-2">
                             <span className="badge bg-violet-100 text-violet-700 text-xs whitespace-nowrap">Access Control</span>
                           </td>
@@ -570,9 +626,9 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                           </td>
                           <td className="px-3 py-2 text-right">
                             <input
-                              type="number" min="0" step="1"
+                              type="number" min="1" step="1"
                               value={st.quantity}
-                              onChange={e => updateBomRow(key, { quantity: Math.max(0, Number(e.target.value) || 0) })}
+                              onChange={e => updateBomRow(key, { quantity: Math.max(1, Number(e.target.value) || 1) })}
                               className="form-input text-xs py-0.5 w-14 text-right"
                             />
                           </td>
@@ -600,10 +656,40 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                             </div>
                           </td>
                           <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmt(lineTotal)}</td>
-                          <td className="px-3 py-2" />
+                          <td className="px-3 py-2">
+                            {st.unitCost === 0 && (
+                              <button onClick={() => setBomRowRemoved(item, true)} disabled={isSaving}
+                                title="Remove zero-cost item"
+                                className="p-1 text-gray-300 hover:text-red-500 rounded">
+                                <TrashIcon className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
+                        </Fragment>
                       );
                     })}
+
+                    {removedBomItems.length > 0 && (
+                      <tr className="bg-gray-50/60">
+                        <td colSpan={7} className="px-3 py-2 text-xs text-gray-400">
+                          <span className="font-medium">Removed:</span>
+                          {removedBomItems.map(item => {
+                            const key = bomKey(item);
+                            return (
+                              <span key={`removed-${key}`} className="inline-flex items-center gap-1 ml-3 line-through">
+                                {item.methodName} — {item.typeName}
+                                <button onClick={() => setBomRowRemoved(item, false)} disabled={savingBom[key] ?? false}
+                                  className="no-underline text-blue-500 hover:text-blue-700 not-italic"
+                                  title="Restore item">
+                                  restore
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </td>
+                      </tr>
+                    )}
 
                     {editId === 'new' && (
                       <EditRow form={lineForm} onChange={handleLineChange}
