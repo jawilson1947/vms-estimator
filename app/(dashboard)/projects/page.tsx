@@ -6,6 +6,7 @@ import {
   ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline';
 import { ProjectStatus } from '@prisma/client';
+import { ProjectLocationsList } from '@/components/ProjectLocationsList';
 
 const PAGE_SIZE = 8;
 
@@ -70,6 +71,10 @@ async function getProjects(search: string, status: string, page: number) {
     where,
     include: {
       customer: { select: { id: true, customerName: true } },
+      cameraLocations: {
+        select:  { id: true, areaName: true, floor: true },
+        orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
+      },
     },
     orderBy: { projectName: 'asc' },
     skip:    (currentPage - 1) * PAGE_SIZE,
@@ -182,11 +187,12 @@ export default async function ProjectsPage({
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Dates</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Building</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Survey Locations</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {projects.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={p.id} className="hover:bg-gray-50 transition-colors align-top">
                   <td className="px-4 py-3">
                     <Link
                       href={`/projects/${p.id}`}
@@ -226,6 +232,9 @@ export default async function ProjectsPage({
                     ) : (
                       <span className="text-gray-400">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <ProjectLocationsList locations={p.cameraLocations} />
                   </td>
                 </tr>
               ))}
