@@ -5,17 +5,28 @@ import { Prisma } from '@prisma/client';
 import {
   ChevronRightIcon, PencilSquareIcon,
   BuildingOffice2Icon, MapPinIcon, CameraIcon,
+  ChevronLeftIcon,
 } from '@heroicons/react/24/outline';
 import { AddBuildingForm } from '@/components/AddBuildingForm';
 import { BuildingActions } from '@/components/BuildingActions';
 import { BuildingFloorPlans } from '@/components/BuildingFloorPlans';
 import { LinkToProjectButton } from '@/components/LinkToProjectButton';
+import { ProjectLocationsList } from '@/components/ProjectLocationsList';
+
+const BUILDINGS_PER_PAGE = 6;
 
 interface ProjectRow { id: number; projectName: string; }
 
-export default async function SiteDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SiteDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
+}) {
   const { id } = await params;
   const siteId = Number(id);
+  const pageParam = Number((await searchParams).page) || 1;
 
   const [site, linkedProjects] = await Promise.all([
     prisma.site.findUnique({
@@ -50,6 +61,13 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
   ]);
 
   if (!site) notFound();
+
+  const totalPages    = Math.max(1, Math.ceil(site.buildings.length / BUILDINGS_PER_PAGE));
+  const currentPage   = Math.min(Math.max(1, pageParam), totalPages);
+  const pageBuildings = site.buildings.slice(
+    (currentPage - 1) * BUILDINGS_PER_PAGE,
+    currentPage * BUILDINGS_PER_PAGE
+  );
 
   const totalCameras = site.buildings.reduce(
     (sum, b) => sum + b.projects.flatMap(p => p.cameraLocations).filter(l => l.cameraModelId !== null).length, 0
@@ -128,7 +146,7 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
 
         <AddBuildingForm siteId={site.id} />
 
-        {site.buildings.map(building => {
+        {pageBuildings.map(building => {
           const bLocations = building.projects.flatMap(p => p.cameraLocations);
           return (
             <div key={building.id} className="card overflow-hidden">
@@ -157,35 +175,40 @@ export default async function SiteDetailPage({ params }: { params: Promise<{ id:
               {bLocations.length === 0 ? (
                 <p className="px-5 py-4 text-sm text-gray-400">No camera locations yet.</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="text-left px-5 py-2 text-xs font-semibold text-gray-500">Area</th>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Floor</th>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Mounting</th>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-gray-500">Coverage Purpose</th>
-                      <th className="text-center px-4 py-2 text-xs font-semibold text-gray-500">Cameras</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {bLocations.map(loc => (
-                      <tr key={loc.id} className="hover:bg-gray-50">
-                        <td className="px-5 py-2.5 font-medium text-gray-800">{loc.areaName ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-gray-500">{loc.floor ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-gray-500">{loc.mountingLocation ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-gray-500">{loc.coveragePurpose ?? '—'}</td>
-                        <td className="px-4 py-2.5 text-center">
-                          <span className="badge bg-blue-50 text-blue-700">{loc.cameraModelId ? 1 : 0}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="px-5 py-3">
+                  <ProjectLocationsList locations={bLocations} className="max-w-md" />
+                </div>
               )}
             </div>
           );
         })}
 
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>
+              Showing {(currentPage - 1) * BUILDINGS_PER_PAGE + 1}–{Math.min(currentPage * BUILDINGS_PER_PAGE, site.buildings.length)} of {site.buildings.length} buildings
+            </span>
+            <div className="flex items-center gap-2">
+              {currentPage > 1 ? (
+                <Link href={`/sites/${siteId}?page=${currentPage - 1}`} title="Previous page"
+                  className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                  <ChevronLeftIcon className="w-4 h-4" />
+                </Link>
+              ) : (
+                <span className="p-1 opacity-30"><ChevronLeftIcon className="w-4 h-4" /></span>
+              )}
+              <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+              {currentPage < totalPages ? (
+                <Link href={`/sites/${siteId}?page=${currentPage + 1}`} title="Next page"
+                  className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100">
+                  <ChevronRightIcon className="w-4 h-4" />
+                </Link>
+              ) : (
+                <span className="p-1 opacity-30"><ChevronRightIcon className="w-4 h-4" /></span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {site.notes && (

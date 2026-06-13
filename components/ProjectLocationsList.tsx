@@ -11,7 +11,7 @@ export interface LocationEntry {
   floor:    string | null;
 }
 
-export function ProjectLocationsList({ locations }: { locations: LocationEntry[] }) {
+export function ProjectLocationsList({ locations, className = 'w-52' }: { locations: LocationEntry[]; className?: string }) {
   const [page, setPage] = useState(1);
 
   if (locations.length === 0) return <span className="text-gray-400">—</span>;
@@ -21,7 +21,7 @@ export function ProjectLocationsList({ locations }: { locations: LocationEntry[]
   const pageRows    = locations.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
-    <div className="w-52">
+    <div className={className}>
       <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
         <MapPinIcon className="w-3.5 h-3.5" />
         {locations.length} location{locations.length === 1 ? '' : 's'}
