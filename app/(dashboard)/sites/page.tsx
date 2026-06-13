@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import {
-  PlusIcon, MapPinIcon, MagnifyingGlassIcon, BuildingOfficeIcon,
+  PlusIcon, MapPinIcon, MagnifyingGlassIcon,
   ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline';
+import { SiteBuildingsList, type BuildingEntry } from '@/components/SiteBuildingsList';
 
 const PAGE_SIZE = 8;
 
@@ -35,7 +36,21 @@ async function getSites(search: string, page: number) {
     where,
     include: {
       customer:  { select: { id: true, customerName: true } },
-      buildings: { select: { id: true, buildingName: true }, orderBy: { buildingName: 'asc' } },
+      buildings: {
+        select: {
+          id:           true,
+          buildingName: true,
+          projects: {
+            select: {
+              cameraLocations: {
+                select:  { id: true, areaName: true, floor: true },
+                orderBy: [{ floor: 'asc' }, { areaName: 'asc' }],
+              },
+            },
+          },
+        },
+        orderBy: { buildingName: 'asc' },
+      },
     },
     orderBy: { siteName: 'asc' },
     skip:    (currentPage - 1) * PAGE_SIZE,
@@ -60,7 +75,16 @@ async function getSites(search: string, page: number) {
   }
 
   return {
-    sites: sites.map(s => ({ ...s, projects: projectsBySite.get(s.id) ?? [] })),
+    sites: sites.map(s => ({
+      ...s,
+      projects: projectsBySite.get(s.id) ?? [],
+      // Roll each building's survey locations (via its projects) into one flat list
+      buildingEntries: s.buildings.map((b): BuildingEntry => ({
+        id:           b.id,
+        buildingName: b.buildingName,
+        locations:    b.projects.flatMap(p => p.cameraLocations),
+      })),
+    })),
     total,
     totalPages,
     currentPage,
@@ -152,23 +176,7 @@ export default async function SitesPage({
                     ))}
                   </td>
                   <td className="px-4 py-3">
-                    {s.buildings.length === 0 ? (
-                      <span className="text-gray-400">—</span>
-                    ) : (
-                      <div className="w-48">
-                        <div className="flex items-center gap-1 text-xs text-gray-400 mb-1">
-                          <BuildingOfficeIcon className="w-3.5 h-3.5" />
-                          {s.buildings.length} building{s.buildings.length === 1 ? '' : 's'}
-                        </div>
-                        <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-28 overflow-y-auto bg-white">
-                          {s.buildings.map(b => (
-                            <li key={b.id} className="px-2.5 py-1.5 text-xs text-gray-600 truncate" title={b.buildingName}>
-                              {b.buildingName}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    <SiteBuildingsList buildings={s.buildingEntries} />
                   </td>
                 </tr>
               ))}
