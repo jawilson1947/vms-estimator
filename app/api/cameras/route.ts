@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
           { manufacturer: { contains: search } },
           { model:        { contains: search } },
           { resolution:   { contains: search } },
+          { comment:      { contains: search } },
         ],
       } : {}),
     },

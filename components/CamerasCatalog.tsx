@@ -11,7 +11,11 @@ import {
   CheckIcon,
   ArrowUpTrayIcon,
   CheckCircleIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline';
+
+const PAGE_SIZE = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -626,6 +630,9 @@ export function CamerasCatalog() {
   const [filterPtz,  setFilterPtz]  = useState('');
   const [editing,    setEditing]    = useState<CameraModel | null | undefined>(undefined); // undefined = closed, null = new
   const [deleteId,   setDeleteId]   = useState<number | null>(null);
+  const [page,       setPage]       = useState(1);
+
+  useEffect(() => { setPage(1); }, [search, filterType, filterEnv, filterPtz]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -667,6 +674,10 @@ export function CamerasCatalog() {
   }
 
   const hasFilters = search || filterType || filterEnv || filterPtz;
+
+  const totalPages  = Math.max(1, Math.ceil(cameras.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageCameras = cameras.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div>
@@ -745,8 +756,9 @@ export function CamerasCatalog() {
           )}
         </div>
       ) : (
+        <>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {cameras.map(c => (
+          {pageCameras.map(c => (
             <CameraCard
               key={c.id}
               cam={c}
@@ -755,6 +767,33 @@ export function CamerasCatalog() {
             />
           ))}
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-5 text-xs text-gray-500">
+            <span>
+              Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, cameras.length)} of {cameras.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                title="Previous page"
+              >
+                <ChevronLeftIcon className="w-4 h-4" />
+              </button>
+              <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+              <button
+                onClick={() => setPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                title="Next page"
+              >
+                <ChevronRightIcon className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+        </>
       )}
 
       {/* Add / Edit Modal */}
