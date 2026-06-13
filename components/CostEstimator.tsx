@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, Fragment } from 'react';
-import { PlusIcon, TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, PencilSquareIcon, CheckIcon, XMarkIcon, CheckCircleIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { LinkedDescription } from '@/components/LinkedDescription';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -157,8 +157,17 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     contingencyAmount:    fmtNum(initialSummary?.contingencyAmount    ?? 0),
     taxAmount:            fmtNum(initialSummary?.taxAmount            ?? 0),
   });
+  // Snapshot of the last saved fees — drives the unsaved-changes indicator
+  const [feesSaved, setFeesSaved] = useState(() => ({
+    overheadPercent:      initialSummary?.overheadPercent      ?? overheadRateDefault,
+    consultingFee:        initialSummary?.consultingFee        ?? 0,
+    projectManagementFee: initialSummary?.projectManagementFee ?? 0,
+    contingencyAmount:    initialSummary?.contingencyAmount    ?? 0,
+    taxAmount:            initialSummary?.taxAmount            ?? 0,
+  }));
   const [savingFees, setSavingFees] = useState(false);
   const [savingLine, setSavingLine] = useState(false);
+  const [savingAll,  setSavingAll]  = useState(false);
   const [activeTab, setActiveTab]   = useState<'items'|'chart'>('items');
 
   // Survey row markup — keyed by cameraModelId, seeded from DB overrides
@@ -321,35 +330,65 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const visibleBomItems = useMemo(() => bomItems.filter(i => !bomRemoved[bomKey(i)]), [bomItems, bomRemoved]);
   const removedBomItems = useMemo(() => bomItems.filter(i =>  bomRemoved[bomKey(i)]), [bomItems, bomRemoved]);
 
-  // ── Derived totals ──────────────────────────────────────────────────────────
+  // ── Derived totals — computed from current (in-edit) values so every
+  //    total updates live as entries change, before anything is saved ─────────
   const surveyTotal   = useMemo(
     () => surveyItems.reduce((s, i) => {
-      const markup = surveyMarkups[i.cameraModelId] ?? 0;
+      const key    = i.cameraModelId;
+      const markup = key in dirtyMarkups ? (Number(dirtyMarkups[key]) || 0) : (surveyMarkups[key] ?? 0);
       return s + i.unitCost * i.quantity * (1 + markup / 100);
     }, 0),
-    [surveyItems, surveyMarkups]
+    [surveyItems, surveyMarkups, dirtyMarkups]
   );
   const bomTotal = useMemo(
-    () => Object.values(bomSaved).reduce((s, r) => s + r.unitCost * r.quantity * (1 + r.markupPercent / 100), 0),
-    [bomSaved]
+    () => visibleBomItems.reduce((s, item) => {
+      const st = bomState[bomKey(item)];
+      return st ? s + st.unitCost * st.quantity * (1 + st.markupPercent / 100) : s;
+    }, 0),
+    [visibleBomItems, bomState]
   );
-  const directTotal   = useMemo(() => costs.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal, [costs, surveyTotal, bomTotal]);
+
+  // Line items with the in-edit row's live form values substituted in
+  const liveCosts = useMemo(() => {
+    if (editId === null) return costs;
+    const qty    = Number(lineForm.quantity)      || 0;
+    const unit   = Number(lineForm.unitCost)      || 0;
+    const markup = Number(lineForm.markupPercent) || 0;
+    const liveRow: CostLine = {
+      id:            editId === 'new' ? -1 : editId,
+      categoryId:    lineForm.categoryId,
+      categoryName:  categories.find(c => c.id === lineForm.categoryId)?.name ?? 'Uncategorized',
+      cameraModelId: lineForm.cameraModelId,
+      description:   lineForm.description,
+      quantity:      qty,
+      unitCost:      unit,
+      markupPercent: markup,
+      lineTotal:     qty * unit * (1 + markup / 100),
+      vendor:        lineForm.vendor,
+      url:           lineForm.url,
+      billable:      lineForm.billable,
+      notes:         lineForm.notes,
+    };
+    return editId === 'new' ? [...costs, liveRow] : costs.map(c => (c.id === editId ? liveRow : c));
+  }, [costs, editId, lineForm, categories]);
+
+  const directTotal   = useMemo(() => liveCosts.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal, [liveCosts, surveyTotal, bomTotal]);
 
   const overheadAmount  = directTotal * (fees.overheadPercent / 100);
   const grandTotal      = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount;
-  const billableTotal   = costs.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal;
+  const billableTotal   = liveCosts.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal;
   const margin          = grandTotal > 0 ? ((grandTotal - directTotal) / grandTotal) * 100 : 0;
 
   // ── Category totals for charts ──────────────────────────────────────────────
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    costs.forEach(c => { map[c.categoryName] = (map[c.categoryName] ?? 0) + c.lineTotal; });
+    liveCosts.forEach(c => { map[c.categoryName] = (map[c.categoryName] ?? 0) + c.lineTotal; });
     if (surveyTotal > 0) map['Camera'] = (map['Camera'] ?? 0) + surveyTotal;
     if (bomTotal > 0)    map['Access Control'] = (map['Access Control'] ?? 0) + bomTotal;
     return Object.entries(map)
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total);
-  }, [costs, surveyTotal, bomTotal]);
+  }, [liveCosts, surveyTotal, bomTotal]);
 
   // ── Line item CRUD ──────────────────────────────────────────────────────────
   function startNew()        { setLineForm({ ...emptyLine, categoryId: categories[0]?.id ?? 0 }); setEditId('new'); }
@@ -437,7 +476,35 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       body:    JSON.stringify(fees),
     });
     setSavingFees(false);
-    if (res.ok) setSummary(await res.json());
+    if (res.ok) {
+      setSummary(await res.json());
+      setFeesSaved({ ...fees });
+    }
+  }
+
+  // ── Global save — commits every unsaved change on the page ─────────────────
+  const dirtySurveyItems = surveyItems.filter(s => {
+    const key = s.cameraModelId;
+    return key in dirtyMarkups && (Number(dirtyMarkups[key]) || 0) !== (surveyMarkups[key] ?? 0);
+  });
+  const dirtyBomItems = visibleBomItems.filter(i => bomRowDirty(bomKey(i)));
+  const feesDirty     = (Object.keys(fees) as (keyof typeof fees)[]).some(k => fees[k] !== feesSaved[k]);
+  const unsavedCount  = dirtySurveyItems.length + dirtyBomItems.length
+    + (editId !== null ? 1 : 0) + (feesDirty ? 1 : 0);
+
+  async function saveAll() {
+    setSavingAll(true);
+    try {
+      await Promise.all([
+        ...dirtySurveyItems.map(s => commitSurveyMarkup(s)),
+        ...dirtyBomItems.map(i => commitBomRow(i)),
+        ...(feesDirty ? [saveFees()] : []),
+      ]);
+      // The open line-item editor saves last (it mutates the costs list)
+      if (editId !== null) await saveLine();
+    } finally {
+      setSavingAll(false);
+    }
   }
 
   // ── Render helpers ──────────────────────────────────────────────────────────
@@ -451,6 +518,28 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
 
   return (
     <div className="space-y-5">
+      {/* Global save bar */}
+      <div className="flex items-center justify-between gap-3">
+        {unsavedCount > 0 ? (
+          <p className="text-sm text-amber-600">
+            {unsavedCount} unsaved change{unsavedCount === 1 ? '' : 's'} — totals below reflect your edits
+          </p>
+        ) : (
+          <p className="flex items-center gap-1.5 text-sm text-gray-400">
+            <CheckCircleIcon className="w-4 h-4 text-green-500" />
+            All changes saved
+          </p>
+        )}
+        <button
+          onClick={saveAll}
+          disabled={savingAll || unsavedCount === 0}
+          className="btn-primary disabled:opacity-40"
+        >
+          <CloudArrowUpIcon className="w-4 h-4" />
+          {savingAll ? 'Saving…' : unsavedCount > 0 ? `Save All (${unsavedCount})` : 'Save All'}
+        </button>
+      </div>
+
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
