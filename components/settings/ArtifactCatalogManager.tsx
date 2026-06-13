@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react';
 import {
   PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon,
-  KeyIcon, PhotoIcon, CheckIcon,
+  KeyIcon, PhotoIcon, CheckIcon, MagnifyingGlassIcon,
+  ChevronLeftIcon, ChevronRightIcon,
 } from '@heroicons/react/24/outline';
+
+const PAGE_SIZE = 10;
 
 interface ArtifactType {
   id:        number;
@@ -52,6 +55,8 @@ export function ArtifactCatalogManager() {
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [loading,   setLoading]   = useState(true);
   const [filterTypeId, setFilterTypeId] = useState<number | null>(null);
+  const [search, setSearch] = useState('');
+  const [page,   setPage]   = useState(1);
 
   const [editing,  setEditing]  = useState<Artifact | 'new' | null>(null);
   const [form,     setForm]     = useState<ArtifactFormData>(emptyForm);
@@ -179,9 +184,20 @@ export function ArtifactCatalogManager() {
     setAddingType(false);
   }
 
-  const visible = filterTypeId
-    ? artifacts.filter(a => a.artifactTypeId === filterTypeId)
-    : artifacts;
+  // Contextual search: matches any catalog field, scoped to the active type chip
+  const q = search.trim().toLowerCase();
+  const visible = artifacts.filter(a => {
+    if (filterTypeId && a.artifactTypeId !== filterTypeId) return false;
+    if (!q) return true;
+    return [
+      a.artifactType.name, a.manufacturer, a.modelName, a.variant,
+      a.description, a.comment, a.cost != null ? String(a.cost) : null,
+    ].some(f => f != null && f.toLowerCase().includes(q));
+  });
+
+  const totalPages  = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows    = visible.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   return (
     <div className="space-y-4">
@@ -225,11 +241,33 @@ export function ArtifactCatalogManager() {
         <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
       )}
 
+      {/* Search */}
+      {!loading && (
+        <div className="relative">
+          <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Search type, manufacturer, model, variant, description…"
+            className="form-input pl-9 pr-8 text-sm w-full"
+          />
+          {search && (
+            <button
+              onClick={() => { setSearch(''); setPage(1); }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+              title="Clear search"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Type filter chips */}
       {!loading && (
         <div className="flex flex-wrap gap-1.5">
           <button
-            onClick={() => setFilterTypeId(null)}
+            onClick={() => { setFilterTypeId(null); setPage(1); }}
             className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
               filterTypeId === null
                 ? 'bg-indigo-600 text-white border-indigo-600'
@@ -241,7 +279,7 @@ export function ArtifactCatalogManager() {
           {types.map(t => (
             <button
               key={t.id}
-              onClick={() => setFilterTypeId(filterTypeId === t.id ? null : t.id)}
+              onClick={() => { setFilterTypeId(filterTypeId === t.id ? null : t.id); setPage(1); }}
               className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
                 filterTypeId === t.id
                   ? 'bg-indigo-600 text-white border-indigo-600'
@@ -259,9 +297,12 @@ export function ArtifactCatalogManager() {
           <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
         ) : visible.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">
-            No artifacts yet. Add catalog items so they can be selected in cost estimates.
+            {q || filterTypeId
+              ? 'No artifacts match your search.'
+              : 'No artifacts yet. Add catalog items so they can be selected in cost estimates.'}
           </p>
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
@@ -274,7 +315,7 @@ export function ArtifactCatalogManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {visible.map(a => (
+              {pageRows.map(a => (
                 <tr key={a.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5 text-gray-700">
                     <div className="flex items-center gap-2">
@@ -311,6 +352,33 @@ export function ArtifactCatalogManager() {
               ))}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 text-xs text-gray-500">
+              <span>
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, visible.length)} of {visible.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  title="Previous page"
+                >
+                  <ChevronLeftIcon className="w-4 h-4" />
+                </button>
+                <span className="tabular-nums">Page {currentPage} of {totalPages}</span>
+                <button
+                  onClick={() => setPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent"
+                  title="Next page"
+                >
+                  <ChevronRightIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
 
