@@ -82,6 +82,7 @@ model Project {
   costs               ProjectCost[]
   feeSummary          ProjectFeeSummary?
   proposals           Proposal[]
+  invoices            Invoice[]
   cameraLocations     CameraLocation[]
 
   @@map("projects")
@@ -419,4 +420,31 @@ model Proposal {
 
   @@index([projectId])
   @@map("proposals")
+}
+
+// ─── Invoices ──────────────────────────────────────────────
+
+model Invoice {
+  id            Int       @id @default(autoincrement()) @map("invoice_id")
+  projectId     Int       @map("project_id")
+  invoiceNumber String    @map("invoice_number") @db.VarChar(60)
+  sequence      Int
+  detail        String    @default("line-items") @db.VarChar(20)
+  paymentBasis  String    @default("direct-total") @map("payment_basis") @db.VarChar(30)
+  amountDue     Decimal   @map("amount_due") @db.Decimal(12, 2)
+  snapshot      Json
+  billTo        Json?     @map("bill_to")
+  shipTo        Json?     @map("ship_to")
+  poNumber      String?   @map("po_number") @db.VarChar(60)
+  salesperson   String?   @db.VarChar(60)
+  terms         String?   @db.VarChar(60)
+  status        String    @default("draft") @db.VarChar(50)
+  issuedAt      DateTime? @map("issued_at") @db.Date
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("invoices")
 }

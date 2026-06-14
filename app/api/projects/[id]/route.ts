@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   const project = await prisma.project.findUnique({
     where:   { id: Number(id) },
     include: {
-      customer:   { select: { id: true, customerName: true } },
+      customer:   { select: { id: true, customerName: true, contactName: true, billingAddress: true } },
       building: {
         include: { site: { select: { id: true, siteName: true, city: true, state: true } } },
       },

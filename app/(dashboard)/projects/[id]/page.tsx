@@ -6,7 +6,9 @@ import {
   BuildingOfficeIcon, CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
+import { ProjectInvoiceButton } from '@/components/ProjectInvoiceButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
+import { InvoiceHistory } from '@/components/InvoiceHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
 import { AddBuildingButton } from '@/components/AddBuildingButton';
 import { RemoveBuildingButton } from '@/components/RemoveBuildingButton';
@@ -110,8 +112,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             {project.projectManager && <span>PM: {project.projectManager}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <ProjectProposalButton projectId={project.id} projectName={project.projectName} />
+        <div className="flex items-start gap-2">
+          <div className="flex flex-col gap-2">
+            <ProjectProposalButton projectId={project.id} projectName={project.projectName} />
+            <ProjectInvoiceButton projectId={project.id} projectName={project.projectName} />
+          </div>
           <Link href={`/projects/${project.id}/edit`} className="btn-secondary">
             <PencilSquareIcon className="w-4 h-4" /> Edit
           </Link>
@@ -235,6 +240,9 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
 
       {/* Proposal History */}
       <ProposalHistory projectId={project.id} projectName={project.projectName} />
+
+      {/* Invoice History */}
+      <InvoiceHistory projectId={project.id} projectName={project.projectName} />
     </div>
   );
 }

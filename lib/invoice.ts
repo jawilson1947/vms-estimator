@@ -1,0 +1,134 @@
+/**
+ * Shared invoice logic — usable both server-side (generators / routes) and
+ * client-side (modal preview). No Node.js or Prisma imports.
+ *
+ * All dollar figures originate from `buildCostSchedule()` in lib/cost-schedule.ts
+ * so an invoice can never disagree with the proposal's cost schedule.
+ */
+import type { CostScheduleData } from '@/lib/cost-schedule';
+
+export type InvoiceDetail       = 'line-items' | 'summary';
+export type InvoicePaymentBasis = 'direct-total' | 'consulting-pm';
+
+export interface InvoiceParty {
+  name?:    string | null;
+  address?: string | null;   // multi-line address (newlines preserved)
+}
+
+/** One printed row of the invoice line-item table. */
+export interface InvoiceRow {
+  quantity:    string;   // pre-formatted (e.g. "3", "10hrs", or "" when N/A)
+  description: string;
+  unitPrice:   number | null;  // null → blank cell
+  amount:      number;
+}
+
+/** Frozen financial snapshot stored on the Invoice record at save time. */
+export interface InvoiceSnapshot {
+  schedule:     CostScheduleData;
+  detail:       InvoiceDetail;
+  paymentBasis: InvoicePaymentBasis;
+  amountDue:    number;
+  /** Whether tax is included in the billed amount (only for direct-total). */
+  taxIncluded:  boolean;
+}
+
+export function usd(v: number): string {
+  return v.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+}
+
+/** Human caption explaining which basis produced the Total Due. */
+export function basisCaption(basis: InvoicePaymentBasis): string {
+  return basis === 'direct-total'
+    ? 'Direct equipment & labor total'
+    : 'Remaining consulting + project management fee';
+}
+
+/** Resolve the billed amount for the chosen payment basis. */
+export function resolveAmountDue(
+  schedule: CostScheduleData,
+  basis:    InvoicePaymentBasis,
+): number {
+  if (basis === 'consulting-pm') {
+    return schedule.consultingFee + schedule.projectManagementFee;
+  }
+  // direct-total: bill the direct line-item total only (pre-fees).
+  return schedule.directTotal;
+}
+
+/**
+ * Build the printed line-item rows. Output depends on BOTH the level of detail
+ * and the payment basis:
+ *
+ *  - direct-total + line-items → one row per cost-schedule group
+ *  - direct-total + summary    → one row per category (rolled up)
+ *  - consulting-pm + line-items→ Consulting Fee + Project Management Fee rows
+ *  - consulting-pm + summary   → single combined services row
+ */
+export function buildInvoiceRows(
+  schedule: CostScheduleData,
+  detail:   InvoiceDetail,
+  basis:    InvoicePaymentBasis,
+): InvoiceRow[] {
+  if (basis === 'consulting-pm') {
+    const consulting = schedule.consultingFee;
+    const pm         = schedule.projectManagementFee;
+    if (detail === 'summary') {
+      return [{
+        quantity:    '',
+        description: 'Consulting & Project Management Services',
+        unitPrice:   null,
+        amount:      consulting + pm,
+      }];
+    }
+    const rows: InvoiceRow[] = [];
+    rows.push({ quantity: '', description: 'Consulting Fee',             unitPrice: null, amount: consulting });
+    rows.push({ quantity: '', description: 'Project Management Fee',     unitPrice: null, amount: pm });
+    return rows;
+  }
+
+  // ── direct-total ──────────────────────────────────────────────────────────
+  if (detail === 'summary') {
+    const byCategory = new Map<string, number>();
+    for (const g of schedule.groups) {
+      byCategory.set(g.category, (byCategory.get(g.category) ?? 0) + g.lineTotal);
+    }
+    return Array.from(byCategory, ([category, amount]) => ({
+      quantity:    '',
+      description: category,
+      unitPrice:   null,
+      amount,
+    }));
+  }
+
+  // line-items: one row per group; unit price is the effective marked-up price
+  // so quantity × unitPrice reconciles with the amount.
+  return schedule.groups.map(g => ({
+    quantity:    String(g.quantity),
+    description: g.description || g.category,
+    unitPrice:   g.quantity > 0 ? g.lineTotal / g.quantity : g.lineTotal,
+    amount:      g.lineTotal,
+  }));
+}
+
+/** Build the complete frozen snapshot for storage. */
+export function buildInvoiceSnapshot(
+  schedule: CostScheduleData,
+  detail:   InvoiceDetail,
+  basis:    InvoicePaymentBasis,
+): InvoiceSnapshot {
+  return {
+    schedule,
+    detail,
+    paymentBasis: basis,
+    amountDue:    resolveAmountDue(schedule, basis),
+    taxIncluded:  false,
+  };
+}
+
+/** Derive the next per-project invoice number from the project number + sequence. */
+export function buildInvoiceNumber(projectNumber: string | null | undefined, sequence: number): string {
+  const seq = String(sequence).padStart(3, '0');
+  const base = (projectNumber ?? '').trim();
+  return base ? `${base}-${seq}` : `INV-${seq}`;
+}

@@ -3,6 +3,22 @@
 A milestone-level history of the CSMS (CCTV / Security Management System) application.
 For the full commit-by-commit record, see `git log`.
 
+## 2026-06-14 — Prisma MCP configuration
+
+- Finished the Prisma MCP setup: plugin installed and **Prisma-Remote
+  authenticated** via OAuth. Prisma-Remote targets Prisma Postgres cloud, so it
+  does not operate on the self-hosted MySQL database.
+- Found that the **Prisma-Local MCP migrate tools are unusable** here: the
+  managed plugin launches them with `npx -y prisma mcp`, which always pulls
+  Prisma 7, and v7 rejects this v6 schema (no `url` allowed in the `datasource`
+  block, error P1012). The plugin config is read-only and can't be pinned to v6.
+- Decision: **stay on Prisma 6.19.3** and run migrations with the existing
+  scripts (`npm run db:migrate`, `db:generate`, `db:studio`, `db:seed`) instead
+  of the MCP tools. No application code changed. A real v7 upgrade (ESM
+  conversion, new `prisma-client` generator + output, ~80 import sites, MySQL
+  driver adapter, tsx seed) was scoped and deferred.
+- Session captured in `Prisma_MCP_Session_Record.docx`.
+
 ## 2026-06-12 — Access Control estimating & list usability
 
 - **Access Control survey and estimating workflow**: projects are now typed
