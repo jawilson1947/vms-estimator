@@ -16,7 +16,9 @@ final class SurveyBoardViewModel: ObservableObject {
     let projectId: Int
     private let api = APIClient.shared
 
-    init(projectId: Int) { self.projectId = projectId }
+    init(projectId: Int) {
+        self.projectId = projectId
+    }
 
     // MARK: - Derived
 
@@ -40,11 +42,14 @@ final class SurveyBoardViewModel: ObservableObject {
     // MARK: - Load
 
     func load() async {
+        print("[SurveyBoardViewModel] load() firing — projectId=\(projectId)")
         isLoading = true
         errorMsg  = nil
         do {
             project = try await api.fetchProject(projectId)
+            print("[SurveyBoardViewModel] load() succeeded — projectId=\(projectId)")
         } catch {
+            print("[SurveyBoardViewModel] load() FAILED — projectId=\(projectId): \(error.localizedDescription)")
             errorMsg = error.localizedDescription
         }
         isLoading = false

@@ -53,7 +53,10 @@ struct SurveyBoardView: View {
                             // Building context header + flat location list
                             Section {
                                 ForEach(vm.filteredLocations) { loc in
-                                    LocationRow(location: loc) {
+                                    LocationRow(
+                                        location: loc,
+                                        projectType: vm.project?.effectiveProjectType ?? .videoSurveillance
+                                    ) {
                                         selectedLocation = loc
                                     }
                                     .padding(.horizontal, 16)
@@ -96,7 +99,7 @@ struct SurveyBoardView: View {
                 }
 
                 Button { showAddSheet = true } label: {
-                    Label("Add Location", systemImage: "plus")
+                    Label(addButtonLabel, systemImage: "plus")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 18)
@@ -128,8 +131,15 @@ struct SurveyBoardView: View {
         }
         .sheet(isPresented: $showAddSheet) {
             if let project = vm.project {
-                AddLocationSheet(projectId: project.id) { newLoc in
-                    vm.append(newLoc)
+                switch project.effectiveProjectType {
+                case .videoSurveillance:
+                    AddLocationSheet(projectId: project.id) { newLoc in
+                        vm.append(newLoc)
+                    }
+                case .accessControl:
+                    AddAccessPointSheet(projectId: project.id) { newLoc in
+                        vm.append(newLoc)
+                    }
                 }
             }
         }
@@ -149,9 +159,19 @@ struct SurveyBoardView: View {
         .onDisappear { voice.unregister(id: "survey-board") }
     }
 
+    /// Branches the FAB label by project mode. Treats missing/unknown mode as
+    /// video-surveillance (per the design — no force-pick on iOS).
+    private var addButtonLabel: String {
+        switch vm.project?.effectiveProjectType ?? .videoSurveillance {
+        case .videoSurveillance: return "Add Location"
+        case .accessControl:     return "Add Access Point"
+        }
+    }
+
     private func registerVoiceCommands() {
         voice.register(id: "survey-board", commands: [
-            VoiceCommand(keywords: ["add location", "new location"]) { _ in
+            VoiceCommand(keywords: ["add location", "new location",
+                                    "add access point", "new access point"]) { _ in
                 speech.speak("Opening add location") {
                     Task { @MainActor in showAddSheet = true }
                 }
@@ -239,8 +259,27 @@ private struct FilterChips: View {
     }
 }
 
+/// Flat-list row rendered on the survey board.
+///
+/// Branches its content on `projectType` so the same `SurveyLocation` row
+/// reads as a camera-mode location or an access-control access point. The
+/// status circle (done/not-done) is universal and is intentionally not
+/// re-themed by mode.
+///
+/// Camera mode:
+///   - Title:    areaName
+///   - Subtitle: "Floor X" (when set)
+///   - Trailing: photo count + chevron
+///
+/// Access-control mode:
+///   - Leading mode glyph: door (visually distinguishes the row class)
+///   - Title:    areaName (treated as the door / access-point name)
+///   - Subtitle: "Floor X" and/or access-method name, joined with a dot
+///     (e.g. "Floor 2 · Card Reader"). Falls back to just one or the other.
+///   - Trailing: photo count + chevron
 private struct LocationRow: View {
     let location: SurveyLocation
+    let projectType: ProjectType
     let onTap: () -> Void
 
     var body: some View {
@@ -255,12 +294,20 @@ private struct LocationRow: View {
                         .font(.system(size: 18, weight: .semibold))
                 }
 
+                if projectType == .accessControl {
+                    Image(systemName: "door.left.hand.closed")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(width: 22)
+                        .accessibilityHidden(true)
+                }
+
                 VStack(alignment: .leading, spacing: 3) {
                     Text(location.areaName)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(Theme.textPrimary)
-                    if let floor = location.floor {
-                        Text("Floor \(floor)")
+                    if let subtitle = subtitleText {
+                        Text(subtitle)
                             .font(.caption)
                             .foregroundStyle(Theme.textSecondary)
                     }
@@ -286,6 +333,20 @@ private struct LocationRow: View {
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.border, lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    /// Mode-aware subtitle. Camera mode shows only the floor. Access-control
+    /// mode joins floor + access-method name with a dot when both are present.
+    private var subtitleText: String? {
+        let floorPart = location.floor.map { "Floor \($0)" }
+        switch projectType {
+        case .videoSurveillance:
+            return floorPart
+        case .accessControl:
+            let methodPart = location.accessMethod?.name
+            let parts = [floorPart, methodPart].compactMap { $0 }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
     }
 }
 

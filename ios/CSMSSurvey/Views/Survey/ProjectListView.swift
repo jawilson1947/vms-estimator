@@ -34,9 +34,11 @@ struct ProjectListView: View {
         }
         .navigationTitle(building.buildingName)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: ProjectSummary.self) { project in
-            SurveyBoardView(projectId: project.id)
-        }
+        // Destination for ProjectSummary (→ SurveyBoardView) is declared once at the
+        // NavigationStack root (SiteListView). Declaring it here nested the closure
+        // inside the Building destination, so SwiftUI built SurveyBoardView eagerly
+        // and its .task fired fetchProject on a single site tap. SurveyBoardView now
+        // mounts only when a ProjectSummary is actually pushed by tapping a project.
     }
 }
 

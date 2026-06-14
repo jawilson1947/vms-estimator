@@ -5,6 +5,21 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 
 // GET /api/survey/[projectId]
+//
+// Returns one project and all of its CameraLocation records — i.e. its survey.
+// A project owns exactly one (abstract) survey: the set of location records
+// below it. There is no Survey entity; this route IS the survey load.
+//
+// Consumed solely by the iOS app (APIClient.fetchProject → SurveyBoardViewModel).
+// The response is shaped 1:1 to the Swift Codable models, so the field guards
+// below are load-bearing — they exist because Swift is stricter than Prisma:
+//
+//   • SurveyLocation.projectId  is non-optional Int   → coalesce null to projectId
+//   • SurveyLocation.areaName   is non-optional String → coalesce null to ''
+//   • SurveyPhoto.imageUrl      is non-optional String → coalesce null to ''
+//
+// cameraModel / accessMethod / images decode tolerantly on the client (try? /
+// default []), but we still send well-formed objects so the board populates.
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ projectId: string }> }
@@ -21,6 +36,7 @@ export async function GET(
     select: {
       id: true,
       projectName: true,
+      projectType: true,
       buildingId: true,
       building: {
         select: {
@@ -32,13 +48,25 @@ export async function GET(
       },
       cameraLocations: {
         orderBy: { areaName: 'asc' },
-        include: {
+        select: {
+          id: true,
+          projectId: true,
+          areaName: true,
+          floor: true,
+          surveyNotes: true,
+          notes: true,
+          mountingLocation: true,
+          coveragePurpose: true,
+          surveyedAt: true,
+          cameraModelId: true,
+          accessMethodId: true,
           cameraModel: {
             select: {
               id: true, manufacturer: true, model: true, cameraType: true,
               resolution: true, resolutionClass: true, imageUrl: true, ptz: true, indoorOutdoor: true,
             },
           },
+          accessMethod: { select: { id: true, name: true } },
           images: {
             where: { imageType: 'SITE_SURVEY' },
             select: { id: true, fileUrl: true, description: true, uploadedAt: true },
@@ -51,23 +79,23 @@ export async function GET(
 
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-  // Fetch floor plans for the assigned building
-  const floorPlans: FloorPlanRow[] = [];
+  // Floor plans for the assigned building (raw query — table may not exist on older DBs).
+  let floorPlans: FloorPlanRow[] = [];
   if (project.buildingId) {
     try {
-      const rows = await prisma.$queryRaw<FloorPlanRow[]>(
+      floorPlans = await prisma.$queryRaw<FloorPlanRow[]>(
         Prisma.sql`SELECT plan_id, building_id, floor, original_file_name, file_url
           FROM building_floor_plans
           WHERE building_id = ${project.buildingId}
           ORDER BY floor ASC`
       );
-      floorPlans.push(...rows);
     } catch { /* table may not exist yet */ }
   }
 
   const normalized = {
     id:          project.id,
     projectName: project.projectName,
+    projectType: project.projectType, // Prisma enum identifier, e.g. "VIDEO_SURVEILLANCE"
     building:    project.building
       ? {
           id:           project.building.id,
@@ -83,20 +111,24 @@ export async function GET(
       : null,
     locations: project.cameraLocations.map(l => ({
       id:               l.id,
-      projectId:        l.projectId,
-      areaName:         l.areaName,
+      projectId:        l.projectId ?? projectId,   // Swift: non-optional Int
+      areaName:         l.areaName ?? '',           // Swift: non-optional String
       floor:            l.floor,
-      surveyNotes:      l.surveyNotes,
-      notes:            l.notes,
-      mountingLocation: l.mountingLocation,
-      coveragePurpose:  l.coveragePurpose,
+      surveyNotes:      l.surveyNotes ?? null,
+      notes:            l.notes ?? null,
+      mountingLocation: l.mountingLocation ?? null,
+      coveragePurpose:  l.coveragePurpose ?? null,
       surveyedAt:       l.surveyedAt ? new Date(l.surveyedAt).toISOString() : null,
+      cameraModelId:    l.cameraModelId ?? null,
+      accessMethodId:   l.accessMethodId ?? null,
       cameraModel:      l.cameraModel ?? null,
-      images:           l.images.map(img => ({
+      accessMethod:     l.accessMethod ?? null,
+      cameras:          [],                          // reserved; client defaults to []
+      images: l.images.map(img => ({
         id:        img.id,
-        imageUrl:  img.fileUrl ?? "",
+        imageUrl:  img.fileUrl ?? '',                // Swift: non-optional String
         caption:   img.description ?? null,
-        createdAt: img.uploadedAt,
+        createdAt: img.uploadedAt.toISOString(),
       })),
     })),
   };

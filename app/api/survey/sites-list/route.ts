@@ -20,7 +20,7 @@ export async function GET() {
             buildingName: true,
             projects: {
               orderBy: { projectName: 'asc' },
-              select: { id: true, projectName: true },
+              select: { id: true, projectName: true, projectType: true },
             },
           },
         },

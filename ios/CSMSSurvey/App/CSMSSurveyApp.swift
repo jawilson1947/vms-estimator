@@ -16,10 +16,14 @@ struct CSMSSurveyApp: App {
                 .environmentObject(voice)
                 .preferredColorScheme(.dark)
                 .task {
+                    print("[CSMSSurvey] running \(AppEnvironment.versionLabel)")
                     // Restore existing session on launch
                     await auth.checkSession()
                     // Request mic + speech permissions
                     await voice.requestPermission()
+                    // Refresh the access-methods catalog so access-control mode
+                    // projects can render their picker offline if needed.
+                    await AccessMethodCatalog.shared.refresh()
                 }
         }
     }

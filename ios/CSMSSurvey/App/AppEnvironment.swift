@@ -3,6 +3,24 @@ import Foundation
 /// Shared environment values injected at the top of the app.
 struct AppEnvironment {
 
+    /// App + build numbers read from Info.plist, driven by MARKETING_VERSION /
+    /// CURRENT_PROJECT_VERSION in project.yml (e.g. "v1.0 (1)").
+    static var appVersion: String {
+        let info  = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"]            as? String ?? "?"
+        return "v\(short) (\(build))"
+    }
+
+    /// Short source marker — bump this whenever you ship a change you want to
+    /// confirm is actually running on the device.
+    static let buildStamp = "voice-nofreeze-06-14"
+
+    /// One-line version marker shown at the bottom of the home screen and
+    /// printed at launch. If this doesn't match what you expect after a build,
+    /// the binary is stale or Xcode is building a different checkout.
+    static var versionLabel: String { "\(appVersion) · \(buildStamp)" }
+
     /// The Next.js server base URL, assembled from API_BASE_SCHEME + API_BASE_HOST in Info.plist.
     /// Splitting across two keys avoids the xcconfig "//" comment-stripping bug.
     static var baseURL: URL {

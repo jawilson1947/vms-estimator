@@ -34,9 +34,10 @@ struct BuildingListView: View {
         }
         .navigationTitle(site.siteName)
         .navigationBarTitleDisplayMode(.large)
-        .navigationDestination(for: BuildingSummary.self) { building in
-            ProjectListView(building: building)
-        }
+        // Destination for BuildingSummary is declared once at the NavigationStack
+        // root (SiteListView). Do not re-declare it here — nesting destinations
+        // caused the deeper views to build eagerly and fired the survey load on a
+        // site tap.
     }
 }
 

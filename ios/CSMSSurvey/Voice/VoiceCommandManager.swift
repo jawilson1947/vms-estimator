@@ -134,7 +134,10 @@ final class VoiceCommandManager: NSObject, ObservableObject {
             await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
                 DispatchQueue.global(qos: .userInitiated).async {
                     let session = AVAudioSession.sharedInstance()
-                    try? session.setCategory(.playAndRecord, mode: .measurement,
+                    // .voiceChat (not .measurement) — .measurement is for measurement-quality
+                    // recording, disables system audio processing, and breaks AVSpeechSynthesizer
+                    // playback / completion callbacks while the session is held.
+                    try? session.setCategory(.playAndRecord, mode: .voiceChat,
                                               options: [.defaultToSpeaker, .allowBluetoothHFP])
                     try? session.setActive(true)
                     cont.resume()

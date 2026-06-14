@@ -13,6 +13,15 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
     var images: [SurveyPhoto]
     var cameras: [LocationCamera]
     var cameraModel: CameraModel?
+    /// FK to `AccessMethod.id`. Populated for access-control mode rows; nil for
+    /// camera-mode rows. The server's `POST /api/survey/locations` response
+    /// returns the nested `accessMethod` summary rather than echoing the id, so
+    /// the decoder derives this from `accessMethod.id` when only the relation is
+    /// present on the wire. `GET /api/survey/[projectId]` doesn't yet include
+    /// either field (known backend gap) — decoder defaults both to nil.
+    var accessMethodId: Int?
+    /// Embedded `{ id, name }` reference, populated by the create/update endpoints.
+    var accessMethod: AccessMethodSummary?
 
     var isDone: Bool { surveyedAt != nil }
 
@@ -20,6 +29,7 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
         case id, projectId, areaName, floor, surveyNotes, notes
         case mountingLocation, coveragePurpose, surveyedAt
         case images, cameras, cameraModel
+        case accessMethodId, accessMethod
     }
 
     // Hashable / Equatable on id only so NavigationStack path works
@@ -41,6 +51,15 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
         images           = (try? c.decodeIfPresent([SurveyPhoto].self,    forKey: .images))  ?? []
         cameras          = (try? c.decodeIfPresent([LocationCamera].self, forKey: .cameras)) ?? []
         cameraModel      = try? c.decodeIfPresent(CameraModel.self,       forKey: .cameraModel)
+        accessMethod     = try? c.decodeIfPresent(AccessMethodSummary.self, forKey: .accessMethod)
+        // Prefer the explicit id if the server sends it; otherwise fall back to
+        // the nested relation's id so the field stays populated whichever endpoint
+        // we came from.
+        if let id = try? c.decodeIfPresent(Int.self, forKey: .accessMethodId) {
+            accessMethodId = id
+        } else {
+            accessMethodId = accessMethod?.id
+        }
     }
 
     // Custom encoder required when custom init(from:) is present
@@ -58,6 +77,8 @@ struct SurveyLocation: Codable, Identifiable, Hashable {
         try c.encode(images,      forKey: .images)
         try c.encode(cameras,     forKey: .cameras)
         try c.encodeIfPresent(cameraModel, forKey: .cameraModel)
+        try c.encodeIfPresent(accessMethodId, forKey: .accessMethodId)
+        try c.encodeIfPresent(accessMethod, forKey: .accessMethod)
     }
 }
 
@@ -85,6 +106,9 @@ struct NewLocationBody: Encodable {
     let areaName: String
     let floor: String?
     let surveyNotes: String?
+    /// Populated only for access-control mode rows. Camera-mode callers leave nil
+    /// (the existing `AddLocationSheet` callsite continues to default this).
+    var accessMethodId: Int? = nil
 }
 
 struct UpdateLocationBody: Encodable {

@@ -65,14 +65,37 @@ struct SiteListView: View {
                 }
             }
             .navigationTitle("Survey Sites")
+            // Small, always-visible build marker (persists across loading / error /
+            // empty / list states) so a stale or wrong-folder build is obvious.
+            .safeAreaInset(edge: .bottom) {
+                Text(AppEnvironment.versionLabel)
+                    .font(.caption2)
+                    .foregroundStyle(Theme.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+            }
+            // All destinations for the survey nav chain are declared once, here at
+            // the NavigationStack root — NOT on the pushed child views. Declaring
+            // them on children nests the destination closures, which makes SwiftUI
+            // eagerly build the deeper views (ProjectListView → SurveyBoardView) and
+            // fire SurveyBoardView's .task on a single site tap. Kept flat and
+            // sibling here, each closure runs only when its value is pushed.
             .navigationDestination(for: SiteSummary.self) { site in
                 BuildingListView(site: site)
+            }
+            .navigationDestination(for: BuildingSummary.self) { building in
+                ProjectListView(building: building)
+            }
+            .navigationDestination(for: ProjectSummary.self) { project in
+                SurveyBoardView(projectId: project.id)
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        NavigationLink(destination: VoiceTestView()) {
-                            Label("Developer Tools", systemImage: "wrench.and.screwdriver")
+                        Section("Build \(AppEnvironment.versionLabel)") {
+                            NavigationLink(destination: VoiceTestView()) {
+                                Label("Developer Tools", systemImage: "wrench.and.screwdriver")
+                            }
                         }
                         Divider()
                         Button(role: .destructive) {

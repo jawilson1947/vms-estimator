@@ -22,14 +22,35 @@ final class SpeechOutputManager: NSObject, ObservableObject, AVSpeechSynthesizer
     override init() {
         super.init()
         synth.delegate = self
-        // setActive is a blocking call — defer it off the main thread so it
-        // doesn't freeze startup. By the time the user triggers any speech
-        // (always after interaction), the session will already be configured.
-        DispatchQueue.global(qos: .userInitiated).async {
-            let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playback, mode: .spokenAudio,
-                                     options: [.duckOthers, .mixWithOthers])
-            try? session.setActive(true)
+        // The audio session is flipped per-utterance via configureSession(playback:),
+        // which runs off the main thread so the frequent speak/listen toggles don't
+        // block the UI (the previous on-main setActive caused the listening freeze).
+    }
+
+    // MARK: - Audio session helpers
+
+    /// Configure the shared AVAudioSession OFF the main thread. `setCategory` /
+    /// `setActive` are blocking Core Audio calls — running them on @MainActor
+    /// (as before) stalled the UI during the frequent speak/listen toggles and
+    /// caused the "freeze while listening". Bridged through a continuation like
+    /// VoiceCommandManager does, so we await completion without blocking main.
+    ///
+    /// `playback == true`  → .playback / .spokenAudio (for synthesizer output)
+    /// `playback == false` → .playAndRecord / .voiceChat (for the recognizers)
+    private nonisolated func configureSession(playback: Bool) async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global(qos: .userInitiated).async {
+                let session = AVAudioSession.sharedInstance()
+                if playback {
+                    try? session.setCategory(.playback, mode: .spokenAudio,
+                                             options: [.duckOthers, .mixWithOthers])
+                } else {
+                    try? session.setCategory(.playAndRecord, mode: .voiceChat,
+                                             options: [.defaultToSpeaker, .allowBluetoothHFP])
+                }
+                try? session.setActive(true)
+                cont.resume()
+            }
         }
     }
 
@@ -47,7 +68,14 @@ final class SpeechOutputManager: NSObject, ObservableObject, AVSpeechSynthesizer
         utt.volume   = 1.0
         utt.preUtteranceDelay  = 0.05
         utt.postUtteranceDelay = 0.1
-        synth.speak(utt)
+
+        // Configure the session off-main, then speak. The Task inherits the
+        // @MainActor context, so `synth.speak` runs back on the main actor.
+        Task { [weak self] in
+            guard let self else { return }
+            await self.configureSession(playback: true)
+            self.synth.speak(utt)
+        }
     }
 
     func stop() {
@@ -70,7 +98,13 @@ final class SpeechOutputManager: NSObject, ObservableObject, AVSpeechSynthesizer
     private func finish() {
         isSpeaking = false
         let cb = onFinish
-        onFinish   = nil
-        cb?()
+        onFinish = nil
+        // Hand the session back to the recognizers (playAndRecord / voiceChat)
+        // OFF the main thread, then run the completion — which typically starts
+        // STT and needs the session already in the recording configuration.
+        Task { [weak self] in
+            await self?.configureSession(playback: false)
+            cb?()
+        }
     }
 }

@@ -51,6 +51,26 @@ final class LocationDetailViewModel: ObservableObject {
         isSaving = false
     }
 
+    // MARK: - Save details (area / floor / notes) — used by voice edit
+
+    func saveDetails(area: String, floor: String, notes: String) async {
+        isSaving = true
+        errorMsg = nil
+        do {
+            let body = UpdateLocationBody(
+                areaName:    area.isEmpty  ? nil : area,
+                floor:       floor.isEmpty ? nil : floor,
+                surveyNotes: notes
+            )
+            let updated = try await api.updateLocation(location.id, body: body)
+            location = updated
+            onUpdate?(updated)
+        } catch {
+            errorMsg = error.localizedDescription
+        }
+        isSaving = false
+    }
+
     // MARK: - Upload photo
 
     func uploadPhoto(_ image: UIImage) async {

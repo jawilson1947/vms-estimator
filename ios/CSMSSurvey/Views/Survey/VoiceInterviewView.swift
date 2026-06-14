@@ -178,7 +178,7 @@ struct VoiceInterviewView: View {
         case .idle:
             VStack(spacing: 12) {
                 PulsingMicView(active: false)
-                Text("Say \"Begin Survey\" to start")
+                Text("Starting…")
                     .font(.subheadline)
                     .foregroundStyle(Theme.textSecondary)
             }
@@ -190,6 +190,16 @@ struct VoiceInterviewView: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(manager.isListening ? Theme.accent : Theme.textSecondary)
                     .animation(.easeInOut, value: manager.isListening)
+            }
+
+        case .locked:
+            VStack(spacing: 12) {
+                PulsingMicView(active: manager.isListening)
+                Text("Finished — say \"Save\", \"Save and Next\", or \"Done\"")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Theme.accent)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
         case .saving:
@@ -229,13 +239,12 @@ struct VoiceInterviewView: View {
                 .tracking(0.8)
                 .padding(.bottom, 4)
 
-            commandRow(command: "Area Name = [value]",  description: "Set area name")
-            commandRow(command: "Floor = [value]",       description: "Set floor")
-            commandRow(command: "Skip",                  description: "Omit floor")
-            commandRow(command: "Notes = [value]",       description: "Add notes")
-            commandRow(command: "Save and Next",         description: "Save, start next")
-            commandRow(command: "Finish",                description: "End interview")
-            commandRow(command: "Review Survey",         description: "Clear and restart")
+            commandRow(command: "Area Name [value]", description: "Set area name")
+            commandRow(command: "Floor [value]",     description: "Set floor")
+            commandRow(command: "Skip",              description: "Omit floor")
+            commandRow(command: "(just speak)",      description: "Adds to Notes")
+            commandRow(command: "Finish",            description: "Stop & review")
+            commandRow(command: "Save / Save and Next / Done", description: "After Finish")
         }
         .padding(16)
         .background(Theme.surface)

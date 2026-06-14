@@ -14,6 +14,7 @@
 		10124E705D8F7D073179096E /* AddLocationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29387831190F4625E90A0FF /* AddLocationSheet.swift */; };
 		18F44A0F239CE14D1D4FE6B2 /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0397ED33DB9C9A9E2B52166A /* CameraCapture.swift */; };
 		1A2CC1D698F2E73662323E06 /* VoiceCommandTestPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E832D496DEA92126DE951B2 /* VoiceCommandTestPanel.swift */; };
+		1C61F3ACBE6E8121613C5475 /* AccessMethod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626A629AA47A05596EBB0464 /* AccessMethod.swift */; };
 		1E3C1ED92AAE2C2F173F5195 /* VoiceInterviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774A368161A193CC458683E6 /* VoiceInterviewView.swift */; };
 		33BFCF03F0F395781B9C4655 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DACE3FC798D5A03F969DC090 /* AuthService.swift */; };
 		40DC4F2493B79C102FFA07FE /* UIImage+Resize.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1B693704409C48F293D5151 /* UIImage+Resize.swift */; };
@@ -23,6 +24,7 @@
 		59E29BE80D6B7327DAA0845D /* SiteListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA4281ED318EDCD3A5CB074 /* SiteListViewModel.swift */; };
 		5A3EF309FD8C1D0DAB4BAD5A /* VoiceQuickRefView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6FB827E40200EAA68F040A1 /* VoiceQuickRefView.swift */; };
 		5AC7503CAB12B5A341549B1C /* ProjectListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A8C776335F7AD1BB669128 /* ProjectListView.swift */; };
+		657EB71747BBF182703F5237 /* AddAccessPointSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5997FB63280C3D4241FDBB0 /* AddAccessPointSheet.swift */; };
 		69B72183D3A24D44B49C8B7F /* CameraPickerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFCE5E6617D4956F444BCDF0 /* CameraPickerViewModel.swift */; };
 		6EFFB534BE90A53D071162F5 /* Site.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E923DD9F5AFC016FE4D24D9 /* Site.swift */; };
 		700318570CF81CA911EE738C /* ProjectListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5E39C2A84AF310635BBBD4F /* ProjectListViewModel.swift */; };
@@ -44,13 +46,14 @@
 		E241CD044CF0A538DCA0B5AC /* ClaudeInterviewClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E77976F1C0E7F0795A6233 /* ClaudeInterviewClient.swift */; };
 		E70BA1A4D7693B62B23D20FA /* PhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */; };
 		EAB71A4B56833661F28A7987 /* CSMSSurveyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD7741126F21807C1A269CBB /* CSMSSurveyApp.swift */; };
+		F50B10818878C76706EE0336 /* AccessMethodCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92357A193B55BD0400646345 /* AccessMethodCatalog.swift */; };
 		FDDFC9B33E13B3AA9E85F4B3 /* VoiceTestPhrases.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC326890394BC7E47F85CF42 /* VoiceTestPhrases.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		02676A0FF4CB3BED2DDD94EB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0397ED33DB9C9A9E2B52166A /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
-		0B0C5C43A0B18DD371FFDA83 /* CSMSSurvey.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CSMSSurvey.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0B0C5C43A0B18DD371FFDA83 /* CSMSSurvey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CSMSSurvey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridView.swift; sourceTree = "<group>"; };
 		1683B7036003FCAA0C5438BD /* SurveyLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyLocation.swift; sourceTree = "<group>"; };
 		2CECDECE457C8473D751D862 /* CameraPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerSheet.swift; sourceTree = "<group>"; };
@@ -61,6 +64,7 @@
 		56982D25A2319D3D7D57BC5A /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		5D937A5FB660358847CD7899 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		60603ABEA715D3E98D41201B /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		626A629AA47A05596EBB0464 /* AccessMethod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessMethod.swift; sourceTree = "<group>"; };
 		63B7BCFCCD60700C4A802400 /* SpeechOutputTestPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechOutputTestPanel.swift; sourceTree = "<group>"; };
 		691F38AD61CAFB9299F26F72 /* SurveyBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyBoardView.swift; sourceTree = "<group>"; };
 		69E64E9B01495FFAECB9C078 /* VoiceTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceTestView.swift; sourceTree = "<group>"; };
@@ -68,6 +72,7 @@
 		774A368161A193CC458683E6 /* VoiceInterviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInterviewView.swift; sourceTree = "<group>"; };
 		7FA4281ED318EDCD3A5CB074 /* SiteListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteListViewModel.swift; sourceTree = "<group>"; };
 		7FE9C4548BFC14FB93DB192C /* VoiceInterviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInterviewManager.swift; sourceTree = "<group>"; };
+		92357A193B55BD0400646345 /* AccessMethodCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessMethodCatalog.swift; sourceTree = "<group>"; };
 		95307DE53BDB0B4D9B3C5C0E /* BuildingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildingListView.swift; sourceTree = "<group>"; };
 		9AA4CC43236E38D4E1BF452D /* LocationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationDetailView.swift; sourceTree = "<group>"; };
 		9D12F52223A5631C236C7822 /* VoiceCommandManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceCommandManager.swift; sourceTree = "<group>"; };
@@ -87,6 +92,7 @@
 		DD7AA276CB86A332F3967FF5 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		E1E77976F1C0E7F0795A6233 /* ClaudeInterviewClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeInterviewClient.swift; sourceTree = "<group>"; };
 		E58E9EA96E559753BFFD35CD /* SurveyPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyPhoto.swift; sourceTree = "<group>"; };
+		E5997FB63280C3D4241FDBB0 /* AddAccessPointSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAccessPointSheet.swift; sourceTree = "<group>"; };
 		E7A617A8243B5C0C1F6AE3B6 /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		E7C9D8A65FADBD9CB7DF60EE /* SiteListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SiteListView.swift; sourceTree = "<group>"; };
 		EFF4CD120FEB81FEE2A7F885 /* LocationDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationDetailViewModel.swift; sourceTree = "<group>"; };
@@ -164,6 +170,7 @@
 		61A2D64C1D562BA5AA06516E /* Survey */ = {
 			isa = PBXGroup;
 			children = (
+				E5997FB63280C3D4241FDBB0 /* AddAccessPointSheet.swift */,
 				B29387831190F4625E90A0FF /* AddLocationSheet.swift */,
 				95307DE53BDB0B4D9B3C5C0E /* BuildingListView.swift */,
 				0397ED33DB9C9A9E2B52166A /* CameraCapture.swift */,
@@ -183,6 +190,7 @@
 		977FD40349824C6951A93927 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				626A629AA47A05596EBB0464 /* AccessMethod.swift */,
 				CF80EB4D71D7ECEB50801EC3 /* CameraModel.swift */,
 				4E923DD9F5AFC016FE4D24D9 /* Site.swift */,
 				1683B7036003FCAA0C5438BD /* SurveyLocation.swift */,
@@ -237,6 +245,7 @@
 		BEE8BBAC1A5A068FCB4DB315 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				92357A193B55BD0400646345 /* AccessMethodCatalog.swift */,
 				DD7AA276CB86A332F3967FF5 /* APIClient.swift */,
 				DACE3FC798D5A03F969DC090 /* AuthService.swift */,
 				E1E77976F1C0E7F0795A6233 /* ClaudeInterviewClient.swift */,
@@ -285,7 +294,6 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					E645186BCEDFA2D26BD3DF49 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -326,6 +334,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				741E710DE1262C44CD0F2741 /* APIClient.swift in Sources */,
+				1C61F3ACBE6E8121613C5475 /* AccessMethod.swift in Sources */,
+				F50B10818878C76706EE0336 /* AccessMethodCatalog.swift in Sources */,
+				657EB71747BBF182703F5237 /* AddAccessPointSheet.swift in Sources */,
 				10124E705D8F7D073179096E /* AddLocationSheet.swift in Sources */,
 				A1664791041BC815BDF3BF3D /* AppEnvironment.swift in Sources */,
 				33BFCF03F0F395781B9C4655 /* AuthService.swift in Sources */,
@@ -437,7 +448,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = VPA64V23J9;
 				INFOPLIST_FILE = CSMSSurvey/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -529,7 +540,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = VPA64V23J9;
 				INFOPLIST_FILE = CSMSSurvey/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

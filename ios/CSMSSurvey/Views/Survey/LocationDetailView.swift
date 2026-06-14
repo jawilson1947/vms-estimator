@@ -3,8 +3,9 @@ import PhotosUI
 
 struct LocationDetailView: View {
     @StateObject private var vm: LocationDetailViewModel
-    @StateObject private var voice = VoiceCommandManager.shared
-    private        let speech      = SpeechOutputManager.shared
+    @StateObject private var voice     = VoiceCommandManager.shared
+    @StateObject private var interview = VoiceInterviewManager.shared
+    private        let speech          = SpeechOutputManager.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var notesText           = ""
@@ -12,6 +13,7 @@ struct LocationDetailView: View {
     @State private var showCamera          = false
     @State private var showCameraPicker    = false
     @State private var showDeleteConfirm   = false
+    @State private var showInterview       = false
 
     init(location: SurveyLocation,
          onUpdate: @escaping (SurveyLocation) -> Void,
@@ -197,14 +199,28 @@ struct LocationDetailView: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button(role: .destructive) {
-                    showDeleteConfirm = true
-                } label: {
-                    Image(systemName: "trash")
-                        .foregroundStyle(Theme.danger)
+                HStack(spacing: 14) {
+                    Button { startVoiceInterview() } label: {
+                        Image(systemName: "waveform.and.mic")
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .disabled(vm.isSaving)
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(Theme.danger)
+                    }
+                    .disabled(vm.isSaving)
                 }
-                .disabled(vm.isSaving)
             }
+        }
+        .fullScreenCover(isPresented: $showInterview) {
+            VoiceInterviewView(manager: interview) { showInterview = false }
+                .onDisappear {
+                    interview.stop()
+                    voice.setEnabled(true)
+                }
         }
         .confirmationDialog(
             "Delete \"\(vm.location.areaName)\"?",
@@ -235,6 +251,38 @@ struct LocationDetailView: View {
     private func markSurveyed() async {
         speech.speak("\(vm.location.areaName) marked as surveyed")
         await vm.markSurveyed()
+    }
+
+    // MARK: - Voice edit
+
+    private func startVoiceInterview() {
+        guard !showInterview else { return }
+        // Park the always-on command listener so only the interview owns the mic.
+        voice.setEnabled(false)
+        showInterview = true
+        interview.start(
+            area:  vm.location.areaName,
+            floor: vm.location.floor ?? "",
+            notes: notesText,
+            onSave: {
+                Task {
+                    await vm.saveDetails(area:  interview.areaName,
+                                         floor: interview.floor,
+                                         notes: interview.surveyNotes)
+                    notesText     = interview.surveyNotes
+                    showInterview = false
+                }
+            },
+            onDone: {
+                Task {
+                    await vm.saveDetails(area:  interview.areaName,
+                                         floor: interview.floor,
+                                         notes: interview.surveyNotes)
+                    notesText     = interview.surveyNotes
+                    showInterview = false
+                }
+            }
+        )
     }
 
     private func loadPhoto(_ item: PhotosPickerItem?) async {

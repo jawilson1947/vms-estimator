@@ -5,20 +5,34 @@ import Foundation
 // MARK: - State
 
 enum NarrativeState: Equatable {
-    case idle       // waiting for "Begin Survey"
-    case active     // interview running, mic listening
-    case saving     // API call in flight (brief)
+    case idle       // not started
+    case active     // dictating — mic listening, narration flowing into fields
+    case locked     // "Finish" heard — waiting for Save / Save and Next / Done
+    case saving     // a save command is committing
     case done       // interview finished
 }
 
 // MARK: - Manager
 
+/// Hands-free dictation for adding/editing a survey location.
+///
+/// Flow (see CSMS voice requirements):
+///   1. `start(...)` announces "Listening" and begins dictation immediately —
+///      no "Begin Survey" wake word.
+///   2. Free narration is appended to Notes. Saying "area name <x>" sets the
+///      area name; "floor <x>" sets the floor; "skip" clears the floor.
+///   3. "Finish" stops dictation and locks the fields; the app then waits for
+///      "Save", "Save and Next", or "Done", each spoken back to confirm.
+///
+/// IMPORTANT: callers must park `VoiceCommandManager` (setEnabled(false)) before
+/// calling `start`, and revive it on dismissal — two recognizers on one mic is
+/// what previously made nothing get recognized.
 @MainActor
 final class VoiceInterviewManager: NSObject, ObservableObject {
 
     static let shared = VoiceInterviewManager()
 
-    // Published fields — updated in real time as the user speaks
+    // Published fields — updated as the user speaks
     @Published var state:       NarrativeState = .idle
     @Published var areaName:    String = ""
     @Published var floor:       String = ""
@@ -26,9 +40,11 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
     @Published var activeField: String? = nil   // "areaName" | "floor" | "surveyNotes"
     @Published var isListening: Bool   = false
 
-    // Callbacks set by AddLocationSheet before start()
-    var onSaveAndNext: ((String, String?, String?) -> Void)?
-    var onFinish:      ((String, String?, String?) -> Void)?
+    // Callbacks set by the presenting view before start(). The view reads the
+    // published fields (areaName/floor/surveyNotes) inside these.
+    private var onSaveCb:        (() -> Void)?
+    private var onSaveAndNextCb: (() -> Void)?
+    private var onDoneCb:        (() -> Void)?
 
     private let speech     = SpeechOutputManager.shared
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))!
@@ -41,42 +57,46 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
     private var lastPartial:       String = ""
     private var completionFired    = false
     private var pendingCompletion: ((String) -> Void)?
-
-    // Pre-compiled regex patterns (cached — called on every partial result)
-    private static let areaRegex  = try! NSRegularExpression(
-        pattern: #"(?i)\barea[\s\-]+name\s*(?:=|equals?)\s*(.+?)(?=\s+\b(?:floor|notes?|skip|save|finish|review)\b|$)"#
-    )
-    private static let floorRegex = try! NSRegularExpression(
-        pattern: #"(?i)\bfloor\s*(?:=|equals?)\s*(.+?)(?=\s+\b(?:area|notes?|skip|save|finish|review)\b|$)"#
-    )
-    private static let notesRegex = try! NSRegularExpression(
-        pattern: #"(?i)\bnotes?\s*(?:=|equals?)\s*(.+?)(?=\s+\b(?:area|floor|skip|save|finish|review)\b|$)"#
-    )
+    /// Counts consecutive empty/error restarts so the listen loop can't spin
+    /// (tight recursion was thrashing AVAudioEngine on the main actor → freeze).
+    private var emptyRestartStreak = 0
 
     private override init() { super.init() }
 
     // MARK: - Public API
 
-    func start(onSaveAndNext: @escaping (String, String?, String?) -> Void,
-               onFinish:      @escaping (String, String?, String?) -> Void) {
-        self.onSaveAndNext = onSaveAndNext
-        self.onFinish      = onFinish
-        resetFields()
+    /// Begin a dictation session. Announces "Listening" and starts the mic.
+    /// `area`/`floor`/`notes` seed the fields (used by edit mode).
+    func start(area: String = "", floor: String = "", notes: String = "",
+               onSave:        @escaping () -> Void,
+               onSaveAndNext: (() -> Void)? = nil,
+               onDone:        @escaping () -> Void) {
+        self.onSaveCb        = onSave
+        self.onSaveAndNextCb = onSaveAndNext
+        self.onDoneCb        = onDone
+
+        self.areaName        = area
+        self.floor           = floor
+        self.surveyNotes     = notes
+        self.activeField     = nil
+        self.completionFired = false
 
         Task.detached(priority: .userInitiated) { [weak self] in
             let session = AVAudioSession.sharedInstance()
-            try? session.setCategory(.playAndRecord, mode: .measurement,
+            // .voiceChat (not .measurement) — .measurement disables system audio
+            // processing AND is incompatible with audio output, so synthesizer
+            // utterances never fire their didFinish delegate and the UI hangs.
+            try? session.setCategory(.playAndRecord, mode: .voiceChat,
                                      options: [.defaultToSpeaker, .allowBluetoothHFP])
             try? session.setActive(true)
-            await MainActor.run { [weak self] in
-                self?.listenForBegin()
-            }
+            await MainActor.run { [weak self] in self?.beginListening() }
         }
     }
 
     func stop() {
         stopSTT()
         pendingCompletion = nil
+        onSaveCb = nil; onSaveAndNextCb = nil; onDoneCb = nil
         Task.detached(priority: .userInitiated) {
             try? AVAudioSession.sharedInstance().setActive(false,
                                                            options: .notifyOthersOnDeactivation)
@@ -84,10 +104,123 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         state = .idle
     }
 
-    /// Done button — identical to saying "Finish".
+    /// Done button — equivalent to saying "Done": commit and finish.
     func doneButtonTapped() {
+        doDone()
+    }
+
+    // MARK: - Flow
+
+    private func beginListening() {
+        state = .active
+        speech.speak("Listening") { [weak self] in self?.listen() }
+    }
+
+    private func listen() {
+        guard state == .active || state == .locked else { return }
+        startSTT(onPartial: nil) { [weak self] transcript in
+            self?.route(transcript)
+        }
+    }
+
+    /// Restart listening after an empty/error result, with a delay and a cap so
+    /// repeated failures back off instead of spinning the main actor.
+    private func restartListenSoon() {
+        guard state == .active || state == .locked else { return }
+        emptyRestartStreak += 1
+        guard emptyRestartStreak <= 12 else {
+            stopSTT()
+            speech.speak("Microphone paused. Tap Done, or close and reopen to resume.")
+            return
+        }
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(350))
+            await MainActor.run { [weak self] in self?.listen() }
+        }
+    }
+
+    /// Routes one finished utterance to a command or a field.
+    private func route(_ transcript: String) {
+        let text  = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = text.lowercased()
+        guard !text.isEmpty else { restartListenSoon(); return }
+        emptyRestartStreak = 0   // real content — reset the backoff counter
+
+        // Locked: only the save commands are honoured.
+        if state == .locked {
+            if lower.contains("save and next") || lower.contains("save in next") || lower.contains("save next") {
+                doSaveAndNext(); return
+            }
+            if lower.contains("done")  { doDone(); return }
+            if lower.contains("save")  { doSave(); return }
+            listen(); return   // anything else — keep waiting
+        }
+
+        // Active dictation.
+        if lower.contains("finish") { finishDictation(); return }
+
+        if let v = remainder(after: ["area name", "area"], inText: text, lower: lower) {
+            areaName    = v
+            activeField = "areaName"
+        } else if lower == "skip" || lower == "skip floor" || lower == "floor skip" {
+            floor       = ""
+            activeField = nil
+        } else if let v = remainder(after: ["floor"], inText: text, lower: lower) {
+            floor       = v
+            activeField = "floor"
+        } else {
+            appendNotes(text)
+            activeField = "surveyNotes"
+        }
+        listen()
+    }
+
+    private func finishDictation() {
         stopSTT()
-        triggerFinish()
+        state = .locked
+        speech.speak("Finished. Say Save, Save and Next, or Done.") { [weak self] in
+            self?.listen()
+        }
+    }
+
+    private func doSave() {
+        stopSTT()
+        state = .saving
+        let cb = onSaveCb
+        speech.speak("Saved.") { [weak self] in
+            cb?()
+            self?.state = .done
+        }
+    }
+
+    private func doSaveAndNext() {
+        guard !areaName.isEmpty else {
+            speech.speak("Area name is required.") { [weak self] in self?.listen() }
+            return
+        }
+        stopSTT()
+        state = .saving
+        let cb = onSaveAndNextCb ?? onSaveCb
+        speech.speak("Saved. Ready for the next location.") { [weak self] in
+            cb?()
+            self?.resetFields()
+            self?.state = .active
+            self?.speech.speak("Listening") { [weak self] in self?.listen() }
+        }
+    }
+
+    private func doDone() {
+        guard !areaName.isEmpty else {
+            speech.speak("Area name is required.") { [weak self] in self?.listen() }
+            return
+        }
+        stopSTT()
+        state = .saving
+        let cb = onDoneCb
+        speech.speak("Done.") { [weak self] in
+            cb?()
+            self?.state = .done
+        }
     }
 
     // MARK: - Field helpers
@@ -99,138 +232,32 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         activeField = nil
     }
 
-    // MARK: - Wait for "Begin Survey"
+    /// If `text` (case-insensitively) begins with any of `prefixes`, returns the
+    /// remainder with leading filler ("is", "equals", "=", ":") stripped.
+    private func remainder(after prefixes: [String], inText text: String, lower: String) -> String? {
+        for p in prefixes where lower.hasPrefix(p + " ") {
+            let idx  = text.index(text.startIndex, offsetBy: p.count)
+            let rest = stripFiller(String(text[idx...]).trimmingCharacters(in: .whitespaces))
+            return rest.isEmpty ? nil : rest
+        }
+        return nil
+    }
 
-    private func listenForBegin() {
-        state = .idle
-        startSTT(onPartial: nil) { [weak self] transcript in
-            guard let self else { return }
-            let lower = transcript.lowercased()
-            if lower.contains("begin survey") || lower.contains("begin") ||
-               lower.contains("start survey") {
-                self.speech.speak("Proceed with Survey") { [weak self] in
-                    self?.state = .active
-                    self?.listen()
-                }
-            } else {
-                self.listenForBegin()
+    private func stripFiller(_ s: String) -> String {
+        var r = s
+        for f in ["is ", "equals ", "equal ", "= ", "- ", ": "] {
+            if r.lowercased().hasPrefix(f) {
+                r = String(r.dropFirst(f.count)).trimmingCharacters(in: .whitespaces)
             }
         }
+        return r
     }
 
-    // MARK: - Main narrative loop
-
-    private func listen() {
-        guard state == .active else { return }
-        startSTT(onPartial: { [weak self] partial in
-            // Update form fields in real time on every partial result
-            self?.parseFields(from: partial)
-        }) { [weak self] transcript in
-            guard let self else { return }
-            // Final pass then check for commands
-            self.parseFields(from: transcript)
-            self.handleCommands(in: transcript)
-        }
+    private func appendNotes(_ text: String) {
+        surveyNotes = surveyNotes.isEmpty ? text : surveyNotes + " " + text
     }
 
-    private func handleCommands(in transcript: String) {
-        let lower = transcript.lowercased().trimmingCharacters(in: .whitespaces)
-
-        if lower.contains("review survey") {
-            resetFields()
-            speech.speak("Proceed with Survey") { [weak self] in
-                self?.listen()
-            }
-            return
-        }
-
-        if lower.contains("save and next") || lower.contains("save in next") {
-            triggerSaveAndNext()
-            return
-        }
-
-        if lower.contains("finish") {
-            triggerFinish()
-            return
-        }
-
-        // Pure field data — continue listening
-        listen()
-    }
-
-    // MARK: - Save actions
-
-    private func triggerSaveAndNext() {
-        guard !areaName.isEmpty else {
-            speech.speak("Area name is required.") { [weak self] in
-                self?.listen()
-            }
-            return
-        }
-        let name     = areaName
-        let floorVal = floor.isEmpty ? nil : floor
-        let notesVal = surveyNotes.isEmpty ? nil : surveyNotes
-        onSaveAndNext?(name, floorVal, notesVal)
-        resetFields()
-        speech.speak("\(name) saved. Ready for next location.") { [weak self] in
-            self?.listen()
-        }
-    }
-
-    private func triggerFinish() {
-        let name     = areaName
-        let floorVal = floor.isEmpty ? nil : floor
-        let notesVal = surveyNotes.isEmpty ? nil : surveyNotes
-        speech.speak("End Interview") { [weak self] in
-            guard let self else { return }
-            if !name.isEmpty {
-                self.onFinish?(name, floorVal, notesVal)
-            }
-            self.state = .done
-        }
-    }
-
-    // MARK: - Real-time field parsing
-
-    private func parseFields(from transcript: String) {
-        let text  = transcript.trimmingCharacters(in: .whitespaces)
-        let lower = text.lowercased().trimmingCharacters(in: .whitespaces)
-
-        if let v = match(Self.areaRegex, in: text) {
-            areaName    = v
-            activeField = "areaName"
-        }
-
-        if let v = match(Self.floorRegex, in: text) {
-            floor       = v
-            activeField = "floor"
-        }
-
-        if let v = match(Self.notesRegex, in: text) {
-            surveyNotes = v
-            activeField = "surveyNotes"
-        }
-
-        // "Skip" — clears floor and releases active field
-        if ["skip", "floor skip", "skip floor",
-            "floor equals skip", "floor = skip"].contains(lower) {
-            floor       = ""
-            activeField = nil
-        }
-    }
-
-    private func match(_ regex: NSRegularExpression, in text: String) -> String? {
-        let nsRange = NSRange(text.startIndex..., in: text)
-        guard let m = regex.firstMatch(in: text, range: nsRange),
-              m.numberOfRanges > 1 else { return nil }
-        let cr = m.range(at: 1)
-        guard cr.location != NSNotFound,
-              let swiftRange = Range(cr, in: text) else { return nil }
-        let value = String(text[swiftRange]).trimmingCharacters(in: .whitespaces)
-        return value.isEmpty ? nil : value
-    }
-
-    // MARK: - STT engine
+    // MARK: - STT engine (unchanged plumbing)
 
     private func startSTT(onPartial: ((String) -> Void)?,
                           completion: @escaping (String) -> Void) {
@@ -283,8 +310,8 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
                 self.stopSTT()
                 if !captured.isEmpty {
                     self.fireCompletion(captured, completion: completion)
-                } else if self.state == .active {
-                    self.listen()
+                } else if self.state == .active || self.state == .locked {
+                    self.restartListenSoon()
                 }
             }
         }
@@ -328,8 +355,8 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
                     self.pendingCompletion = nil
                     if !captured.isEmpty {
                         self.fireCompletion(captured, completion: completion)
-                    } else if self.state == .active {
-                        self.listen()
+                    } else if self.state == .active || self.state == .locked {
+                        self.restartListenSoon()
                     }
                 }
             }

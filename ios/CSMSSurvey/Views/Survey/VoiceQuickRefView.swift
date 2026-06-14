@@ -25,16 +25,16 @@ struct VoiceQuickRefView: View {
         Section(
             icon: "waveform.and.mic",
             title: "Voice Interview",
-            subtitle: "Tap \"Voice Interview\" on the Add Location sheet",
+            subtitle: "Starts automatically — the app says \"Listening\"",
             commands: [
-                Cmd("Begin Survey",              "Proceed with Survey"),
-                Cmd("Area Name = [value]",        "Area Name field fills in real time"),
-                Cmd("Floor = [value]",            "Floor field fills in real time"),
-                Cmd("Skip",                       "Floor omitted"),
-                Cmd("Notes = [value]",            "Notes field fills in real time"),
-                Cmd("Save and Next",              "[Name] saved. Ready for next location."),
-                Cmd("Finish",                     "End Interview — saves & closes"),
-                Cmd("Review Survey",              "Proceed with Survey — clears and restarts"),
+                Cmd("Area Name [value]",  "Sets the area name"),
+                Cmd("Floor [value]",      "Sets the floor"),
+                Cmd("Skip",               "Floor omitted"),
+                Cmd("(just speak)",       "Anything else is added to Notes"),
+                Cmd("Finish",             "Stops listening — then choose a save"),
+                Cmd("Save",               "Saved. — commits & closes"),
+                Cmd("Save and Next",      "Saved. Ready for the next location."),
+                Cmd("Done",               "Done. — commits & closes"),
             ]
         ),
         Section(
