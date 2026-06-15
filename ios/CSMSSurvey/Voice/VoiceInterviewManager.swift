@@ -209,17 +209,15 @@ final class VoiceInterviewManager: NSObject, ObservableObject {
         }
     }
 
+    /// "Done" ends the interview WITHOUT saving — it stops listening and hands
+    /// the dictated values back to the form, where the user reviews and then
+    /// saves or discards. (Saving is only done by "Save" / "Save and Next".)
     private func doDone() {
-        guard !areaName.isEmpty else {
-            speech.speak("Area name is required.") { [weak self] in self?.listen() }
-            return
-        }
         stopSTT()
-        state = .saving
+        state = .done
         let cb = onDoneCb
-        speech.speak("Done.") { [weak self] in
+        speech.speak("Interview ended. Review and save, or discard.") { [weak self] in
             cb?()
-            self?.state = .done
         }
     }
 

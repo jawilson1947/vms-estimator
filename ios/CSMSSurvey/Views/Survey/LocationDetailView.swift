@@ -8,16 +8,27 @@ struct LocationDetailView: View {
     private        let speech          = SpeechOutputManager.shared
     @Environment(\.dismiss) private var dismiss
 
+    let projectType: ProjectType
+
     @State private var notesText           = ""
     @State private var photoItem:          PhotosPickerItem?
     @State private var showCamera          = false
     @State private var showCameraPicker    = false
+    @State private var showMethodPicker    = false
     @State private var showDeleteConfirm   = false
     @State private var showInterview       = false
+    @State private var methodId:           Int?
+    @State private var didDiscard          = false
+    @State private var showDiscardConfirm  = false
+
+    private var isAccessControl: Bool { projectType == .accessControl }
+    private var hasUnsavedNotes: Bool { notesText != (vm.location.surveyNotes ?? "") }
 
     init(location: SurveyLocation,
+         projectType: ProjectType = .videoSurveillance,
          onUpdate: @escaping (SurveyLocation) -> Void,
          onDelete: (() -> Void)? = nil) {
+        self.projectType = projectType
         let viewModel = LocationDetailViewModel(location: location)
         viewModel.onUpdate = onUpdate
         viewModel.onDelete = onDelete
@@ -49,70 +60,12 @@ struct LocationDetailView: View {
                         Spacer()
                     }
 
-                    // Camera assignment
-                    VStack(alignment: .leading, spacing: 10) {
-                        DarkSectionHeader(title: "Camera Model")
-                        if let cam = vm.location.cameraModel {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Theme.accentSoft)
-                                        .frame(width: 36, height: 36)
-                                    Image(systemName: "camera.fill")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(Theme.accent)
-                                }
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(cam.displayName)
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(Theme.textPrimary)
-                                    HStack(spacing: 6) {
-                                        if let type = cam.cameraType {
-                                            Text(type)
-                                                .font(.caption)
-                                                .foregroundStyle(Theme.accent)
-                                        }
-                                        if let res = cam.resolutionClass ?? cam.resolution {
-                                            Text("· \(res)")
-                                                .font(.caption)
-                                                .foregroundStyle(Theme.textSecondary)
-                                        }
-                                    }
-                                }
-                                Spacer()
-                                if vm.isSaving {
-                                    ProgressView().tint(Theme.accent)
-                                } else {
-                                    Button {
-                                        Task { await vm.removeCamera() }
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundStyle(Theme.textSecondary)
-                                            .font(.system(size: 20))
-                                    }
-                                }
-                            }
-                            .padding(12)
-                            .background(Theme.surfaceElevated)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
-                        } else {
-                            Button {
-                                showCameraPicker = true
-                            } label: {
-                                Label("Assign Camera", systemImage: "camera.badge.plus")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Theme.accent)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 13)
-                                    .background(Theme.accentSoft)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
-                            }
-                            .disabled(vm.isSaving)
-                        }
+                    // Camera Model (video) or Access Method (access-control)
+                    if isAccessControl {
+                        accessMethodCard
+                    } else {
+                        cameraCard
                     }
-                    .darkCard()
 
                     // Survey notes
                     VStack(alignment: .leading, spacing: 10) {
@@ -195,9 +148,25 @@ struct LocationDetailView: View {
                 Task { await vm.assignCamera(selected) }
             }
         }
+        .sheet(isPresented: $showMethodPicker) {
+            AccessMethodPickerSheet(selectedId: $methodId)
+        }
+        .onChange(of: methodId) { _, newId in
+            if let id = newId, id != vm.location.accessMethodId {
+                Task { await vm.assignAccessMethod(id) }
+            }
+        }
         .navigationTitle(vm.location.areaName)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") {
+                    if hasUnsavedNotes { showDiscardConfirm = true }
+                    else { dismiss() }
+                }
+                .foregroundStyle(Theme.textSecondary)
+                .disabled(vm.isSaving)
+            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 HStack(spacing: 14) {
                     Button { startVoiceInterview() } label: {
@@ -214,6 +183,19 @@ struct LocationDetailView: View {
                     .disabled(vm.isSaving)
                 }
             }
+        }
+        .confirmationDialog(
+            "Discard changes?",
+            isPresented: $showDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Discard Changes", role: .destructive) {
+                didDiscard = true
+                dismiss()
+            }
+            Button("Keep Editing", role: .cancel) {}
+        } message: {
+            Text("Your unsaved notes for \"\(vm.location.areaName)\" will be discarded.")
         }
         .fullScreenCover(isPresented: $showInterview) {
             VoiceInterviewView(manager: interview) { showInterview = false }
@@ -236,16 +218,115 @@ struct LocationDetailView: View {
         }
         .onAppear {
             notesText = vm.location.surveyNotes ?? ""
+            methodId  = vm.location.accessMethodId
             registerVoiceCommands()
         }
         .onDisappear {
             voice.unregister(id: "location-detail")
-            // Auto-save notes on exit if changed
-            if notesText != (vm.location.surveyNotes ?? "") {
+            // Auto-save notes on exit if changed — UNLESS the user discarded.
+            if !didDiscard && hasUnsavedNotes {
                 Task { await vm.saveNotes(notesText) }
             }
         }
         .onChange(of: photoItem) { _, item in Task { await loadPhoto(item) } }
+    }
+
+    // MARK: - Camera card (video mode)
+
+    private var cameraCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            DarkSectionHeader(title: "Camera Model")
+            if let cam = vm.location.cameraModel {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Theme.accentSoft)
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(cam.displayName)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Theme.textPrimary)
+                        HStack(spacing: 6) {
+                            if let type = cam.cameraType {
+                                Text(type).font(.caption).foregroundStyle(Theme.accent)
+                            }
+                            if let res = cam.resolutionClass ?? cam.resolution {
+                                Text("· \(res)").font(.caption).foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                    }
+                    Spacer()
+                    if vm.isSaving {
+                        ProgressView().tint(Theme.accent)
+                    } else {
+                        Button { Task { await vm.removeCamera() } } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(Theme.textSecondary)
+                                .font(.system(size: 20))
+                        }
+                    }
+                }
+                .padding(12)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
+            } else {
+                Button { showCameraPicker = true } label: {
+                    Label("Assign Camera", systemImage: "camera.badge.plus")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Theme.accent)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Theme.accentSoft)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.28), lineWidth: 1))
+                }
+                .disabled(vm.isSaving)
+            }
+        }
+        .darkCard()
+    }
+
+    // MARK: - Access method card (access-control mode)
+
+    private var accessMethodCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            DarkSectionHeader(title: "Access Method")
+            Button { showMethodPicker = true } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Theme.accentSoft)
+                            .frame(width: 36, height: 36)
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    Text(vm.location.accessMethod?.name ?? "Assign Access Method")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(vm.location.accessMethod == nil ? Theme.textTertiary : Theme.textPrimary)
+                    Spacer()
+                    if vm.isSaving {
+                        ProgressView().tint(Theme.accent)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Theme.textTertiary)
+                    }
+                }
+                .padding(12)
+                .background(Theme.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(vm.isSaving)
+        }
+        .darkCard()
     }
 
     private func markSurveyed() async {
@@ -274,13 +355,10 @@ struct LocationDetailView: View {
                 }
             },
             onDone: {
-                Task {
-                    await vm.saveDetails(area:  interview.areaName,
-                                         floor: interview.floor,
-                                         notes: interview.surveyNotes)
-                    notesText     = interview.surveyNotes
-                    showInterview = false
-                }
+                // "Done" ends the interview WITHOUT saving — the dictated notes
+                // land in the editable field; the user then taps Save or Cancel.
+                notesText     = interview.surveyNotes
+                showInterview = false
             }
         )
     }

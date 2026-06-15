@@ -43,11 +43,8 @@ struct AddLocationSheet: View {
         .onChange(of: photoItem) { _, item in Task { await loadPhoto(item) } }
         .onAppear  { registerVoiceCommands() }
         .onDisappear { voice.unregister(id: "quick-add") }
-        // Auto-start voice dictation when the add sheet opens (announces "Listening").
-        .task {
-            try? await Task.sleep(for: .milliseconds(350))
-            startVoiceInterview()
-        }
+        // Standard typed entry by default. Voice dictation starts only when the
+        // user taps the "Voice Interview" button (which announces "Listening").
         .fullScreenCover(isPresented: $showInterview) {
             VoiceInterviewView(manager: interview) { showInterview = false }
                 .onDisappear {
@@ -255,14 +252,12 @@ struct AddLocationSheet: View {
                 Task { await save(andContinue: true, silent: true) }
             },
             onDone: {
-                // "Done" / Done button: commit if there's an area name, then close.
+                // "Done" ends the interview and returns to the form populated but
+                // UNSAVED — the user then taps Save or Cancel.
                 areaName    = interview.areaName
                 floor       = interview.floor
                 surveyNotes = interview.surveyNotes
                 showInterview = false
-                if !areaName.isEmpty {
-                    Task { await save(andContinue: false, silent: true) }
-                }
             }
         )
     }

@@ -117,6 +117,9 @@ struct UpdateLocationBody: Encodable {
     var surveyNotes: String?
     var notes: String?
     var markSurveyed: Bool?
+    /// Access-control mode only. Omitted from the JSON when nil (synthesized
+    /// encodeIfPresent), so it never disturbs camera-mode PATCHes.
+    var accessMethodId: Int?
 }
 
 struct CameraAssignBody: Encodable {

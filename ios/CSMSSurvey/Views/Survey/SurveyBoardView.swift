@@ -144,7 +144,8 @@ struct SurveyBoardView: View {
             }
         }
         .navigationDestination(item: $selectedLocation) { loc in
-            LocationDetailView(location: loc) { updated in
+            LocationDetailView(location: loc,
+                               projectType: vm.project?.effectiveProjectType ?? .videoSurveillance) { updated in
                 vm.update(updated)
             } onDelete: {
                 vm.remove(locationId: loc.id)

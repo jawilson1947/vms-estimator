@@ -104,6 +104,22 @@ final class LocationDetailViewModel: ObservableObject {
         isSaving = false
     }
 
+    // MARK: - Assign access method (access-control mode)
+
+    func assignAccessMethod(_ id: Int) async {
+        isSaving = true
+        errorMsg = nil
+        do {
+            let body = UpdateLocationBody(accessMethodId: id)
+            let updated = try await api.updateLocation(location.id, body: body)
+            location = updated
+            onUpdate?(updated)
+        } catch {
+            errorMsg = error.localizedDescription
+        }
+        isSaving = false
+    }
+
     // MARK: - Remove camera
 
     func removeCamera() async {

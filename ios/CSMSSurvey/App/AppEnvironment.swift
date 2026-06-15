@@ -14,7 +14,7 @@ struct AppEnvironment {
 
     /// Short source marker — bump this whenever you ship a change you want to
     /// confirm is actually running on the device.
-    static let buildStamp = "voice-nofreeze-06-14"
+    static let buildStamp = "edit-fixes-06-14"
 
     /// One-line version marker shown at the bottom of the home screen and
     /// printed at launch. If this doesn't match what you expect after a build,
