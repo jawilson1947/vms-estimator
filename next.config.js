@@ -18,6 +18,14 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: '/privacy-policy',
+        destination: '/privacy-policy.html',
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
