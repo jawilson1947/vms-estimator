@@ -115,8 +115,27 @@ model Site {
 
   customer   Customer?  @relation(fields: [customerId], references: [id])
   buildings  Building[]
+  documents  SiteDocument[]
 
   @@map("sites")
+}
+
+model SiteDocument {
+  id               Int      @id @default(autoincrement()) @map("document_id")
+  siteId           Int      @map("site_id")
+  fileName         String   @map("file_name") @db.VarChar(255)
+  originalFileName String?  @map("original_file_name") @db.VarChar(255)
+  filePath         String   @map("file_path") @db.VarChar(500)
+  fileUrl          String?  @map("file_url") @db.VarChar(500)
+  mimeType         String?  @map("mime_type") @db.VarChar(100)
+  fileSizeBytes    BigInt?  @map("file_size_bytes")
+  uploadedBy       String?  @map("uploaded_by") @db.VarChar(100)
+  uploadedAt       DateTime @default(now()) @map("uploaded_at")
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
+  @@map("site_documents")
 }
 
 model Building {

@@ -11,6 +11,7 @@ const PAGE_SIZE = 8;
 
 interface ProjectLink { id: number; projectName: string }
 interface SiteProjectRow { siteId: number; id: number; projectName: string }
+interface SiteDocCountRow { siteId: number; docCount: bigint }
 
 function siteWhere(search: string) {
   return search
@@ -74,10 +75,23 @@ async function getSites(search: string, page: number) {
     projectsBySite.set(row.siteId, list);
   }
 
+  const docCountRows = siteIds.length > 0
+    ? await prisma.$queryRaw<SiteDocCountRow[]>(
+        Prisma.sql`SELECT site_id AS siteId, COUNT(*) AS docCount
+                   FROM site_documents
+                   WHERE site_id IN (${Prisma.join(siteIds)})
+                   GROUP BY site_id`
+      ).catch(() => [] as SiteDocCountRow[])
+    : [];
+
+  const docsBySite = new Map<number, number>();
+  for (const row of docCountRows) docsBySite.set(row.siteId, Number(row.docCount));
+
   return {
     sites: sites.map(s => ({
       ...s,
       projects: projectsBySite.get(s.id) ?? [],
+      docCount: docsBySite.get(s.id) ?? 0,
       // Roll each building's survey locations (via its projects) into one flat list
       buildingEntries: s.buildings.map((b): BuildingEntry => ({
         id:           b.id,
@@ -148,6 +162,7 @@ export default async function SitesPage({
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Location</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Customer</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Projects</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600">Docs</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600">Buildings</th>
               </tr>
             </thead>
@@ -174,6 +189,11 @@ export default async function SitesPage({
                         <Link href={`/projects/${p.id}`} className="hover:underline">{p.projectName}</Link>
                       </span>
                     ))}
+                  </td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {s.docCount > 0
+                      ? <span className="badge bg-gray-100 text-gray-600 text-xs">{s.docCount}</span>
+                      : <span className="text-gray-300">—</span>}
                   </td>
                   <td className="px-4 py-3">
                     <SiteBuildingsList buildings={s.buildingEntries} />
