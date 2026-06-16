@@ -24,6 +24,10 @@ const nextConfig = {
         source: '/privacy-policy',
         destination: '/privacy-policy.html',
       },
+      {
+        source: '/about',
+        destination: '/about.html',
+      },
     ];
   },
 };

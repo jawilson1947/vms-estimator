@@ -24,9 +24,14 @@ export default async function DashboardLayout({
           </main>
           <footer className="px-4 py-3 border-t border-gray-200 text-xs text-gray-400 flex items-center justify-between">
             <span>&copy; {new Date().getFullYear()} Digital Support Systems</span>
-            <a href="/privacy-policy" className="hover:text-gray-600 hover:underline">
-              Privacy Policy
-            </a>
+            <span className="flex items-center gap-4">
+              <a href="/about" className="hover:text-gray-600 hover:underline">
+                About
+              </a>
+              <a href="/privacy-policy" className="hover:text-gray-600 hover:underline">
+                Privacy Policy
+              </a>
+            </span>
           </footer>
         </div>
       </div>
