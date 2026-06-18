@@ -23,6 +23,29 @@ targets:
       - path: CSMSSurvey
         excludes:
           - "**/.DS_Store"
+    postBuildScripts:
+      # Stamp the build number with a UTC timestamp (YYYYMMDD.HHMMSS) for Release
+      # builds so locally-archived uploads also get a strictly-increasing
+      # CFBundleVersion — same scheme as ci_scripts/ci_pre_xcodebuild.sh, so CI
+      # and local builds stay consistent. Edits the BUILT bundle's Info.plist
+      # (not the source file), so it never dirties the git working tree. Runs
+      # before code signing, so the stamped plist is sealed correctly.
+      - name: "Set build number (timestamp, Release only)"
+        basedOnDependencyAnalysis: false
+        script: |
+          if [ "$CONFIGURATION" = "Release" ]; then
+            PLIST="$TARGET_BUILD_DIR/$INFOPLIST_PATH"
+            BUILD_NO="$(date -u +%Y%m%d).$(date -u +%H%M%S)"
+            if [ -f "$PLIST" ]; then
+              echo "Setting CFBundleVersion to $BUILD_NO in $PLIST"
+              /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NO" "$PLIST" || \
+                /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BUILD_NO" "$PLIST"
+            else
+              echo "warning: Info.plist not found at $PLIST — build number unchanged"
+            fi
+          else
+            echo "Debug build — leaving CFBundleVersion unchanged"
+          fi
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.digitalsupportsystems.CSMSSurvey

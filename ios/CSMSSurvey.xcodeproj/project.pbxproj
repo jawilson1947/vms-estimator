@@ -53,7 +53,7 @@
 /* Begin PBXFileReference section */
 		02676A0FF4CB3BED2DDD94EB /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		0397ED33DB9C9A9E2B52166A /* CameraCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
-		0B0C5C43A0B18DD371FFDA83 /* CSMSSurvey.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CSMSSurvey.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0B0C5C43A0B18DD371FFDA83 /* CSMSSurvey.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CSMSSurvey.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		12D5B459F8F9A74BB26F369A /* PhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoGridView.swift; sourceTree = "<group>"; };
 		1683B7036003FCAA0C5438BD /* SurveyLocation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurveyLocation.swift; sourceTree = "<group>"; };
 		2CECDECE457C8473D751D862 /* CameraPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPickerSheet.swift; sourceTree = "<group>"; };
@@ -272,6 +272,7 @@
 			buildPhases = (
 				A8A7FE7204832CC6D6B46E94 /* Sources */,
 				190927F929187C49960043DD /* Resources */,
+				BEEFF27C2AC40B97A9B7D20D /* Set build number (timestamp, Release only) */,
 			);
 			buildRules = (
 			);
@@ -294,6 +295,7 @@
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
 					E645186BCEDFA2D26BD3DF49 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -327,6 +329,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		BEEFF27C2AC40B97A9B7D20D /* Set build number (timestamp, Release only) */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Set build number (timestamp, Release only)";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$CONFIGURATION\" = \"Release\" ]; then\n  PLIST=\"$TARGET_BUILD_DIR/$INFOPLIST_PATH\"\n  BUILD_NO=\"$(date -u +%Y%m%d).$(date -u +%H%M%S)\"\n  if [ -f \"$PLIST\" ]; then\n    echo \"Setting CFBundleVersion to $BUILD_NO in $PLIST\"\n    /usr/libexec/PlistBuddy -c \"Set :CFBundleVersion $BUILD_NO\" \"$PLIST\" || \\\n      /usr/libexec/PlistBuddy -c \"Add :CFBundleVersion string $BUILD_NO\" \"$PLIST\"\n  else\n    echo \"warning: Info.plist not found at $PLIST — build number unchanged\"\n  fi\nelse\n  echo \"Debug build — leaving CFBundleVersion unchanged\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A8A7FE7204832CC6D6B46E94 /* Sources */ = {
@@ -448,7 +472,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = VPA64V23J9;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = CSMSSurvey/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -540,7 +564,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = VPA64V23J9;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = CSMSSurvey/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

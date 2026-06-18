@@ -25,3 +25,8 @@ if [ -n "$CLAUDE_API_KEY" ]; then
 else
     echo "WARNING: CLAUDE_API_KEY environment variable is not set — check Xcode Cloud secrets."
 fi
+
+# NOTE: Build-number stamping lives in the target's "Set build number" post-build
+# phase (defined in ios/project.yml, committed into the .xcodeproj). It runs for
+# both Xcode Cloud and local Release builds, so it is the single source of truth —
+# intentionally NOT duplicated here.
