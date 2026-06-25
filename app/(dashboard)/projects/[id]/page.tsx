@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { ProjectProposalButton } from '@/components/ProjectProposalButton';
 import { ProjectInvoiceButton } from '@/components/ProjectInvoiceButton';
+import { ProjectLocationLabelsButton } from '@/components/ProjectLocationLabelsButton';
 import { ProposalHistory } from '@/components/ProposalHistory';
 import { InvoiceHistory } from '@/components/InvoiceHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
@@ -116,6 +117,7 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
           <div className="flex flex-col gap-2">
             <ProjectProposalButton projectId={project.id} projectName={project.projectName} />
             <ProjectInvoiceButton projectId={project.id} projectName={project.projectName} />
+            <ProjectLocationLabelsButton projectId={project.id} />
           </div>
           <Link href={`/projects/${project.id}/edit`} className="btn-secondary">
             <PencilSquareIcon className="w-4 h-4" /> Edit
