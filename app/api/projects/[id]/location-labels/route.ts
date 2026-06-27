@@ -26,6 +26,14 @@ export async function GET(
   const size = isAverySize(sizeParam) ? sizeParam : DEFAULT_AVERY_SIZE;
   const preview = req.nextUrl.searchParams.get('preview') === '1';
 
+  // Start label position (1-based) so a partially-used sheet can be reused.
+  const parsePos = (v: string | null) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
+  };
+  const startRow = parsePos(req.nextUrl.searchParams.get('row'));
+  const startCol = parsePos(req.nextUrl.searchParams.get('col'));
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
@@ -62,6 +70,8 @@ export async function GET(
   const buf = await generateLocationLabelsDocx(models, size, {
     previewBorders: preview,
     projectName:    project.projectName,
+    startRow,
+    startCol,
   });
 
   const slug = project.projectName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);

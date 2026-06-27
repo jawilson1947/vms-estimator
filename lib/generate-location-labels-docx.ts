@@ -152,6 +152,22 @@ function labelParagraphs(model: LabelModel, t: AveryTemplate): Paragraph[] {
 interface GenerateOpts {
   previewBorders?: boolean;
   projectName?: string;
+  /** 1-based row of the first label to print on the first sheet (default 1). */
+  startRow?: number;
+  /** 1-based column of the first label to print on the first sheet (default 1). */
+  startCol?: number;
+}
+
+/**
+ * Number of label cells to skip before the first label, given a 1-based
+ * starting row/column for the supplied template. Clamped to a single sheet.
+ */
+export function startOffset(t: AveryTemplate, startRow?: number, startCol?: number): number {
+  const perPage = t.cols * t.rows;
+  const row = Math.min(Math.max(Math.floor(startRow ?? 1), 1), t.rows);
+  const col = Math.min(Math.max(Math.floor(startCol ?? 1), 1), t.cols);
+  const offset = (row - 1) * t.cols + (col - 1);
+  return Math.min(Math.max(offset, 0), perPage - 1);
 }
 
 export async function generateLocationLabelsDocx(
@@ -193,9 +209,15 @@ export async function generateLocationLabelsDocx(
     width: { size: t.gutter, type: WidthType.DXA }, borders: NO_BORDERS, children: [new Paragraph('')],
   });
 
+  // Skip already-used labels on the first sheet by padding with blank cells.
+  const offset = startOffset(t, opts.startRow, opts.startCol);
+  const padded: (LabelModel | null)[] = offset > 0
+    ? [...Array<null>(offset).fill(null), ...models]
+    : models;
+
   const perPage = t.cols * t.rows;
-  const pages: LabelModel[][] = [];
-  for (let i = 0; i < models.length; i += perPage) pages.push(models.slice(i, i + perPage));
+  const pages: (LabelModel | null)[][] = [];
+  for (let i = 0; i < padded.length; i += perPage) pages.push(padded.slice(i, i + perPage));
 
   const children: (Paragraph | Table)[] = [];
   pages.forEach((page, pIdx) => {
