@@ -92,7 +92,8 @@ export function buildLocationLabelModels(
       const model = loc.cameraModel
         ? [loc.cameraModel.manufacturer, loc.cameraModel.model].filter(Boolean).join(' ')
         : '';
-      lines.push(`Camera: ${model || '—'}`);
+      // Only print a camera line when a camera actually exists for the location.
+      if (model) lines.push(`Camera: ${model}`);
     }
 
     return { title, lines, notes: loc.surveyNotes?.trim() || null };
@@ -140,10 +141,10 @@ function labelParagraphs(model: LabelModel, t: AveryTemplate): Paragraph[] {
       children: [new TextRun({ text: `Notes: ${model.notes}`, italics: true, size: t.bodyPt, font: 'Arial' })],
     }));
   }
-  // Per-label footer: company name, 8pt italic (size is in half-points -> 16 = 8pt).
+  // Per-label footer: company name, 6pt italic (size is in half-points -> 12 = 6pt).
   paras.push(new Paragraph({
     spacing: { before: 40, after: 0 },
-    children: [new TextRun({ text: COMPANY_FOOTER, italics: true, size: 16, font: 'Arial', color: '6B7280' })],
+    children: [new TextRun({ text: COMPANY_FOOTER, italics: true, size: 12, font: 'Arial', color: '6B7280' })],
   }));
 
   return paras;
