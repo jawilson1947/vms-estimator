@@ -37,9 +37,10 @@ interface Props {
   projectId:   number;
   projectName: string;
   refreshKey?: number;
+  readOnly?:   boolean; // hide status editing + delete (restricted viewers)
 }
 
-export function InvoiceHistory({ projectId, projectName, refreshKey }: Props) {
+export function InvoiceHistory({ projectId, projectName, refreshKey, readOnly }: Props) {
   const [open, setOpen]         = useState(false);
   const [invoices, setInvoices] = useState<InvoiceSummary[]>([]);
   const [loading, setLoading]   = useState(false);
@@ -141,15 +142,19 @@ export function InvoiceHistory({ projectId, projectName, refreshKey }: Props) {
                     </div>
                   </div>
 
-                  <select
-                    value={inv.status}
-                    onChange={e => updateStatus(inv.id, e.target.value as InvoiceStatus)}
-                    className="form-select text-xs py-1 pr-7 w-24"
-                  >
-                    {STATUS_OPTIONS.map(s => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                    ))}
-                  </select>
+                  {readOnly ? (
+                    <span className="text-xs text-gray-500 w-24 capitalize">{inv.status}</span>
+                  ) : (
+                    <select
+                      value={inv.status}
+                      onChange={e => updateStatus(inv.id, e.target.value as InvoiceStatus)}
+                      className="form-select text-xs py-1 pr-7 w-24"
+                    >
+                      {STATUS_OPTIONS.map(s => (
+                        <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                      ))}
+                    </select>
+                  )}
 
                   <div className="flex items-center gap-1 shrink-0">
                     <button onClick={() => download(inv.id, 'pdf')} disabled={dlLoading === `${inv.id}-pdf`}
@@ -160,10 +165,12 @@ export function InvoiceHistory({ projectId, projectName, refreshKey }: Props) {
                       title="Download Word" className="p-1.5 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                       <DocumentTextIcon className={`w-4 h-4 ${dlLoading === `${inv.id}-docx` ? 'animate-bounce' : ''}`} />
                     </button>
-                    <button onClick={() => deleteInvoice(inv.id)}
-                      title="Delete" className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                    {!readOnly && (
+                      <button onClick={() => deleteInvoice(inv.id)}
+                        title="Delete" className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

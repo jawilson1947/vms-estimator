@@ -41,9 +41,13 @@ const adminNav = [
   { label: 'Admin', href: '/admin', icon: ShieldExclamationIcon, color: 'text-gray-400' },
 ];
 
-export function Sidebar() {
+export function Sidebar({ role }: { role?: string }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+
+  // A PROJECT_VIEWER may only use the Projects subsystem; every other menu
+  // item is shown but disabled (grayed out).
+  const isProjectViewer = role === 'PROJECT_VIEWER';
 
   // Restore persisted state on mount
   useEffect(() => {
@@ -110,6 +114,25 @@ export function Sidebar() {
       <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto">
         {nav.map(({ label, href, icon: Icon, color }) => {
           const active = isActive(href);
+          const disabled = isProjectViewer && href !== '/projects';
+
+          if (disabled) {
+            return (
+              <span
+                key={href}
+                aria-disabled="true"
+                title={collapsed ? `${label} (no access)` : 'No access'}
+                className={clsx(
+                  'flex items-center rounded-md text-xs font-medium text-gray-600 opacity-40 cursor-not-allowed select-none',
+                  collapsed ? 'justify-center px-2 py-1.5' : 'gap-2 px-2 py-1.5'
+                )}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                {!collapsed && label}
+              </span>
+            );
+          }
+
           return (
             <Link
               key={href}

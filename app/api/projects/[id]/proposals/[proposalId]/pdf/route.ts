@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { guardProjectRead } from '@/lib/project-access';
 import { generateProposalPdf } from '@/lib/generate-proposal-pdf';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 import type { ProposalCompanyInfo } from '@/lib/generate-proposal-pdf';
@@ -15,6 +16,8 @@ export async function POST(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id, proposalId } = await params;
+  const denied = await guardProjectRead(Number(id));
+  if (denied) return denied;
 
   // template may be sent in the body so we don't rely on stale Prisma client types
   const body = await req.json().catch(() => ({})) as { template?: string };
@@ -40,7 +43,7 @@ export async function POST(
     }),
   ]);
 
-  if (!proposal || !project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!proposal || !project || proposal.projectId !== Number(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const content    = proposal.content as unknown as ProposalContent;
   const templateId = body.template ?? (proposal as { template?: string }).template ?? 'classic';

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { guardProjectRead } from '@/lib/project-access';
 import { generateInvoicePdf } from '@/lib/generate-invoice-pdf';
 import { buildInvoiceDocData, companyFromSettings } from '@/lib/invoice-export';
 
@@ -14,6 +15,9 @@ export async function POST(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id, invoiceId } = await params;
+  const denied = await guardProjectRead(Number(id));
+  if (denied) return denied;
+
   const userId = Number((session.user as { id?: string | number }).id ?? 0);
 
   const [invoice, project, userSettings] = await Promise.all([
@@ -25,7 +29,7 @@ export async function POST(
     }),
   ]);
 
-  if (!invoice || !project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!invoice || !project || invoice.projectId !== Number(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const docData = buildInvoiceDocData(invoice, invoice.invoiceNumber);
   const buf     = await generateInvoicePdf(docData, companyFromSettings(userSettings));

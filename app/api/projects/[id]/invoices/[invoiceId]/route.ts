@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { guardProjectRead } from '@/lib/project-access';
 
 // GET /api/projects/[id]/invoices/[invoiceId] — full invoice (with snapshot)
 export async function GET(
@@ -11,9 +12,12 @@ export async function GET(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { invoiceId } = await params;
+  const { id, invoiceId } = await params;
+  const denied = await guardProjectRead(Number(id));
+  if (denied) return denied;
+
   const invoice = await prisma.invoice.findUnique({ where: { id: Number(invoiceId) } });
-  if (!invoice) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!invoice || invoice.projectId !== Number(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   return NextResponse.json(invoice);
 }

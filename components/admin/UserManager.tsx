@@ -11,7 +11,7 @@ import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type UserRole = 'ADMIN' | 'PROJECT_MANAGER' | 'TECHNICIAN' | 'VIEWER';
+type UserRole = 'ADMIN' | 'PROJECT_MANAGER' | 'TECHNICIAN' | 'VIEWER' | 'PROJECT_VIEWER';
 
 interface AdminUser {
   id: number;
@@ -31,6 +31,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   PROJECT_MANAGER: 'Project Manager',
   TECHNICIAN:      'Technician',
   VIEWER:          'Viewer',
+  PROJECT_VIEWER:  'Project Viewer',
 };
 
 const ROLE_COLORS: Record<UserRole, string> = {
@@ -38,6 +39,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   PROJECT_MANAGER: 'bg-blue-100 text-blue-700',
   TECHNICIAN:      'bg-amber-100 text-amber-700',
   VIEWER:          'bg-gray-100 text-gray-600',
+  PROJECT_VIEWER:  'bg-teal-100 text-teal-700',
 };
 
 function roleChip(role: UserRole | null) {
@@ -171,6 +173,33 @@ function UserModal({
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // Project-access selection (used only when role is PROJECT_VIEWER)
+  const [allProjects, setAllProjects] = useState<AssignableProject[]>([]);
+  const [projectIds,  setProjectIds]  = useState<Set<number>>(new Set());
+  const [projSearch,  setProjSearch]  = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // userId 0 for a new user → returns the full project list with none assigned
+        const res = await fetch(`/api/admin/users/${user?.id ?? 0}/projects`);
+        const data = await res.json();
+        if (res.ok) {
+          setAllProjects(data.projects as AssignableProject[]);
+          if (user) setProjectIds(new Set<number>(data.assigned as number[]));
+        }
+      } catch { /* non-fatal: picker just stays empty */ }
+    })();
+  }, [user]);
+
+  function toggleProject(id: number) {
+    setProjectIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
   function set<K extends keyof UserFormState>(key: K, val: UserFormState[K]) {
     setForm(f => ({ ...f, [key]: val }));
     setErrors(e => ({ ...e, [key]: undefined }));
@@ -215,6 +244,17 @@ function UserModal({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Save failed');
+
+      // Persist project access for restricted viewers (replaces their full set).
+      const savedId = (data as AdminUser).id;
+      if (form.role === 'PROJECT_VIEWER' && savedId) {
+        await fetch(`/api/admin/users/${savedId}/projects`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectIds: Array.from(projectIds) }),
+        });
+      }
+
       onSave(data as AdminUser);
     } catch (err) {
       setApiError(err instanceof Error ? err.message : 'Something went wrong');
@@ -275,6 +315,53 @@ function UserModal({
             </button>
             <span className="text-sm text-gray-700">{form.isActive ? 'Active' : 'Inactive'}</span>
           </div>
+
+          {/* Project access — only for restricted Project Viewers */}
+          {form.role === 'PROJECT_VIEWER' && (
+            <div className="border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Project access</p>
+                <span className="text-xs text-gray-400">{projectIds.size} selected</span>
+              </div>
+              <p className="text-xs text-gray-400 mb-2">This user will only be able to open the projects checked below.</p>
+              <input
+                value={projSearch}
+                onChange={e => setProjSearch(e.target.value)}
+                placeholder="Search projects…"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400 mb-2"
+              />
+              <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-100 divide-y divide-gray-50">
+                {allProjects.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-6">No projects available.</p>
+                ) : (
+                  allProjects
+                    .filter(p => {
+                      const q = projSearch.trim().toLowerCase();
+                      if (!q) return true;
+                      return p.projectName.toLowerCase().includes(q)
+                        || (p.projectNumber ?? '').toLowerCase().includes(q)
+                        || p.customerName.toLowerCase().includes(q);
+                    })
+                    .map(p => (
+                      <label key={p.id} className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={projectIds.has(p.id)}
+                          onChange={() => toggleProject(p.id)}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+                        />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium text-gray-800 truncate">{p.projectName}</span>
+                          <span className="block text-xs text-gray-400 truncate">
+                            {p.customerName}{p.projectNumber ? ` · ${p.projectNumber}` : ''}
+                          </span>
+                        </span>
+                      </label>
+                    ))
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Password — only for new users */}
           {isNew && (
@@ -455,6 +542,142 @@ function DeleteModal({
 }
 
 
+// ── Project Access Modal ─────────────────────────────────────────────────────
+
+interface AssignableProject {
+  id: number;
+  projectName: string;
+  projectNumber: string | null;
+  customerName: string;
+}
+
+function ProjectAccessModal({
+  user, onClose, onSaved,
+}: {
+  user: AdminUser; onClose: () => void; onSaved: () => void;
+}) {
+  const [projects, setProjects] = useState<AssignableProject[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [search,   setSearch]   = useState('');
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [error,    setError]    = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/users/${user.id}/projects`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Failed to load');
+        setProjects(data.projects as AssignableProject[]);
+        setSelected(new Set<number>(data.assigned as number[]));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load projects');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [user.id]);
+
+  function toggle(id: number) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}/projects`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectIds: Array.from(selected) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Save failed');
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setSaving(false);
+    }
+  }
+
+  const q = search.trim().toLowerCase();
+  const filtered = q
+    ? projects.filter(p =>
+        p.projectName.toLowerCase().includes(q) ||
+        (p.projectNumber ?? '').toLowerCase().includes(q) ||
+        p.customerName.toLowerCase().includes(q))
+    : projects;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <BuildingOfficeIcon className="w-5 h-5 text-teal-500" />
+            <h2 className="text-base font-semibold text-gray-900">Project access — {fullName(user)}</h2>
+          </div>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-5 pt-4">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search projects…"
+            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <p className="text-xs text-gray-400 mt-2">{selected.size} project{selected.size !== 1 ? 's' : ''} selected</p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <span className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">No projects found.</p>
+          ) : filtered.map(p => (
+            <label key={p.id} className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.has(p.id)}
+                onChange={() => toggle(p.id)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-400"
+              />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium text-gray-800 truncate">{p.projectName}</span>
+                <span className="block text-xs text-gray-400 truncate">
+                  {p.customerName}{p.projectNumber ? ` · ${p.projectNumber}` : ''}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {error && <p className="mx-5 mb-2 text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+
+        <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+          <button
+            onClick={handleSave}
+            disabled={saving || loading}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Saving…' : 'Save access'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── UserManager ───────────────────────────────────────────────────────────────
 
 export function UserManager({ currentUserId }: { currentUserId: number }) {
@@ -465,6 +688,7 @@ export function UserManager({ currentUserId }: { currentUserId: number }) {
   const [editTarget,     setEditTarget]     = useState<AdminUser | null | 'new'>(null);
   const [pwTarget,       setPwTarget]       = useState<AdminUser | null>(null);
   const [deleteTarget,   setDeleteTarget]   = useState<AdminUser | null>(null);
+  const [projectsTarget, setProjectsTarget] = useState<AdminUser | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -573,6 +797,15 @@ export function UserManager({ currentUserId }: { currentUserId: number }) {
                     <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">{fmtDate(u.lastLogin)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        {u.role === 'PROJECT_VIEWER' && (
+                          <button
+                            onClick={() => setProjectsTarget(u)}
+                            title="Manage project access"
+                            className="p-1.5 text-gray-400 hover:text-teal-600 rounded-lg hover:bg-teal-50 transition-colors"
+                          >
+                            <BuildingOfficeIcon className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => setEditTarget(u)}
                           title="Edit"
@@ -627,6 +860,14 @@ export function UserManager({ currentUserId }: { currentUserId: number }) {
           user={deleteTarget}
           onConfirm={handleDelete}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {projectsTarget && (
+        <ProjectAccessModal
+          user={projectsTarget}
+          onClose={() => setProjectsTarget(null)}
+          onSaved={() => { setProjectsTarget(null); showToast('Project access updated.'); }}
         />
       )}
 

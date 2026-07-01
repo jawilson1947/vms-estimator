@@ -30,7 +30,8 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  auditLogs    AuditLog[]
+  auditLogs     AuditLog[]
+  projectAccess ProjectAccess[]
 
   @@map("users")
 }
@@ -40,6 +41,23 @@ enum UserRole {
   PROJECT_MANAGER @map("Project Manager")
   TECHNICIAN      @map("Technician")
   VIEWER          @map("Viewer")
+  PROJECT_VIEWER  @map("Project Viewer")
+}
+
+// Per-user grant of access to a single project. A PROJECT_VIEWER user can only
+// see and act on the projects listed here.
+model ProjectAccess {
+  id        Int      @id @default(autoincrement()) @map("access_id")
+  userId    Int      @map("user_id")
+  projectId Int      @map("project_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@map("project_access")
 }
 
 // ─── Customers ───────────────────────────────────────────────────────────────
@@ -84,6 +102,7 @@ model Project {
   proposals           Proposal[]
   invoices            Invoice[]
   cameraLocations     CameraLocation[]
+  access              ProjectAccess[]
 
   @@map("projects")
 }

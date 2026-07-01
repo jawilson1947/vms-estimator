@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { guardProjectRead } from '@/lib/project-access';
 import {
   buildLocationLabelModels,
   generateLocationLabelsDocx,
@@ -21,6 +22,8 @@ export async function GET(
 
   const { id } = await params;
   const projectId = Number(id);
+  const denied = await guardProjectRead(projectId);
+  if (denied) return denied;
 
   const sizeParam = req.nextUrl.searchParams.get('size');
   const size = isAverySize(sizeParam) ? sizeParam : DEFAULT_AVERY_SIZE;

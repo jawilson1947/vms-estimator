@@ -74,3 +74,9 @@ export function canManageProjects(role: UserRole): boolean {
 export function isAdmin(role: UserRole): boolean {
   return role === UserRole.ADMIN;
 }
+
+// A PROJECT_VIEWER is a restricted user who can only access the Projects
+// subsystem, and only the specific projects granted to them (via ProjectAccess).
+export function isProjectViewer(role: UserRole | null | undefined): boolean {
+  return role === UserRole.PROJECT_VIEWER;
+}

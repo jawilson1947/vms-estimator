@@ -13,10 +13,12 @@ export default async function DashboardLayout({
   const session = await getServerSession(authOptions);
   if (!session) redirect('/login');
 
+  const role = (session.user as { role?: string })?.role;
+
   return (
     <VoiceShell>
       <div className="flex min-h-screen">
-        <Sidebar />
+        <Sidebar role={role} />
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar />
           <main className="flex-1 p-3 overflow-auto">

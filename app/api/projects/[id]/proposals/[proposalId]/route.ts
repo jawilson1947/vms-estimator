@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { guardProjectRead } from '@/lib/project-access';
 
 // GET /api/projects/[id]/proposals/[proposalId] — fetch full proposal (including content)
 export async function GET(
@@ -11,9 +12,12 @@ export async function GET(
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { proposalId } = await params;
+  const { id, proposalId } = await params;
+  const denied = await guardProjectRead(Number(id));
+  if (denied) return denied;
+
   const proposal = await prisma.proposal.findUnique({ where: { id: Number(proposalId) } });
-  if (!proposal) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!proposal || proposal.projectId !== Number(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   return NextResponse.json(proposal);
 }

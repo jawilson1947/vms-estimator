@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
+import { readSessionInfo, canViewProject } from '@/lib/project-access';
 import {
   ChevronRightIcon, PencilSquareIcon,
   BuildingOfficeIcon, CurrencyDollarIcon,
@@ -36,6 +39,11 @@ const statusLabels: Record<string, string> = {
 export default async function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const projectId = Number(id);
+
+  // Restricted viewers can only open projects granted to them.
+  const info = readSessionInfo(await getServerSession(authOptions));
+  const isViewer = info?.role === 'PROJECT_VIEWER';
+  if (info && !(await canViewProject(info, projectId))) notFound();
 
   const project = await prisma.project.findUnique({
     where:   { id: projectId },
@@ -115,13 +123,15 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         </div>
         <div className="flex items-start gap-2">
           <div className="flex flex-col gap-2">
-            <ProjectProposalButton projectId={project.id} projectName={project.projectName} />
-            <ProjectInvoiceButton projectId={project.id} projectName={project.projectName} />
+            {!isViewer && <ProjectProposalButton projectId={project.id} projectName={project.projectName} />}
+            {!isViewer && <ProjectInvoiceButton projectId={project.id} projectName={project.projectName} />}
             <ProjectLocationLabelsButton projectId={project.id} />
           </div>
-          <Link href={`/projects/${project.id}/edit`} className="btn-secondary">
-            <PencilSquareIcon className="w-4 h-4" /> Edit
-          </Link>
+          {!isViewer && (
+            <Link href={`/projects/${project.id}/edit`} className="btn-secondary">
+              <PencilSquareIcon className="w-4 h-4" /> Edit
+            </Link>
+          )}
         </div>
       </div>
 
@@ -151,9 +161,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         <div className="card p-5 md:col-span-2">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900">Cost Summary</h2>
-            <Link href={`/costs?projectId=${project.id}`} className="text-xs text-blue-600 hover:underline">
-              Manage costs →
-            </Link>
+            {!isViewer && (
+              <Link href={`/costs?projectId=${project.id}`} className="text-xs text-blue-600 hover:underline">
+                Manage costs →
+              </Link>
+            )}
           </div>
 
           {project.feeSummary ? (
@@ -194,12 +206,14 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
       <div className="card p-5 mb-4">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-900">Building</h2>
-          <AddBuildingButton
-            projectId={project.id}
-            excludeIds={assignedBuilding ? [assignedBuilding.id] : []}
-            siteId={assignedBuilding?.site.id}
-            label={assignedBuilding ? 'Change Building' : 'Assign Building'}
-          />
+          {!isViewer && (
+            <AddBuildingButton
+              projectId={project.id}
+              excludeIds={assignedBuilding ? [assignedBuilding.id] : []}
+              siteId={assignedBuilding?.site.id}
+              label={assignedBuilding ? 'Change Building' : 'Assign Building'}
+            />
+          )}
         </div>
 
         {!assignedBuilding ? (
@@ -224,27 +238,31 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
                 </p>
               </div>
             </Link>
-            <RemoveBuildingButton
-              projectId={project.id}
-              buildingId={assignedBuilding.id}
-              buildingName={assignedBuilding.buildingName}
-            />
+            {!isViewer && (
+              <RemoveBuildingButton
+                projectId={project.id}
+                buildingId={assignedBuilding.id}
+                buildingName={assignedBuilding.buildingName}
+              />
+            )}
           </div>
         )}
       </div>
 
-      {/* Project Scope — survey locations + cost line items */}
-      <ProjectScopePanel
-        projectId={project.id}
-        site={scopeSite}
-        manualCosts={project.costs}
-      />
+      {/* Project Scope — survey locations + cost line items (editors hidden for viewers) */}
+      {!isViewer && (
+        <ProjectScopePanel
+          projectId={project.id}
+          site={scopeSite}
+          manualCosts={project.costs}
+        />
+      )}
 
       {/* Proposal History */}
-      <ProposalHistory projectId={project.id} projectName={project.projectName} />
+      <ProposalHistory projectId={project.id} projectName={project.projectName} readOnly={isViewer} />
 
       {/* Invoice History */}
-      <InvoiceHistory projectId={project.id} projectName={project.projectName} />
+      <InvoiceHistory projectId={project.id} projectName={project.projectName} readOnly={isViewer} />
     </div>
   );
 }

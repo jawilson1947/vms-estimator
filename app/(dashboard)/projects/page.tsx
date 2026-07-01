@@ -1,12 +1,15 @@
 import Link from 'next/link';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import {
   PlusIcon, FolderIcon, MagnifyingGlassIcon,
-  ChevronLeftIcon, ChevronRightIcon,
+  ChevronLeftIcon, ChevronRightIcon, LockClosedIcon,
 } from '@heroicons/react/24/outline';
 import { ProjectStatus } from '@prisma/client';
 import { ProjectLocationsList } from '@/components/ProjectLocationsList';
+import { authOptions } from '@/lib/auth';
+import { readSessionInfo, accessibleProjectIds } from '@/lib/project-access';
 
 const PAGE_SIZE = 8;
 
@@ -120,6 +123,12 @@ export default async function ProjectsPage({
   const status = params.status ?? '';
   const { projects, total, totalPages, currentPage } = await getProjects(search, status, Number(params.page) || 1);
 
+  // Restricted viewers: projects not granted to them are shown but grayed out.
+  const info = readSessionInfo(await getServerSession(authOptions));
+  const accessible = info ? await accessibleProjectIds(info) : null; // null = unrestricted
+  const restricted = accessible !== null;
+  const canOpen = (projectId: number) => !restricted || accessible!.has(projectId);
+
   const pageHref = (p: number) =>
     `/projects?${new URLSearchParams({
       ...(search ? { search } : {}),
@@ -135,10 +144,12 @@ export default async function ProjectsPage({
           <h1 className="text-xl font-bold text-gray-900">Projects</h1>
           <p className="text-sm text-gray-500 mt-0.5">{total} total</p>
         </div>
-        <Link href="/projects/new" className="btn-primary">
-          <PlusIcon className="w-4 h-4" />
-          New Project
-        </Link>
+        {!restricted && (
+          <Link href="/projects/new" className="btn-primary">
+            <PlusIcon className="w-4 h-4" />
+            New Project
+          </Link>
+        )}
       </div>
 
       {/* Filters */}
@@ -170,7 +181,7 @@ export default async function ProjectsPage({
           <p className="text-sm text-gray-500">
             {search || status ? 'No projects match your filters.' : 'No projects yet.'}
           </p>
-          {!search && !status && (
+          {!search && !status && !restricted && (
             <Link href="/projects/new" className="btn-primary mt-4 inline-flex">
               <PlusIcon className="w-4 h-4" /> Create your first project
             </Link>
@@ -191,23 +202,36 @@ export default async function ProjectsPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {projects.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50 transition-colors align-top">
+              {projects.map(p => {
+                const locked = !canOpen(p.id);
+                return (
+                <tr key={p.id} className={`transition-colors align-top ${locked ? 'opacity-40 select-none' : 'hover:bg-gray-50'}`}>
                   <td className="px-4 py-3">
-                    <Link
-                      href={`/projects/${p.id}`}
-                      className="font-medium text-blue-600 hover:underline block"
-                    >
-                      {p.projectName}
-                    </Link>
+                    {locked ? (
+                      <span className="font-medium text-gray-500 flex items-center gap-1" title="You do not have access to this project">
+                        <LockClosedIcon className="w-3.5 h-3.5 shrink-0" />
+                        {p.projectName}
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/projects/${p.id}`}
+                        className="font-medium text-blue-600 hover:underline block"
+                      >
+                        {p.projectName}
+                      </Link>
+                    )}
                     {p.projectNumber && (
                       <span className="text-xs text-gray-400">{p.projectNumber}</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">
-                    <Link href={`/customers/${p.customer.id}`} className="hover:underline">
-                      {p.customer.customerName}
-                    </Link>
+                    {restricted ? (
+                      <span>{p.customer.customerName}</span>
+                    ) : (
+                      <Link href={`/customers/${p.customer.id}`} className="hover:underline">
+                        {p.customer.customerName}
+                      </Link>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-600">{p.projectManager ?? '—'}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
@@ -237,7 +261,8 @@ export default async function ProjectsPage({
                     <ProjectLocationsList locations={p.cameraLocations} />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           {totalPages > 1 && (

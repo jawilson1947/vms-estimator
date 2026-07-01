@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { buildCostSchedule } from '@/lib/cost-schedule';
+import { guardProjectRead } from '@/lib/project-access';
 import {
   buildInvoiceSnapshot, buildInvoiceNumber,
   type InvoiceDetail, type InvoicePaymentBasis, type InvoiceParty,
@@ -17,6 +18,9 @@ export async function GET(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id } = await params;
+  const denied = await guardProjectRead(Number(id));
+  if (denied) return denied;
+
   const invoices = await prisma.invoice.findMany({
     where:   { projectId: Number(id) },
     orderBy: { createdAt: 'desc' },

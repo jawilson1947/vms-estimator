@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { guardProjectRead } from '@/lib/project-access';
 import { generateProposalDocx } from '@/lib/generate-proposal-docx';
 import type { ProposalContent } from '@/app/api/projects/[id]/proposal/generate/route';
 
@@ -14,6 +15,8 @@ export async function POST(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { id, proposalId } = await params;
+  const denied = await guardProjectRead(Number(id));
+  if (denied) return denied;
 
   // template/siteName may be passed in the body to bypass stale Prisma client
   const body = await req.json().catch(() => ({})) as { template?: string; siteName?: string | null };
@@ -45,7 +48,7 @@ export async function POST(
     }),
   ]);
 
-  if (!proposal || !project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  if (!proposal || !project || proposal.projectId !== Number(id)) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
   const content    = proposal.content as unknown as ProposalContent;
   const templateId = body.template

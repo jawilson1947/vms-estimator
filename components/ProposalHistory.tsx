@@ -46,11 +46,12 @@ interface Props {
   projectName: string;
   refreshKey?: number;  // optional — bumping triggers a reload
   onReopen?:   (proposalId: number) => void;
+  readOnly?:   boolean; // hide destructive actions (restricted viewers)
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ProposalHistory({ projectId, projectName, refreshKey, onReopen }: Props) {
+export function ProposalHistory({ projectId, projectName, refreshKey, onReopen, readOnly }: Props) {
   const [open, setOpen]           = useState(false);
   const [proposals, setProposals] = useState<ProposalSummary[]>([]);
   const [loading, setLoading]     = useState(false);
@@ -217,13 +218,15 @@ export function ProposalHistory({ projectId, projectName, refreshKey, onReopen }
                     >
                       <ArrowDownTrayIcon className={`w-4 h-4 ${pdfLoading === p.id ? 'animate-bounce' : ''}`} />
                     </button>
-                    <button
-                      onClick={() => deleteProposal(p.id)}
-                      title="Delete"
-                      className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        onClick={() => deleteProposal(p.id)}
+                        title="Delete"
+                        className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
