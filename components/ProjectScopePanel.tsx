@@ -53,11 +53,12 @@ interface Props {
   projectId: number;
   site: Site | null;
   manualCosts: ManualCost[];
+  readOnly?: boolean; // restricted viewers: hide the "Manage costs" link
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ProjectScopePanel({ projectId, site, manualCosts }: Props) {
+export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Props) {
   // Compute survey-derived totals
   const sites = site ? [site] : [];
   const allLocations = sites.flatMap(s => s.buildings.flatMap(b => b.locations));
@@ -78,9 +79,11 @@ export function ProjectScopePanel({ projectId, site, manualCosts }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
         <h2 className="text-sm font-semibold text-gray-900">Project Scope</h2>
-        <Link href={`/costs?projectId=${projectId}`} className="text-xs text-blue-600 hover:underline">
-          Manage costs →
-        </Link>
+        {!readOnly && (
+          <Link href={`/costs?projectId=${projectId}`} className="text-xs text-blue-600 hover:underline">
+            Manage costs →
+          </Link>
+        )}
       </div>
 
       {/* ── Survey Locations ─────────────────────────────────────── */}

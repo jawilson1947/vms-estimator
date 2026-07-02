@@ -249,14 +249,13 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
         )}
       </div>
 
-      {/* Project Scope — survey locations + cost line items (editors hidden for viewers) */}
-      {!isViewer && (
-        <ProjectScopePanel
-          projectId={project.id}
-          site={scopeSite}
-          manualCosts={project.costs}
-        />
-      )}
+      {/* Project Scope — survey locations + cost line items (read-only for viewers) */}
+      <ProjectScopePanel
+        projectId={project.id}
+        site={scopeSite}
+        manualCosts={project.costs}
+        readOnly={isViewer}
+      />
 
       {/* Proposal History */}
       <ProposalHistory projectId={project.id} projectName={project.projectName} readOnly={isViewer} />
