@@ -31,6 +31,8 @@ export interface InvoiceSnapshot {
   amountDue:    number;
   /** Whether tax is included in the billed amount (only for direct-total). */
   taxIncluded:  boolean;
+  /** Down-payment credit applied to this invoice (0/absent = none; direct-total only). */
+  downPaymentApplied?: number;
 }
 
 export function usd(v: number): string {
@@ -48,12 +50,15 @@ export function basisCaption(basis: InvoicePaymentBasis): string {
 export function resolveAmountDue(
   schedule: CostScheduleData,
   basis:    InvoicePaymentBasis,
+  applyDownPayment = false,
 ): number {
   if (basis === 'consulting-pm') {
     return schedule.consultingFee + schedule.projectManagementFee;
   }
-  // direct-total: bill the direct line-item total only (pre-fees).
-  return schedule.directTotal;
+  // direct-total: bill the direct line-item total only (pre-fees),
+  // optionally reduced by the project's down-payment credit.
+  const dp = applyDownPayment ? Number(schedule.downPayment ?? 0) : 0;
+  return schedule.directTotal - dp;
 }
 
 /**
@@ -69,6 +74,7 @@ export function buildInvoiceRows(
   schedule: CostScheduleData,
   detail:   InvoiceDetail,
   basis:    InvoicePaymentBasis,
+  applyDownPayment = false,
 ): InvoiceRow[] {
   if (basis === 'consulting-pm') {
     const consulting = schedule.consultingFee;
@@ -88,27 +94,40 @@ export function buildInvoiceRows(
   }
 
   // ── direct-total ──────────────────────────────────────────────────────────
+  let rows: InvoiceRow[];
   if (detail === 'summary') {
     const byCategory = new Map<string, number>();
     for (const g of schedule.groups) {
       byCategory.set(g.category, (byCategory.get(g.category) ?? 0) + g.lineTotal);
     }
-    return Array.from(byCategory, ([category, amount]) => ({
+    rows = Array.from(byCategory, ([category, amount]) => ({
       quantity:    '',
       description: category,
       unitPrice:   null,
       amount,
     }));
+  } else {
+    // line-items: one row per group; unit price is the effective marked-up price
+    // so quantity × unitPrice reconciles with the amount.
+    rows = schedule.groups.map(g => ({
+      quantity:    String(g.quantity),
+      description: g.description || g.category,
+      unitPrice:   g.quantity > 0 ? g.lineTotal / g.quantity : g.lineTotal,
+      amount:      g.lineTotal,
+    }));
   }
 
-  // line-items: one row per group; unit price is the effective marked-up price
-  // so quantity × unitPrice reconciles with the amount.
-  return schedule.groups.map(g => ({
-    quantity:    String(g.quantity),
-    description: g.description || g.category,
-    unitPrice:   g.quantity > 0 ? g.lineTotal / g.quantity : g.lineTotal,
-    amount:      g.lineTotal,
-  }));
+  // Down-payment credit row so the printed rows reconcile with the Total Due.
+  const dp = Number(schedule.downPayment ?? 0);
+  if (applyDownPayment && dp > 0) {
+    rows.push({
+      quantity:    '',
+      description: 'Less: Down Payment (Credit)',
+      unitPrice:   null,
+      amount:      -dp,
+    });
+  }
+  return rows;
 }
 
 /** Build the complete frozen snapshot for storage. */
@@ -116,13 +135,18 @@ export function buildInvoiceSnapshot(
   schedule: CostScheduleData,
   detail:   InvoiceDetail,
   basis:    InvoicePaymentBasis,
+  applyDownPayment = false,
 ): InvoiceSnapshot {
+  const applied = basis === 'direct-total' && applyDownPayment
+    ? Number(schedule.downPayment ?? 0)
+    : 0;
   return {
     schedule,
     detail,
     paymentBasis: basis,
-    amountDue:    resolveAmountDue(schedule, basis),
+    amountDue:    resolveAmountDue(schedule, basis, applied > 0),
     taxIncluded:  false,
+    downPaymentApplied: applied,
   };
 }
 

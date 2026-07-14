@@ -52,6 +52,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
     projectManagementFee: Number(b.projectManagementFee ?? 0),
     contingencyAmount:    Number(b.contingencyAmount    ?? 0),
     taxAmount:            Number(b.taxAmount            ?? 0),
+    downPayment:          Number(b.downPayment          ?? 0),
   };
 
   const schedule = buildCostSchedule(
@@ -66,12 +67,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const projectManagementFee = schedule.projectManagementFee;
   const contingencyAmount    = schedule.contingencyAmount;
   const taxAmount            = schedule.taxAmount;
+  const downPayment          = schedule.downPayment;
   const grandTotal           = schedule.grandTotal;
 
   const summary = await prisma.projectFeeSummary.upsert({
     where:  { projectId },
-    update: { directCostTotal, overheadPercent, overheadAmount, consultingFee, projectManagementFee, contingencyAmount, taxAmount, grandTotal },
-    create: { projectId, directCostTotal, overheadPercent, overheadAmount, consultingFee, projectManagementFee, contingencyAmount, taxAmount, grandTotal },
+    update: { directCostTotal, overheadPercent, overheadAmount, consultingFee, projectManagementFee, contingencyAmount, taxAmount, downPayment, grandTotal },
+    create: { projectId, directCostTotal, overheadPercent, overheadAmount, consultingFee, projectManagementFee, contingencyAmount, taxAmount, downPayment, grandTotal },
   });
 
   return NextResponse.json(summary);

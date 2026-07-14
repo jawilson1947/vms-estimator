@@ -21,6 +21,7 @@ export interface CostScheduleData {
   projectManagementFee:  number;
   contingencyAmount:     number;
   taxAmount:             number;
+  downPayment:           number;
   grandTotal:            number;
 }
 
@@ -50,6 +51,7 @@ interface FeeSummaryInput {
   projectManagementFee?: unknown;
   contingencyAmount?:    unknown;
   taxAmount?:            unknown;
+  downPayment?:          unknown;
 }
 
 function n(v: unknown): number { return Number(v ?? 0); }
@@ -130,8 +132,12 @@ export function buildCostSchedule(
   const projectManagementFee = n(feeSummary?.projectManagementFee);
   const contingencyAmount    = n(feeSummary?.contingencyAmount);
   const taxAmount            = n(feeSummary?.taxAmount);
+  const downPayment          = n(feeSummary?.downPayment);
+  // Overhead is computed on the full direct total; the down payment is a
+  // credit against the amount due and does not shrink percentage-based fees.
   const grandTotal           = directTotal + overheadAmount + consultingFee
-                             + projectManagementFee + contingencyAmount + taxAmount;
+                             + projectManagementFee + contingencyAmount + taxAmount
+                             - downPayment;
 
   return {
     groups,
@@ -142,6 +148,7 @@ export function buildCostSchedule(
     projectManagementFee,
     contingencyAmount,
     taxAmount,
+    downPayment,
     grandTotal,
   };
 }

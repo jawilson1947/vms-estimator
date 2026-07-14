@@ -185,6 +185,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
           projectManagementFee: Number(project.feeSummary.projectManagementFee),
           contingencyAmount:    Number(project.feeSummary.contingencyAmount),
           taxAmount:            Number(project.feeSummary.taxAmount),
+          downPayment:          Number(project.feeSummary.downPayment ?? 0),
           grandTotal:           Number(project.feeSummary.grandTotal),
         } : null}
       />

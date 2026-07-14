@@ -412,6 +412,7 @@ model ProjectFeeSummary {
   projectManagementFee Decimal @default(0) @map("project_management_fee") @db.Decimal(12, 2)
   contingencyAmount    Decimal @default(0) @map("contingency_amount") @db.Decimal(12, 2)
   taxAmount            Decimal @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  downPayment          Decimal @default(0) @map("down_payment") @db.Decimal(12, 2)
   grandTotal           Decimal @default(0) @map("grand_total") @db.Decimal(12, 2)
 
   project              Project @relation(fields: [projectId], references: [id])

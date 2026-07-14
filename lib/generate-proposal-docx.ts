@@ -445,12 +445,16 @@ export async function generateProposalDocx(
       // Fee summary rows
       const feeRows: [string, number][] = ([
         ['Direct Cost Total',                              schedule.directTotal],
+        // Down payment renders as a credit immediately below the direct total
+        ...(schedule.downPayment > 0
+          ? [['Less: Down Payment (Credit)', -schedule.downPayment]]
+          : []),
         [`Overhead (${schedule.overheadPercent.toFixed(1)}%)`, schedule.overheadAmount],
         ['Consulting Fee',                                 schedule.consultingFee],
         ['Project Management Fee',                        schedule.projectManagementFee],
         ['Contingency',                                    schedule.contingencyAmount],
         ['Tax',                                            schedule.taxAmount],
-      ] as [string, number][]).filter(([, v]) => v > 0);
+      ] as [string, number][]).filter(([, v]) => v !== 0);
 
       for (const [label, val] of feeRows) {
         csRows.push(new TableRow({ children: [

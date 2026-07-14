@@ -56,6 +56,7 @@ export async function POST(
     shippedVia?:     string | null;
     fobPoint?:       string | null;
     issuedAt?:       string | null;
+    applyDownPayment?: boolean;
   };
 
   const detail: InvoiceDetail       = body.detail === 'summary' ? 'summary' : 'line-items';
@@ -81,7 +82,8 @@ export async function POST(
     project.costs           as Parameters<typeof buildCostSchedule>[1],
     project.feeSummary      as Parameters<typeof buildCostSchedule>[2],
   );
-  const snapshot = buildInvoiceSnapshot(schedule, detail, basis);
+  const applyDownPayment = basis === 'direct-total' && body.applyDownPayment === true;
+  const snapshot = buildInvoiceSnapshot(schedule, detail, basis, applyDownPayment);
 
   // Default Bill To from the customer record when not supplied.
   const billTo: InvoiceParty = body.billTo ?? {

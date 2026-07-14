@@ -248,12 +248,16 @@ export function ProposalDocumentPreview({
 
                 const feeRows: [string, number][] = [
                   ['Direct Cost Total',                                       costSchedule.directTotal],
+                  // Down payment renders as a credit immediately below the direct total
+                  ...(costSchedule.downPayment > 0
+                    ? [['Less: Down Payment (Credit)', -costSchedule.downPayment]]
+                    : []),
                   [`Overhead (${costSchedule.overheadPercent.toFixed(1)}%)`,  costSchedule.overheadAmount],
                   ['Consulting Fee',                                           costSchedule.consultingFee],
                   ['Project Management Fee',                                   costSchedule.projectManagementFee],
                   ['Contingency',                                              costSchedule.contingencyAmount],
                   ['Tax',                                                      costSchedule.taxAmount],
-                ].filter(([, v]) => (v as number) > 0) as [string, number][];
+                ].filter(([, v]) => (v as number) !== 0) as [string, number][];
 
                 return (
                   <div key={key} style={{ padding: '0 48px', marginTop: 36 }}>
@@ -273,8 +277,8 @@ export function ProposalDocumentPreview({
                       <tfoot>
                         {feeRows.map(([label, val]) => (
                           <tr key={label}>
-                            <td colSpan={5} style={{ ...tdR, paddingTop: 5, color: '#6B7280', fontStyle: 'italic' }}>{label}</td>
-                            <td style={{ ...tdR, paddingTop: 5 }}>{fmtUSD(val)}</td>
+                            <td colSpan={5} style={{ ...tdR, paddingTop: 5, color: val < 0 ? '#DC2626' : '#6B7280', fontStyle: 'italic' }}>{label}</td>
+                            <td style={{ ...tdR, paddingTop: 5, color: val < 0 ? '#DC2626' : undefined }}>{fmtUSD(val)}</td>
                           </tr>
                         ))}
                         <tr style={{ backgroundColor: pal.sectionBg }}>

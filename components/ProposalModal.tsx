@@ -133,6 +133,7 @@ export function ProposalModal({ projectId, projectName, onClose, onSaved }: Prop
             projectManagementFee: Number(fs.projectManagementFee),
             contingencyAmount:    Number(fs.contingencyAmount),
             taxAmount:            Number(fs.taxAmount),
+            downPayment:          Number(fs.downPayment ?? 0),
             grandTotal:           Number(fs.grandTotal),
           });
         }

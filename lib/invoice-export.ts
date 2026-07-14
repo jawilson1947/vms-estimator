@@ -38,8 +38,9 @@ export function buildInvoiceDocData(
   const detail = (invoice.detail === 'summary' ? 'summary' : 'line-items') as InvoiceSnapshot['detail'];
   const basis  = (invoice.paymentBasis === 'consulting-pm' ? 'consulting-pm' : 'direct-total') as InvoiceSnapshot['paymentBasis'];
 
-  const rows     = buildInvoiceRows(snap.schedule, detail, basis);
-  const totalDue = resolveAmountDue(snap.schedule, basis);
+  const applyDownPayment = Number(snap.downPaymentApplied ?? 0) > 0;
+  const rows     = buildInvoiceRows(snap.schedule, detail, basis, applyDownPayment);
+  const totalDue = resolveAmountDue(snap.schedule, basis, applyDownPayment);
   const subtotal = totalDue;   // no separate shipping; subtotal == billed amount
 
   const date = (invoice.issuedAt ? new Date(invoice.issuedAt) : new Date())

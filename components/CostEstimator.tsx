@@ -45,6 +45,7 @@ interface FeeSummary {
   projectManagementFee: number;
   contingencyAmount:    number;
   taxAmount:            number;
+  downPayment:          number;
   grandTotal:           number;
 }
 
@@ -150,12 +151,14 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     projectManagementFee: initialSummary?.projectManagementFee ?? 0,
     contingencyAmount:    initialSummary?.contingencyAmount    ?? 0,
     taxAmount:            initialSummary?.taxAmount            ?? 0,
+    downPayment:          initialSummary?.downPayment          ?? 0,
   });
   const [feeDisplayValues, setFeeDisplayValues] = useState<Record<string, string>>({
     consultingFee:        fmtNum(initialSummary?.consultingFee        ?? 0),
     projectManagementFee: fmtNum(initialSummary?.projectManagementFee ?? 0),
     contingencyAmount:    fmtNum(initialSummary?.contingencyAmount    ?? 0),
     taxAmount:            fmtNum(initialSummary?.taxAmount            ?? 0),
+    downPayment:          fmtNum(initialSummary?.downPayment          ?? 0),
   });
   // Snapshot of the last saved fees — drives the unsaved-changes indicator
   const [feesSaved, setFeesSaved] = useState(() => ({
@@ -164,6 +167,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     projectManagementFee: initialSummary?.projectManagementFee ?? 0,
     contingencyAmount:    initialSummary?.contingencyAmount    ?? 0,
     taxAmount:            initialSummary?.taxAmount            ?? 0,
+    downPayment:          initialSummary?.downPayment          ?? 0,
   }));
   const [savingFees, setSavingFees] = useState(false);
   const [savingLine, setSavingLine] = useState(false);
@@ -375,7 +379,8 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const directTotal   = useMemo(() => liveCosts.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal, [liveCosts, surveyTotal, bomTotal]);
 
   const overheadAmount  = directTotal * (fees.overheadPercent / 100);
-  const grandTotal      = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount;
+  // Down payment is a credit against the amount due; overhead stays based on the full direct total
+  const grandTotal      = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount - fees.downPayment;
   const billableTotal   = liveCosts.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal;
   const margin          = grandTotal > 0 ? ((grandTotal - directTotal) / grandTotal) * 100 : 0;
 
@@ -891,6 +896,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                 { label: 'PM Fee',            key: 'projectManagementFee', prefix: '$' },
                 { label: 'Contingency',       key: 'contingencyAmount',    prefix: '$' },
                 { label: 'Tax',               key: 'taxAmount',            prefix: '$' },
+                { label: 'Down Payment',      key: 'downPayment',          prefix: '$' },
               ].map(({ label, key, prefix, suffix }) => (
                 <div key={key}>
                   <label className="form-label text-xs">{label}</label>
@@ -930,6 +936,12 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
             {/* Calculated breakdown */}
             <div className="bg-gray-50 rounded-lg p-4 space-y-0.5">
               <SummaryRow label="Direct Costs"       value={fmt(directTotal)} />
+              {fees.downPayment > 0 && (
+                <div className="flex justify-between text-sm py-0.5">
+                  <span className="text-red-600">Less: Down Payment</span>
+                  <span className="text-red-600 font-medium">−{fmt(fees.downPayment)}</span>
+                </div>
+              )}
               <SummaryRow label={`Overhead (${fees.overheadPercent}%)`} value={fmt(overheadAmount)} />
               <SummaryRow label="Consulting Fee"     value={fmt(fees.consultingFee)} />
               <SummaryRow label="PM Fee"             value={fmt(fees.projectManagementFee)} />

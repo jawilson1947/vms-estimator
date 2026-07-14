@@ -24,6 +24,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
   // ── Options ──────────────────────────────────────────────────────────────
   const [detail, setDetail]             = useState<InvoiceDetail>('line-items');
   const [paymentBasis, setPaymentBasis] = useState<InvoicePaymentBasis>('direct-total');
+  const [applyDownPayment, setApplyDownPayment] = useState(false);
   const [billToName, setBillToName]     = useState('');
   const [billToAddress, setBillToAddress] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -72,8 +73,17 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
       .catch(() => {});
   }, [projectId]);
 
-  const previewRows  = schedule ? buildInvoiceRows(schedule, detail, paymentBasis) : [];
-  const previewTotal = schedule ? resolveAmountDue(schedule, paymentBasis) : 0;
+  // Down payment: default the credit ON for the first invoice, OFF afterward
+  // (avoids double-crediting across multiple invoices).
+  const downPayment = schedule ? Number(schedule.downPayment ?? 0) : 0;
+  useEffect(() => {
+    const dp = Number((feeSummary as { downPayment?: unknown } | null)?.downPayment ?? 0);
+    setApplyDownPayment(dp > 0 && invoiceCount === 0);
+  }, [feeSummary, invoiceCount]);
+
+  const applyDp = paymentBasis === 'direct-total' && applyDownPayment;
+  const previewRows  = schedule ? buildInvoiceRows(schedule, detail, paymentBasis, applyDp) : [];
+  const previewTotal = schedule ? resolveAmountDue(schedule, paymentBasis, applyDp) : 0;
   const nextNumber          = buildInvoiceNumber(projectNumber, invoiceCount + 1);
   const effectiveInvNumber  = invoiceNumber.trim() || nextNumber;
 
@@ -87,6 +97,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           detail, paymentBasis,
+          applyDownPayment: paymentBasis === 'direct-total' && applyDownPayment,
           invoiceNumber: effectiveInvNumber,
           billTo: { name: billToName, address: billToAddress },
           poNumber, salesperson, terms, issuedAt,
@@ -104,7 +115,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
     } finally {
       setSaving(false);
     }
-  }, [projectId, detail, paymentBasis, invoiceNumber, billToName, billToAddress, poNumber, salesperson, terms, issuedAt, onSaved, nextNumber]);
+  }, [projectId, detail, paymentBasis, applyDownPayment, invoiceNumber, billToName, billToAddress, poNumber, salesperson, terms, issuedAt, onSaved, nextNumber]);
 
   // ── Download ─────────────────────────────────────────────────────────────
   async function download(kind: 'pdf' | 'docx') {
@@ -224,6 +235,24 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
                     </button>
                   ))}
                 </div>
+                {paymentBasis === 'direct-total' && downPayment > 0 && (
+                  <div className="mt-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={applyDownPayment}
+                        onChange={e => setApplyDownPayment(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Apply down payment credit (−{usd(downPayment)})</span>
+                    </label>
+                    {applyDownPayment && invoiceCount > 0 && (
+                      <p className="text-xs text-amber-600 mt-1 ml-6">
+                        This project already has {invoiceCount} invoice{invoiceCount !== 1 ? 's' : ''} — make sure the credit wasn't applied on an earlier one.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {schedule && (
                   <p className="text-xs text-gray-500 mt-2">
                     Resolves to <span className="font-semibold text-gray-800">{usd(previewTotal)}</span> — {basisCaption(paymentBasis)}.
@@ -289,9 +318,9 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
                     {previewRows.map((r, i) => (
                       <tr key={i} className={i % 2 ? 'bg-gray-50' : ''}>
                         <td className="px-3 py-2 text-gray-700">{r.quantity}</td>
-                        <td className="px-3 py-2 text-gray-700">{r.description}</td>
+                        <td className={`px-3 py-2 ${r.amount < 0 ? 'text-red-600' : 'text-gray-700'}`}>{r.description}</td>
                         <td className="px-3 py-2 text-right text-gray-700">{r.unitPrice == null ? '' : usd(r.unitPrice)}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{usd(r.amount)}</td>
+                        <td className={`px-3 py-2 text-right ${r.amount < 0 ? 'text-red-600' : 'text-gray-700'}`}>{usd(r.amount)}</td>
                       </tr>
                     ))}
                     {previewRows.length === 0 && (

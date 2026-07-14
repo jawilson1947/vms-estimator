@@ -12,6 +12,7 @@ import {
   WifiIcon,
   ChatBubbleBottomCenterTextIcon,
   LockClosedIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
@@ -67,6 +68,14 @@ const MENU_ITEMS: MenuItem[] = [
     iconColor:   'text-teal-600',
     title:       'Survey Management',
     description: 'Copy, move or delete survey locations across projects',
+  },
+  {
+    href:        '/settings/cost-management',
+    icon:        CurrencyDollarIcon,
+    iconBg:      'bg-emerald-50',
+    iconColor:   'text-emerald-600',
+    title:       'Cost Item Management',
+    description: 'Copy cost line items between projects',
   },
   {
     href:        '/settings/mic-test',

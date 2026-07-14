@@ -21,6 +21,7 @@ export interface FeeSummaryData {
   projectManagementFee: number;
   contingencyAmount:    number;
   taxAmount:            number;
+  downPayment?:         number;
   grandTotal:           number;
 }
 
@@ -143,12 +144,16 @@ export function CostBreakdownTable({ costs, feeSummary, templateId = 'classic' }
           const fs = feeSummary;
           const feeRows: [string, number][] = [
             ['Direct Cost Total',      fs.directCostTotal],
+            // Down payment renders as a credit immediately below the direct total
+            ...((fs.downPayment ?? 0) > 0
+              ? [['Less: Down Payment (Credit)', -(fs.downPayment ?? 0)]]
+              : []),
             [`Overhead (${fs.overheadPercent.toFixed(1)}%)`, fs.overheadAmount],
             ['Consulting Fee',         fs.consultingFee],
             ['Project Management Fee', fs.projectManagementFee],
             ['Contingency',            fs.contingencyAmount],
             ['Tax',                    fs.taxAmount],
-          ].filter(([, v]) => (v as number) > 0) as [string, number][];
+          ].filter(([, v]) => (v as number) !== 0) as [string, number][];
 
           return (
             <tfoot>
@@ -156,10 +161,10 @@ export function CostBreakdownTable({ costs, feeSummary, templateId = 'classic' }
 
               {feeRows.map(([label, val]) => (
                 <tr key={label} style={{ backgroundColor: '#F9FAFB' }}>
-                  <td colSpan={3} style={{ padding: '5px 12px', textAlign: 'right', color: '#6B7280', fontSize: 12 }}>
+                  <td colSpan={3} style={{ padding: '5px 12px', textAlign: 'right', color: val < 0 ? '#DC2626' : '#6B7280', fontSize: 12 }}>
                     {label}
                   </td>
-                  <td style={{ padding: '5px 12px', textAlign: 'right', color: '#374151', fontSize: 12 }}>
+                  <td style={{ padding: '5px 12px', textAlign: 'right', color: val < 0 ? '#DC2626' : '#374151', fontSize: 12 }}>
                     {fmt(val)}
                   </td>
                 </tr>
