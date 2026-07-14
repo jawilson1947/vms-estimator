@@ -59,7 +59,10 @@ export async function GET(_req: NextRequest) {
   let totalGrand      = 0;
   for (const p of projects) {
     const dc = Number(p.feeSummary?.directCostTotal ?? 0);
-    const gt = Number(p.feeSummary?.grandTotal      ?? 0);
+    // Revenue = full contract value; stored grandTotal is net of the
+    // down-payment credit, so add it back for margin analysis.
+    const gt = Number(p.feeSummary?.grandTotal ?? 0)
+             + Number(p.feeSummary?.downPayment ?? 0);
     totalDirectCost += dc;
     totalGrand      += gt;
   }
@@ -102,7 +105,9 @@ export async function GET(_req: NextRequest) {
   let rowIdx = 0;
   for (const p of projects) {
     const dc = Number(p.feeSummary?.directCostTotal ?? 0);
-    const gt = Number(p.feeSummary?.grandTotal ?? 0);
+    // Revenue includes the down-payment credit (full contract value)
+    const gt = Number(p.feeSummary?.grandTotal ?? 0)
+             + Number(p.feeSummary?.downPayment ?? 0);
     const mg = gt > 0 ? ((gt - dc) / gt) * 100 : 0;
 
     if (rowIdx % 2 === 0) doc.rect(margin, y, inner, 18).fill('#F9FAFB');

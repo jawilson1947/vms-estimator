@@ -379,10 +379,14 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
   const directTotal   = useMemo(() => liveCosts.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal, [liveCosts, surveyTotal, bomTotal]);
 
   const overheadAmount  = directTotal * (fees.overheadPercent / 100);
+  // Full contract value before the down-payment credit
+  const contractTotal   = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount;
   // Down payment is a credit against the amount due; overhead stays based on the full direct total
-  const grandTotal      = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount - fees.downPayment;
+  const grandTotal      = contractTotal - fees.downPayment;
   const billableTotal   = liveCosts.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal;
-  const margin          = grandTotal > 0 ? ((grandTotal - directTotal) / grandTotal) * 100 : 0;
+  // Margin measures profitability of the full contract; the down payment is a
+  // payment against it, not a revenue reduction, so it's excluded here.
+  const margin          = contractTotal > 0 ? ((contractTotal - directTotal) / contractTotal) * 100 : 0;
 
   // ── Category totals for charts ──────────────────────────────────────────────
   const byCategory = useMemo(() => {
