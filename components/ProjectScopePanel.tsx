@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MapPinIcon, BuildingOffice2Icon, CameraIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, BuildingOffice2Icon, CameraIcon, CurrencyDollarIcon, LockClosedIcon } from '@heroicons/react/24/outline';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-US', {
@@ -23,6 +23,7 @@ interface Location {
   areaName: string | null;
   floor: string | null;
   cameraModel: CameraModelSlim | null;
+  accessMethod?: { id: number; name: string } | null;
 }
 
 interface Building {
@@ -54,11 +55,14 @@ interface Props {
   site: Site | null;
   manualCosts: ManualCost[];
   readOnly?: boolean; // restricted viewers: hide the "Manage costs" link
+  projectType?: string; // 'ACCESS_CONTROL' switches the survey section to access-point display
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Props) {
+export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, projectType }: Props) {
+  const isAccessControl = projectType === 'ACCESS_CONTROL';
+  const noun = isAccessControl ? 'access point' : 'camera';
   // Compute survey-derived totals
   const sites = site ? [site] : [];
   const allLocations = sites.flatMap(s => s.buildings.flatMap(b => b.locations));
@@ -89,9 +93,11 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
       {/* ── Survey Locations ─────────────────────────────────────── */}
       <div className="px-5 pt-4 pb-2">
         <div className="flex items-center gap-2 mb-3">
-          <CameraIcon className="w-4 h-4 text-gray-400" />
+          {isAccessControl
+            ? <LockClosedIcon className="w-4 h-4 text-gray-400" />
+            : <CameraIcon className="w-4 h-4 text-gray-400" />}
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Survey Locations
+            {isAccessControl ? 'Access Points' : 'Survey Locations'}
           </h3>
         </div>
 
@@ -99,7 +105,7 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
           <p className="text-sm text-gray-400 mb-4">No sites linked to this project.</p>
         ) : !hasLocations ? (
           <p className="text-sm text-gray-400 mb-4">
-            No locations surveyed yet — open a site survey to add camera locations.
+            No locations surveyed yet — open a site survey to add {isAccessControl ? 'access points' : 'camera locations'}.
           </p>
         ) : (
           <div className="space-y-4 mb-4">
@@ -126,8 +132,8 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
                       </span>
                     )}
                     <span className="ml-auto text-xs text-gray-500">
-                      {siteLocations.length} camera{siteLocations.length !== 1 ? 's' : ''}
-                      {siteCameraTotal > 0 && <> · {fmt(siteCameraTotal)}</>}
+                      {siteLocations.length} {noun}{siteLocations.length !== 1 ? 's' : ''}
+                      {!isAccessControl && siteCameraTotal > 0 && <> · {fmt(siteCameraTotal)}</>}
                     </span>
                   </div>
 
@@ -152,8 +158,10 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
                               <tr className="border-b border-gray-100">
                                 <th className="text-left py-1.5 pl-4 pr-2 font-medium text-gray-500">Area</th>
                                 <th className="text-left py-1.5 px-2 font-medium text-gray-500">Floor</th>
-                                <th className="text-left py-1.5 px-2 font-medium text-gray-500">Camera Model</th>
-                                <th className="text-right py-1.5 pl-2 pr-4 font-medium text-gray-500">Unit Cost</th>
+                                <th className="text-left py-1.5 px-2 font-medium text-gray-500">{isAccessControl ? 'Access Method' : 'Camera Model'}</th>
+                                {!isAccessControl && (
+                                  <th className="text-right py-1.5 pl-2 pr-4 font-medium text-gray-500">Unit Cost</th>
+                                )}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
@@ -173,7 +181,10 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
                                       {loc.floor || '—'}
                                     </td>
                                     <td className="py-1.5 px-2 text-gray-700">
-                                      {modelLabel ? (
+                                      {isAccessControl ? (
+                                        loc.accessMethod?.name
+                                          ?? <span className="text-gray-400 italic">Unassigned</span>
+                                      ) : modelLabel ? (
                                         <>
                                           {modelLabel}
                                           {loc.cameraModel?.cameraType && (
@@ -186,9 +197,11 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
                                         <span className="text-gray-400 italic">Unassigned</span>
                                       )}
                                     </td>
-                                    <td className="py-1.5 pl-2 pr-4 text-right text-gray-700">
-                                      {cost > 0 ? fmt(cost) : <span className="text-gray-400">—</span>}
-                                    </td>
+                                    {!isAccessControl && (
+                                      <td className="py-1.5 pl-2 pr-4 text-right text-gray-700">
+                                        {cost > 0 ? fmt(cost) : <span className="text-gray-400">—</span>}
+                                      </td>
+                                    )}
                                   </tr>
                                 );
                               })}
@@ -205,7 +218,7 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly }: Pr
         )}
 
         {/* Survey subtotal */}
-        {hasLocations && (
+        {hasLocations && !isAccessControl && (
           <div className="flex justify-between items-center py-2 border-t border-gray-100 text-sm">
             <span className="text-gray-500">
               Survey subtotal ({allLocations.length} location{allLocations.length !== 1 ? 's' : ''})
