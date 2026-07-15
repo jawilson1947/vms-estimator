@@ -104,6 +104,30 @@ interface BomRowState {
   markupPercent:   number;
 }
 
+// ── General project items (aggregated across survey locations) ───────────────
+
+interface GeneralBomItem {
+  generalItemId: number;
+  name:          string;
+  quantity:      number;      // aggregated across survey locations
+  locationCount: number;
+  catalogCost:   number;
+}
+
+interface GeneralOverride {
+  costId:        number;
+  quantity:      number;
+  unitCost:      number;
+  markupPercent: number;
+  removed?:      boolean;
+}
+
+interface GeneralRowState {
+  quantity:      number;
+  unitCost:      number;
+  markupPercent: number;
+}
+
 function artifactLabel(a: ArtifactOption) {
   return [a.manufacturer, a.modelName, a.variant].filter(Boolean).join(' ') || `Artifact #${a.id}`;
 }
@@ -117,6 +141,8 @@ interface Props {
   surveyOverrides?: Record<number, SurveyOverride>;
   bomItems?:       BomItem[];
   bomOverrides?:   Record<string, BomOverride>;
+  generalItems?:     GeneralBomItem[];
+  generalOverrides?: Record<number, GeneralOverride>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -138,7 +164,7 @@ function fmtNum(n: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary, surveyItems = [], surveyOverrides = {}, bomItems = [], bomOverrides = {} }: Props) {
+export function CostEstimator({ projectId, overheadRateDefault, initialCosts, initialSummary, surveyItems = [], surveyOverrides = {}, bomItems = [], bomOverrides = {}, generalItems = [], generalOverrides = {} }: Props) {
   const [costs, setCosts]         = useState<CostLine[]>(initialCosts);
   const [summary, setSummary]     = useState<FeeSummary | null>(initialSummary);
   const [editId, setEditId]       = useState<number | 'new' | null>(null);
@@ -313,6 +339,95 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     setBomState(prev => ({ ...prev, [key]: { artifactModelId: 0, quantity: item.quantity, unitCost: 0, markupPercent: 0 } }));
   }
 
+  // ── General item rows — keyed by generalItemId ─────────────────────────────
+  const [genState, setGenState] = useState<Record<number, GeneralRowState>>(() => {
+    const out: Record<number, GeneralRowState> = {};
+    for (const item of generalItems) {
+      const ov = generalOverrides[item.generalItemId];
+      out[item.generalItemId] = ov && !ov.removed
+        ? { quantity: item.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent }
+        : { quantity: item.quantity, unitCost: item.catalogCost, markupPercent: 0 };
+    }
+    return out;
+  });
+  const [genSaved, setGenSaved] = useState<Record<number, GeneralRowState>>(() => {
+    const out: Record<number, GeneralRowState> = {};
+    for (const [key, ov] of Object.entries(generalOverrides)) {
+      if (ov.removed) continue;
+      out[Number(key)] = { quantity: ov.quantity, unitCost: ov.unitCost, markupPercent: ov.markupPercent };
+    }
+    return out;
+  });
+  const [savingGen,  setSavingGen]  = useState<Record<number, boolean>>({});
+  const [genRemoved, setGenRemoved] = useState<Record<number, boolean>>(() => {
+    const out: Record<number, boolean> = {};
+    for (const [key, ov] of Object.entries(generalOverrides)) {
+      if (ov.removed) out[Number(key)] = true;
+    }
+    return out;
+  });
+
+  function genRowDirty(id: number) {
+    const cur = genState[id];
+    if (!cur || genRemoved[id]) return false;
+    const saved = genSaved[id];
+    // Never persisted — needs an initial save to appear on the cost schedule
+    if (!saved) return true;
+    return cur.quantity !== saved.quantity
+      || cur.unitCost      !== saved.unitCost
+      || cur.markupPercent !== saved.markupPercent;
+  }
+
+  function updateGenRow(id: number, patch: Partial<GeneralRowState>) {
+    setGenState(prev => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  async function commitGenRow(item: GeneralBomItem) {
+    const id = item.generalItemId;
+    const st = genState[id];
+    if (!st) return;
+    setSavingGen(prev => ({ ...prev, [id]: true }));
+    const res = await fetch(`/api/projects/${projectId}/general-bom`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        generalItemId: id,
+        quantity:      st.quantity,
+        unitCost:      st.unitCost,
+        markupPercent: st.markupPercent,
+        description:   item.name,
+      }),
+    });
+    setSavingGen(prev => ({ ...prev, [id]: false }));
+    if (res.ok) setGenSaved(prev => ({ ...prev, [id]: { ...st } }));
+  }
+
+  function revertGenRow(item: GeneralBomItem) {
+    const id = item.generalItemId;
+    const saved = genSaved[id];
+    setGenState(prev => ({
+      ...prev,
+      [id]: saved
+        ? { ...saved, quantity: item.quantity }
+        : { quantity: item.quantity, unitCost: item.catalogCost, markupPercent: 0 },
+    }));
+  }
+
+  async function setGenRowRemoved(item: GeneralBomItem, removed: boolean) {
+    const id = item.generalItemId;
+    setSavingGen(prev => ({ ...prev, [id]: true }));
+    const res = await fetch(`/api/projects/${projectId}/general-bom`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ generalItemId: id, removed, description: item.name }),
+    });
+    setSavingGen(prev => ({ ...prev, [id]: false }));
+    if (!res.ok) return;
+    setGenRemoved(prev => ({ ...prev, [id]: removed }));
+    setGenSaved(prev => { const n = { ...prev }; delete n[id]; return n; });
+    setGenState(prev => ({ ...prev, [id]: { quantity: item.quantity, unitCost: item.catalogCost, markupPercent: 0 } }));
+  }
+
   useEffect(() => {
     fetch('/api/line-item-categories')
       .then(r => r.json())
@@ -333,6 +448,8 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
 
   const visibleBomItems = useMemo(() => bomItems.filter(i => !bomRemoved[bomKey(i)]), [bomItems, bomRemoved]);
   const removedBomItems = useMemo(() => bomItems.filter(i =>  bomRemoved[bomKey(i)]), [bomItems, bomRemoved]);
+  const visibleGenItems = useMemo(() => generalItems.filter(i => !genRemoved[i.generalItemId]), [generalItems, genRemoved]);
+  const removedGenItems = useMemo(() => generalItems.filter(i =>  genRemoved[i.generalItemId]), [generalItems, genRemoved]);
 
   // ── Derived totals — computed from current (in-edit) values so every
   //    total updates live as entries change, before anything is saved ─────────
@@ -350,6 +467,13 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       return st ? s + st.unitCost * st.quantity * (1 + st.markupPercent / 100) : s;
     }, 0),
     [visibleBomItems, bomState]
+  );
+  const genTotal = useMemo(
+    () => visibleGenItems.reduce((s, item) => {
+      const st = genState[item.generalItemId];
+      return st ? s + st.unitCost * st.quantity * (1 + st.markupPercent / 100) : s;
+    }, 0),
+    [visibleGenItems, genState]
   );
 
   // Line items with the in-edit row's live form values substituted in
@@ -376,14 +500,14 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     return editId === 'new' ? [...costs, liveRow] : costs.map(c => (c.id === editId ? liveRow : c));
   }, [costs, editId, lineForm, categories]);
 
-  const directTotal   = useMemo(() => liveCosts.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal, [liveCosts, surveyTotal, bomTotal]);
+  const directTotal   = useMemo(() => liveCosts.reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal + genTotal, [liveCosts, surveyTotal, bomTotal, genTotal]);
 
   const overheadAmount  = directTotal * (fees.overheadPercent / 100);
   // Full contract value before the down-payment credit
   const contractTotal   = directTotal + overheadAmount + fees.consultingFee + fees.projectManagementFee + fees.contingencyAmount + fees.taxAmount;
   // Down payment is a credit against the amount due; overhead stays based on the full direct total
   const grandTotal      = contractTotal - fees.downPayment;
-  const billableTotal   = liveCosts.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal;
+  const billableTotal   = liveCosts.filter(c => c.billable).reduce((s, c) => s + c.lineTotal, 0) + surveyTotal + bomTotal + genTotal;
   // Margin measures profitability of the full contract; the down payment is a
   // payment against it, not a revenue reduction, so it's excluded here.
   const margin          = contractTotal > 0 ? ((contractTotal - directTotal) / contractTotal) * 100 : 0;
@@ -394,10 +518,11 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     liveCosts.forEach(c => { map[c.categoryName] = (map[c.categoryName] ?? 0) + c.lineTotal; });
     if (surveyTotal > 0) map['Camera'] = (map['Camera'] ?? 0) + surveyTotal;
     if (bomTotal > 0)    map['Access Control'] = (map['Access Control'] ?? 0) + bomTotal;
+    if (genTotal > 0)    map['General'] = (map['General'] ?? 0) + genTotal;
     return Object.entries(map)
       .map(([name, total]) => ({ name, total }))
       .sort((a, b) => b.total - a.total);
-  }, [liveCosts, surveyTotal, bomTotal]);
+  }, [liveCosts, surveyTotal, bomTotal, genTotal]);
 
   // ── Line item CRUD ──────────────────────────────────────────────────────────
   function startNew()        { setLineForm({ ...emptyLine, categoryId: categories[0]?.id ?? 0 }); setEditId('new'); }
@@ -497,8 +622,9 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
     return key in dirtyMarkups && (Number(dirtyMarkups[key]) || 0) !== (surveyMarkups[key] ?? 0);
   });
   const dirtyBomItems = visibleBomItems.filter(i => bomRowDirty(bomKey(i)));
+  const dirtyGenItems = visibleGenItems.filter(i => genRowDirty(i.generalItemId));
   const feesDirty     = (Object.keys(fees) as (keyof typeof fees)[]).some(k => fees[k] !== feesSaved[k]);
-  const unsavedCount  = dirtySurveyItems.length + dirtyBomItems.length
+  const unsavedCount  = dirtySurveyItems.length + dirtyBomItems.length + dirtyGenItems.length
     + (editId !== null ? 1 : 0) + (feesDirty ? 1 : 0);
 
   async function saveAll() {
@@ -507,6 +633,7 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
       await Promise.all([
         ...dirtySurveyItems.map(s => commitSurveyMarkup(s)),
         ...dirtyBomItems.map(i => commitBomRow(i)),
+        ...dirtyGenItems.map(i => commitGenRow(i)),
         ...(feesDirty ? [saveFees()] : []),
       ]);
       // The open line-item editor saves last (it mutates the costs list)
@@ -785,6 +912,92 @@ export function CostEstimator({ projectId, overheadRateDefault, initialCosts, in
                               </span>
                             );
                           })}
+                        </td>
+                      </tr>
+                    )}
+
+                    {visibleGenItems.map(item => {
+                      const id       = item.generalItemId;
+                      const st       = genState[id] ?? { quantity: item.quantity, unitCost: item.catalogCost, markupPercent: 0 };
+                      const isDirty  = genRowDirty(id);
+                      const isSaving = savingGen[id] ?? false;
+                      const lineTotal = st.unitCost * st.quantity * (1 + st.markupPercent / 100);
+                      return (
+                        <tr key={`gen-${id}`} className="hover:bg-emerald-50/30">
+                          <td className="px-3 py-2">
+                            <span className="badge bg-emerald-100 text-emerald-700 text-xs whitespace-nowrap">General</span>
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">
+                            <div>{item.name}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {item.locationCount} location{item.locationCount === 1 ? '' : 's'}
+                              {!genSaved[id] && <span className="text-amber-600 ml-2">not on cost schedule yet — save to apply</span>}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number" min="0.01" step="1"
+                              value={st.quantity}
+                              onChange={e => updateGenRow(id, { quantity: Math.max(0.01, Number(e.target.value) || 1) })}
+                              className="form-input text-xs py-0.5 w-14 text-right"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number" min="0" step="0.01"
+                              value={st.unitCost}
+                              onChange={e => updateGenRow(id, { unitCost: Math.max(0, Number(e.target.value) || 0) })}
+                              className="form-input text-xs py-0.5 w-20 text-right"
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number" min="0" step="0.1"
+                                value={st.markupPercent}
+                                onChange={e => updateGenRow(id, { markupPercent: Number(e.target.value) || 0 })}
+                                className="form-input text-xs py-0.5 w-16 text-right"
+                              />
+                              {isDirty && (
+                                <>
+                                  <button onClick={() => commitGenRow(item)} disabled={isSaving}
+                                    className="p-1 text-green-600 hover:text-green-700 rounded">
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={() => revertGenRow(item)}
+                                    className="p-1 text-gray-400 hover:text-gray-600 rounded">
+                                    <XMarkIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmt(lineTotal)}</td>
+                          <td className="px-3 py-2">
+                            <button onClick={() => setGenRowRemoved(item, true)} disabled={isSaving}
+                              title="Remove item from cost schedule"
+                              className="p-1 text-gray-300 hover:text-red-500 rounded">
+                              <TrashIcon className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {removedGenItems.length > 0 && (
+                      <tr className="bg-gray-50/60">
+                        <td colSpan={7} className="px-3 py-2 text-xs text-gray-400">
+                          <span className="font-medium">Removed:</span>
+                          {removedGenItems.map(item => (
+                            <span key={`gen-removed-${item.generalItemId}`} className="inline-flex items-center gap-1 ml-3 line-through">
+                              {item.name}
+                              <button onClick={() => setGenRowRemoved(item, false)} disabled={savingGen[item.generalItemId] ?? false}
+                                className="no-underline text-blue-500 hover:text-blue-700 not-italic"
+                                title="Restore item">
+                                restore
+                              </button>
+                            </span>
+                          ))}
                         </td>
                       </tr>
                     )}

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { MapPinIcon, ChevronRightIcon, CheckCircleIcon, ClockIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { MapPinIcon, ChevronRightIcon, CheckCircleIcon, ClockIcon, LockClosedIcon, Squares2X2Icon } from '@heroicons/react/24/outline';
 
 export const metadata = { title: 'Site Survey' };
 
@@ -48,6 +48,7 @@ export default async function SurveyLandingPage() {
           const done  = surveyedByProject.get(project.id) ?? 0;
           const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
           const isAC  = project.projectType === 'ACCESS_CONTROL';
+          const isGen = project.projectType === 'GENERAL';
 
           return (
             <Link
@@ -56,14 +57,16 @@ export default async function SurveyLandingPage() {
               className="card p-5 flex flex-col gap-3 hover:shadow-md transition-shadow group"
             >
               <div className="flex items-start justify-between">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isAC ? 'bg-fuchsia-50' : 'bg-teal-50'}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isAC ? 'bg-fuchsia-50' : isGen ? 'bg-indigo-50' : 'bg-teal-50'}`}>
                   {isAC
                     ? <LockClosedIcon className="w-5 h-5 text-fuchsia-600" />
+                    : isGen
+                    ? <Squares2X2Icon className="w-5 h-5 text-indigo-600" />
                     : <MapPinIcon className="w-5 h-5 text-teal-600" />}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isAC ? 'bg-fuchsia-100 text-fuchsia-700' : 'bg-teal-100 text-teal-700'}`}>
-                    {isAC ? 'Access Control' : 'Video'}
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${isAC ? 'bg-fuchsia-100 text-fuchsia-700' : isGen ? 'bg-indigo-100 text-indigo-700' : 'bg-teal-100 text-teal-700'}`}>
+                    {isAC ? 'Access Control' : isGen ? 'General' : 'Video'}
                   </span>
                   <ChevronRightIcon className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
                 </div>

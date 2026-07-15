@@ -24,6 +24,7 @@ interface Location {
   floor: string | null;
   cameraModel: CameraModelSlim | null;
   accessMethod?: { id: number; name: string } | null;
+  generalItems?: { quantity: unknown; generalItem: { name: string } }[];
 }
 
 interface Building {
@@ -62,7 +63,9 @@ interface Props {
 
 export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, projectType }: Props) {
   const isAccessControl = projectType === 'ACCESS_CONTROL';
-  const noun = isAccessControl ? 'access point' : 'camera';
+  const isGeneral       = projectType === 'GENERAL';
+  const showCameraCost  = !isAccessControl && !isGeneral;
+  const noun = isAccessControl ? 'access point' : isGeneral ? 'location' : 'camera';
   // Compute survey-derived totals
   const sites = site ? [site] : [];
   const allLocations = sites.flatMap(s => s.buildings.flatMap(b => b.locations));
@@ -133,7 +136,7 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, proj
                     )}
                     <span className="ml-auto text-xs text-gray-500">
                       {siteLocations.length} {noun}{siteLocations.length !== 1 ? 's' : ''}
-                      {!isAccessControl && siteCameraTotal > 0 && <> · {fmt(siteCameraTotal)}</>}
+                      {showCameraCost && siteCameraTotal > 0 && <> · {fmt(siteCameraTotal)}</>}
                     </span>
                   </div>
 
@@ -158,8 +161,8 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, proj
                               <tr className="border-b border-gray-100">
                                 <th className="text-left py-1.5 pl-4 pr-2 font-medium text-gray-500">Area</th>
                                 <th className="text-left py-1.5 px-2 font-medium text-gray-500">Floor</th>
-                                <th className="text-left py-1.5 px-2 font-medium text-gray-500">{isAccessControl ? 'Access Method' : 'Camera Model'}</th>
-                                {!isAccessControl && (
+                                <th className="text-left py-1.5 px-2 font-medium text-gray-500">{isAccessControl ? 'Access Method' : isGeneral ? 'Items' : 'Camera Model'}</th>
+                                {showCameraCost && (
                                   <th className="text-right py-1.5 pl-2 pr-4 font-medium text-gray-500">Unit Cost</th>
                                 )}
                               </tr>
@@ -181,7 +184,11 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, proj
                                       {loc.floor || '—'}
                                     </td>
                                     <td className="py-1.5 px-2 text-gray-700">
-                                      {isAccessControl ? (
+                                      {isGeneral ? (
+                                        (loc.generalItems ?? []).length > 0
+                                          ? (loc.generalItems ?? []).map(a => `${Number(a.quantity)}× ${a.generalItem.name}`).join(', ')
+                                          : <span className="text-gray-400 italic">No items</span>
+                                      ) : isAccessControl ? (
                                         loc.accessMethod?.name
                                           ?? <span className="text-gray-400 italic">Unassigned</span>
                                       ) : modelLabel ? (
@@ -197,7 +204,7 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, proj
                                         <span className="text-gray-400 italic">Unassigned</span>
                                       )}
                                     </td>
-                                    {!isAccessControl && (
+                                    {showCameraCost && (
                                       <td className="py-1.5 pl-2 pr-4 text-right text-gray-700">
                                         {cost > 0 ? fmt(cost) : <span className="text-gray-400">—</span>}
                                       </td>
@@ -218,7 +225,7 @@ export function ProjectScopePanel({ projectId, site, manualCosts, readOnly, proj
         )}
 
         {/* Survey subtotal */}
-        {hasLocations && !isAccessControl && (
+        {hasLocations && showCameraCost && (
           <div className="flex justify-between items-center py-2 border-t border-gray-100 text-sm">
             <span className="text-gray-500">
               Survey subtotal ({allLocations.length} location{allLocations.length !== 1 ? 's' : ''})

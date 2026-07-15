@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 import { SurveyBoard } from '@/components/SurveyBoard';
 import { AccessSurveyBoard } from '@/components/AccessSurveyBoard';
+import { GeneralSurveyBoard } from '@/components/GeneralSurveyBoard';
 
 export async function generateMetadata({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -48,6 +49,10 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
             },
           },
           accessMethod: { select: { id: true, name: true } },
+          generalItems: {
+            include: { generalItem: { select: { id: true, name: true } } },
+            orderBy: { generalItem: { sortOrder: 'asc' } },
+          },
           images: {
             where:   { imageType: 'SITE_SURVEY' },
             select:  { id: true, fileUrl: true, description: true, uploadedAt: true },
@@ -61,6 +66,7 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
   if (!project) notFound();
 
   const isAccessControl = project.projectType === 'ACCESS_CONTROL';
+  const isGeneral       = project.projectType === 'GENERAL';
 
   interface FloorPlanRow {
     plan_id: number; building_id: number; floor: string;
@@ -129,6 +135,22 @@ export default async function SurveyPage({ params }: { params: Promise<{ project
             locations: baseLocations.map((loc, i) => ({
               ...loc,
               accessMethod: project.cameraLocations[i].accessMethod ?? null,
+            })),
+          }}
+        />
+      ) : isGeneral ? (
+        <GeneralSurveyBoard
+          initialProject={{
+            id:          project.id,
+            projectName: project.projectName,
+            building,
+            locations: baseLocations.map((loc, i) => ({
+              ...loc,
+              items: project.cameraLocations[i].generalItems.map(a => ({
+                generalItemId: a.generalItemId,
+                name:          a.generalItem.name,
+                quantity:      Number(a.quantity),
+              })),
             })),
           }}
         />

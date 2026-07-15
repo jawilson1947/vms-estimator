@@ -13,6 +13,7 @@ import {
   ChatBubbleBottomCenterTextIcon,
   LockClosedIcon,
   CurrencyDollarIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 
 interface MenuItem {
@@ -59,6 +60,15 @@ const MENU_ITEMS: MenuItem[] = [
     iconColor:   'text-fuchsia-600',
     title:       'Access Methods',
     description: 'Door templates and their default bill of materials',
+    adminOnly:   true,
+  },
+  {
+    href:        '/settings/general-items',
+    icon:        Squares2X2Icon,
+    iconBg:      'bg-indigo-50',
+    iconColor:   'text-indigo-600',
+    title:       'General Items',
+    description: 'Catalog of items for General project surveys',
     adminOnly:   true,
   },
   {

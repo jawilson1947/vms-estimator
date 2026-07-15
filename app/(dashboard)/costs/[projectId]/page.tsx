@@ -22,6 +22,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         include: {
           cameraModel:  true,
           accessMethod: { include: { items: { include: { artifactType: true } } } },
+          generalItems: { include: { generalItem: true } },
         },
       },
     },
@@ -30,6 +31,7 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
   if (!project) notFound();
 
   const isAccessControl = project.projectType === 'ACCESS_CONTROL';
+  const isGeneral       = project.projectType === 'GENERAL';
 
   // Load stored markup overrides for survey camera rows (keyed by cameraModelId)
   const surveyOverrideRows = await prisma.projectCost.findMany({
@@ -135,6 +137,57 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
     }
   }
 
+  // ── General items: aggregate location assignments per catalog item ────────
+  type GeneralBomItem = {
+    generalItemId: number; name: string; quantity: number;
+    locationCount: number; catalogCost: number; sortOrder: number;
+  };
+  const genMap = new Map<number, GeneralBomItem>();
+  if (isGeneral) {
+    for (const l of project.cameraLocations) {
+      for (const a of l.generalItems) {
+        const existing = genMap.get(a.generalItemId);
+        if (existing) {
+          existing.quantity      += Number(a.quantity);
+          existing.locationCount += 1;
+        } else {
+          genMap.set(a.generalItemId, {
+            generalItemId: a.generalItemId,
+            name:          a.generalItem.name,
+            quantity:      Number(a.quantity),
+            locationCount: 1,
+            catalogCost:   Number(a.generalItem.cost),
+            sortOrder:     a.generalItem.sortOrder,
+          });
+        }
+      }
+    }
+  }
+  const generalItems = Array.from(genMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // Persisted General overrides (committed ProjectCost rows keyed by generalItemId)
+  const genOverrideRows = isGeneral
+    ? await prisma.projectCost.findMany({
+        where:  { projectId: Number(projectId), generalItemId: { not: null } },
+        select: { id: true, generalItemId: true, quantity: true, unitCost: true, markupPercent: true },
+      })
+    : [];
+  const generalOverrides: Record<number, { costId: number; quantity: number; unitCost: number; markupPercent: number; removed: boolean }> = {};
+  const genOverrideIds = new Set<number>();
+  for (const row of genOverrideRows) {
+    genOverrideIds.add(row.id);
+    if (row.generalItemId != null) {
+      generalOverrides[row.generalItemId] = {
+        costId:        row.id,
+        quantity:      Number(row.quantity),
+        unitCost:      Number(row.unitCost),
+        markupPercent: Number(row.markupPercent),
+        // quantity-0 marker = row removed from the cost list
+        removed:       Number(row.quantity) === 0,
+      };
+    }
+  }
+
   return (
     <div>
       <nav className="flex items-center gap-1 text-sm text-gray-500 mb-6">
@@ -163,7 +216,9 @@ export default async function ProjectCostPage({ params }: { params: Promise<{ pr
         surveyOverrides={surveyOverrides}
         bomItems={bomItems.map(({ sortOrder: _s, methodSort: _m, ...rest }) => rest)}
         bomOverrides={bomOverrides}
-        initialCosts={project.costs.filter(c => !surveyOverrideIds.has(c.id) && !bomOverrideIds.has(c.id)).map(c => ({
+        generalItems={generalItems.map(({ sortOrder: _s, ...rest }) => rest)}
+        generalOverrides={generalOverrides}
+        initialCosts={project.costs.filter(c => !surveyOverrideIds.has(c.id) && !bomOverrideIds.has(c.id) && !genOverrideIds.has(c.id)).map(c => ({
           id:            c.id,
           categoryId:    c.categoryId,
           categoryName:  c.category.name,

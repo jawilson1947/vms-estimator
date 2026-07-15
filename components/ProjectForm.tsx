@@ -42,6 +42,7 @@ const empty: ProjectFormData = {
 const typeOptions = [
   { value: 'VIDEO_SURVEILLANCE', label: 'Video Surveillance' },
   { value: 'ACCESS_CONTROL',     label: 'Access Control'     },
+  { value: 'GENERAL',            label: 'General'            },
 ];
 
 const statusOptions = [

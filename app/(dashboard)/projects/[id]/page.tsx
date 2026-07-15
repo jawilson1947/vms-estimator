@@ -61,6 +61,10 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             select: { id: true, manufacturer: true, model: true, cost: true, cameraType: true },
           },
           accessMethod: { select: { id: true, name: true } },
+          generalItems: {
+            include: { generalItem: { select: { name: true } } },
+            orderBy: { generalItem: { sortOrder: 'asc' } },
+          },
         },
       },
       costs:      { orderBy: { category: { sortOrder: 'asc' } }, include: { category: true } },
