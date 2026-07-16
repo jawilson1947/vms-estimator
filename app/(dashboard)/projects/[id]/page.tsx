@@ -178,16 +178,20 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
               {(
                 [
                   ['Direct Costs',       liveSchedule.directTotal],
+                  // Down payment renders as a credit immediately below direct costs
+                  ...(liveSchedule.downPayment > 0
+                    ? [['Less: Down Payment', -liveSchedule.downPayment]]
+                    : []),
                   [`Overhead (${liveSchedule.overheadPercent.toFixed(1)}%)`, liveSchedule.overheadAmount],
                   ['Consulting Fee',     liveSchedule.consultingFee],
                   ['Project Mgmt Fee',   liveSchedule.projectManagementFee],
                   ['Contingency',        liveSchedule.contingencyAmount],
                   ['Tax',                liveSchedule.taxAmount],
                 ] as [string, number][]
-              ).filter(([, val]) => val > 0).map(([label, val]) => (
+              ).filter(([, val]) => val !== 0).map(([label, val]) => (
                 <div key={String(label)} className="flex justify-between">
-                  <dt className="text-gray-500">{label}</dt>
-                  <dd className="text-gray-900">{fmt(val)}</dd>
+                  <dt className={val < 0 ? 'text-red-600' : 'text-gray-500'}>{label}</dt>
+                  <dd className={val < 0 ? 'text-red-600' : 'text-gray-900'}>{fmt(val)}</dd>
                 </div>
               ))}
               <div className="flex justify-between pt-2 border-t border-gray-200 font-semibold">

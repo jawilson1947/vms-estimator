@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, CheckIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+
+const PAGE_SIZE = 8;
 
 interface GeneralItem {
   id:          number;
@@ -33,6 +35,7 @@ export function GeneralItemManager() {
   const [form, setForm]       = useState<FormState>(emptyForm);
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState('');
+  const [page, setPage]       = useState(0);
 
   async function load() {
     setLoading(true);
@@ -139,6 +142,10 @@ export function GeneralItemManager() {
     </>
   );
 
+  const pageCount = Math.ceil(items.length / PAGE_SIZE);
+  const safePage  = Math.min(page, Math.max(0, pageCount - 1));
+  const pageItems = items.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -172,7 +179,7 @@ export function GeneralItemManager() {
           </thead>
           <tbody className="divide-y divide-gray-50">
             {editId === 'new' && <tr className="bg-blue-50/60">{editorCells}</tr>}
-            {items.map(item => (
+            {pageItems.map(item => (
               editId === item.id ? (
                 <tr key={item.id} className="bg-blue-50/60">{editorCells}</tr>
               ) : (
@@ -205,6 +212,26 @@ export function GeneralItemManager() {
             )}
           </tbody>
         </table>
+      )}
+
+      {!loading && pageCount > 1 && (
+        <div className="flex items-center justify-between px-2 py-2 mt-2 bg-gray-50/60 rounded-lg">
+          <button
+            onClick={() => setPage(p => Math.max(0, p - 1))}
+            disabled={safePage === 0}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            <ChevronLeftIcon className="w-3.5 h-3.5" />Prev
+          </button>
+          <span className="text-xs text-gray-400">
+            {safePage + 1} / {pageCount} <span className="text-gray-300">({items.length} items)</span>
+          </span>
+          <button
+            onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))}
+            disabled={safePage === pageCount - 1}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+            Next<ChevronRightIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );
