@@ -8,7 +8,7 @@
 import type { CostScheduleData } from '@/lib/cost-schedule';
 
 export type InvoiceDetail       = 'line-items' | 'summary';
-export type InvoicePaymentBasis = 'direct-total' | 'consulting-pm';
+export type InvoicePaymentBasis = 'direct-total' | 'consulting-pm' | 'combined';
 
 export interface InvoiceParty {
   name?:    string | null;
@@ -41,9 +41,9 @@ export function usd(v: number): string {
 
 /** Human caption explaining which basis produced the Total Due. */
 export function basisCaption(basis: InvoicePaymentBasis): string {
-  return basis === 'direct-total'
-    ? 'Direct equipment & labor total'
-    : 'Remaining consulting + project management fee';
+  if (basis === 'direct-total') return 'Direct equipment & labor total';
+  if (basis === 'combined')     return 'Direct total plus consulting & project management fees';
+  return 'Remaining consulting + project management fee';
 }
 
 /** Resolve the billed amount for the chosen payment basis. */
@@ -52,13 +52,13 @@ export function resolveAmountDue(
   basis:    InvoicePaymentBasis,
   applyDownPayment = false,
 ): number {
-  if (basis === 'consulting-pm') {
-    return schedule.consultingFee + schedule.projectManagementFee;
-  }
-  // direct-total: bill the direct line-item total only (pre-fees),
+  const fees = schedule.consultingFee + schedule.projectManagementFee;
+  if (basis === 'consulting-pm') return fees;
+  // direct-total / combined: bill the direct line-item total,
   // optionally reduced by the project's down-payment credit.
   const dp = applyDownPayment ? Number(schedule.downPayment ?? 0) : 0;
-  return schedule.directTotal - dp;
+  const direct = schedule.directTotal - dp;
+  return basis === 'combined' ? direct + fees : direct;
 }
 
 /**
@@ -69,6 +69,7 @@ export function resolveAmountDue(
  *  - direct-total + summary    → one row per category (rolled up)
  *  - consulting-pm + line-items→ Consulting Fee + Project Management Fee rows
  *  - consulting-pm + summary   → single combined services row
+ *  - combined                  → direct rows (per detail) followed by the fee rows
  */
 export function buildInvoiceRows(
   schedule: CostScheduleData,
@@ -76,7 +77,7 @@ export function buildInvoiceRows(
   basis:    InvoicePaymentBasis,
   applyDownPayment = false,
 ): InvoiceRow[] {
-  if (basis === 'consulting-pm') {
+  const feeRows = (): InvoiceRow[] => {
     const consulting = schedule.consultingFee;
     const pm         = schedule.projectManagementFee;
     if (detail === 'summary') {
@@ -87,13 +88,15 @@ export function buildInvoiceRows(
         amount:      consulting + pm,
       }];
     }
-    const rows: InvoiceRow[] = [];
-    rows.push({ quantity: '', description: 'Consulting Fee',             unitPrice: null, amount: consulting });
-    rows.push({ quantity: '', description: 'Project Management Fee',     unitPrice: null, amount: pm });
-    return rows;
-  }
+    return [
+      { quantity: '', description: 'Consulting Fee',         unitPrice: null, amount: consulting },
+      { quantity: '', description: 'Project Management Fee', unitPrice: null, amount: pm },
+    ];
+  };
 
-  // ── direct-total ──────────────────────────────────────────────────────────
+  if (basis === 'consulting-pm') return feeRows();
+
+  // ── direct-total / combined ──────────────────────────────────────────────
   let rows: InvoiceRow[];
   if (detail === 'summary') {
     const byCategory = new Map<string, number>();
@@ -117,6 +120,9 @@ export function buildInvoiceRows(
     }));
   }
 
+  // Combined: append the consulting + PM fee rows after the direct rows.
+  if (basis === 'combined') rows.push(...feeRows());
+
   // Down-payment credit row so the printed rows reconcile with the Total Due.
   const dp = Number(schedule.downPayment ?? 0);
   if (applyDownPayment && dp > 0) {
@@ -137,7 +143,7 @@ export function buildInvoiceSnapshot(
   basis:    InvoicePaymentBasis,
   applyDownPayment = false,
 ): InvoiceSnapshot {
-  const applied = basis === 'direct-total' && applyDownPayment
+  const applied = basis !== 'consulting-pm' && applyDownPayment
     ? Number(schedule.downPayment ?? 0)
     : 0;
   return {

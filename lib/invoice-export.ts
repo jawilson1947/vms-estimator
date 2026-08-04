@@ -36,7 +36,11 @@ export function buildInvoiceDocData(
 ): InvoiceDocData {
   const snap = invoice.snapshot as InvoiceSnapshot;
   const detail = (invoice.detail === 'summary' ? 'summary' : 'line-items') as InvoiceSnapshot['detail'];
-  const basis  = (invoice.paymentBasis === 'consulting-pm' ? 'consulting-pm' : 'direct-total') as InvoiceSnapshot['paymentBasis'];
+  const basis  = (
+    invoice.paymentBasis === 'consulting-pm' ? 'consulting-pm'
+    : invoice.paymentBasis === 'combined'    ? 'combined'
+    : 'direct-total'
+  ) as InvoiceSnapshot['paymentBasis'];
 
   const applyDownPayment = Number(snap.downPaymentApplied ?? 0) > 0;
   const rows     = buildInvoiceRows(snap.schedule, detail, basis, applyDownPayment);

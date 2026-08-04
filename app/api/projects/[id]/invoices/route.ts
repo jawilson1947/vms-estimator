@@ -60,7 +60,10 @@ export async function POST(
   };
 
   const detail: InvoiceDetail       = body.detail === 'summary' ? 'summary' : 'line-items';
-  const basis:  InvoicePaymentBasis = body.paymentBasis === 'consulting-pm' ? 'consulting-pm' : 'direct-total';
+  const basis:  InvoicePaymentBasis =
+    body.paymentBasis === 'consulting-pm' ? 'consulting-pm'
+    : body.paymentBasis === 'combined'    ? 'combined'
+    : 'direct-total';
 
   const project = await prisma.project.findUnique({
     where:   { id: projectId },
@@ -82,7 +85,7 @@ export async function POST(
     project.costs           as Parameters<typeof buildCostSchedule>[1],
     project.feeSummary      as Parameters<typeof buildCostSchedule>[2],
   );
-  const applyDownPayment = basis === 'direct-total' && body.applyDownPayment === true;
+  const applyDownPayment = basis !== 'consulting-pm' && body.applyDownPayment === true;
   const snapshot = buildInvoiceSnapshot(schedule, detail, basis, applyDownPayment);
 
   // Default Bill To from the customer record when not supplied.

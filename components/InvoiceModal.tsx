@@ -81,7 +81,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
     setApplyDownPayment(dp > 0 && invoiceCount === 0);
   }, [feeSummary, invoiceCount]);
 
-  const applyDp = paymentBasis === 'direct-total' && applyDownPayment;
+  const applyDp = paymentBasis !== 'consulting-pm' && applyDownPayment;
   const previewRows  = schedule ? buildInvoiceRows(schedule, detail, paymentBasis, applyDp) : [];
   const previewTotal = schedule ? resolveAmountDue(schedule, paymentBasis, applyDp) : 0;
   const nextNumber          = buildInvoiceNumber(projectNumber, invoiceCount + 1);
@@ -97,7 +97,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           detail, paymentBasis,
-          applyDownPayment: paymentBasis === 'direct-total' && applyDownPayment,
+          applyDownPayment: paymentBasis !== 'consulting-pm' && applyDownPayment,
           invoiceNumber: effectiveInvNumber,
           billTo: { name: billToName, address: billToAddress },
           poNumber, salesperson, terms, issuedAt,
@@ -222,10 +222,11 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
               {/* Payment basis */}
               <div>
                 <label className="form-label">Amount Due</label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
+                <div className="grid grid-cols-3 gap-2 mt-1">
                   {([
                     { v: 'direct-total',  label: 'Direct Total',        desc: 'Equipment & labor (pre-fees)' },
                     { v: 'consulting-pm', label: 'Consulting + PM Fee',  desc: 'Remaining consulting & PM fees' },
+                    { v: 'combined',      label: 'Combined',             desc: 'Direct total + consulting & PM fees' },
                   ] as { v: InvoicePaymentBasis; label: string; desc: string }[]).map(o => (
                     <button key={o.v} onClick={() => setPaymentBasis(o.v)}
                       className={`p-3 rounded-lg border text-left transition-all ${
@@ -235,7 +236,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
                     </button>
                   ))}
                 </div>
-                {paymentBasis === 'direct-total' && downPayment > 0 && (
+                {paymentBasis !== 'consulting-pm' && downPayment > 0 && (
                   <div className="mt-3">
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                       <input

@@ -136,7 +136,7 @@ export function InvoiceHistory({ projectId, projectName, refreshKey, readOnly }:
                     </div>
                     <div className="text-xs text-gray-400 flex items-center gap-3">
                       <span>{new Date(inv.issuedAt ?? inv.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      <span>{inv.paymentBasis === 'consulting-pm' ? 'Consulting + PM' : 'Direct Total'}</span>
+                      <span>{inv.paymentBasis === 'consulting-pm' ? 'Consulting + PM' : inv.paymentBasis === 'combined' ? 'Combined' : 'Direct Total'}</span>
                       <span className="capitalize">{inv.detail === 'summary' ? 'Summary' : 'Itemized'}</span>
                       {inv.terms && <span>{inv.terms}</span>}
                     </div>
