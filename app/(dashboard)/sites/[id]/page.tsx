@@ -11,7 +11,6 @@ import { AddBuildingForm } from '@/components/AddBuildingForm';
 import { BuildingActions } from '@/components/BuildingActions';
 import { BuildingFloorPlans } from '@/components/BuildingFloorPlans';
 import { LinkToProjectButton } from '@/components/LinkToProjectButton';
-import { SiteDocuments } from '@/components/SiteDocuments';
 
 const BUILDINGS_PER_PAGE = 6;
 
@@ -120,11 +119,6 @@ export default async function SiteDetailPage({
             <p className="text-xs text-gray-500">Cameras</p>
           </div>
         </div>
-      </div>
-
-      {/* Documents */}
-      <div className="mb-6">
-        <SiteDocuments siteId={siteId} />
       </div>
 
       {/* Project links */}

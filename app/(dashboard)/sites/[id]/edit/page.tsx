@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import { SiteForm } from '@/components/SiteForm';
-import { SiteDocuments } from '@/components/SiteDocuments';
 
 export default async function EditSitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,10 +37,6 @@ export default async function EditSitePage({ params }: { params: Promise<{ id: s
           notes:      site.notes      ?? '',
         }}
       />
-
-      <div className="mt-6 max-w-2xl">
-        <SiteDocuments siteId={site.id} />
-      </div>
     </div>
   );
 }

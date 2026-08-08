@@ -16,6 +16,7 @@ import { InvoiceHistory } from '@/components/InvoiceHistory';
 import { ProjectScopePanel } from '@/components/ProjectScopePanel';
 import { AddBuildingButton } from '@/components/AddBuildingButton';
 import { RemoveBuildingButton } from '@/components/RemoveBuildingButton';
+import { ProjectDocuments } from '@/components/ProjectDocuments';
 import { buildCostSchedule } from '@/lib/cost-schedule';
 
 function fmt(n: number): string {
@@ -256,6 +257,11 @@ export default async function ProjectDetailPage({ params }: { params: Promise<{ 
             )}
           </div>
         )}
+      </div>
+
+      {/* Documents (view/download only for viewers) */}
+      <div className="mb-4">
+        <ProjectDocuments projectId={project.id} readOnly={isViewer} />
       </div>
 
       {/* Project Scope — survey locations + cost line items (read-only for viewers) */}
