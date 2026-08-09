@@ -1,0 +1,43 @@
+# Dependabot configuration — weekly dependency scans.
+# Security alerts + auto fix PRs are enabled separately in
+# Settings → Advanced Security (they fire in real time, not on this schedule).
+version: 2
+updates:
+  # Node dependencies (package.json / package-lock.json)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 5
+    # Reduce PR noise: one grouped PR for routine minor/patch bumps
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Project is intentionally pinned to Prisma 6 — the v7 upgrade
+      # (ESM conversion, new generator, driver adapter) is deferred.
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+    labels:
+      - "dependencies"
+
+  # Actions used in .github/workflows/
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"
