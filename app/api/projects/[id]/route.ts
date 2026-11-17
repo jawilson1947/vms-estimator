@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     include: {
       customer:   { select: { id: true, customerName: true, contactName: true, billingAddress: true } },
       building: {
-        include: { site: { select: { id: true, siteName: true, city: true, state: true } } },
+        include: { site: { select: { id: true, siteName: true, address: true, city: true, state: true } } },
       },
       cameraLocations: {
         select: {

@@ -69,6 +69,7 @@ export async function POST(
     where:   { id: projectId },
     include: {
       customer:        { select: { customerName: true, contactName: true, billingAddress: true } },
+      building:        { include: { site: { select: { siteName: true, address: true, city: true, state: true } } } },
       feeSummary:      true,
       costs:           { include: { category: true }, orderBy: { category: { sortOrder: 'asc' } } },
       cameraLocations: {
@@ -88,10 +89,14 @@ export async function POST(
   const applyDownPayment = basis !== 'consulting-pm' && body.applyDownPayment === true;
   const snapshot = buildInvoiceSnapshot(schedule, detail, basis, applyDownPayment);
 
-  // Default Bill To from the customer record when not supplied.
+  // Default Bill To: "<site name> -- <project manager>", addressed to the site.
+  // Falls back to the customer billing address when the project has no site.
+  const site = project.building?.site ?? null;
+  const siteCityState = [site?.city, site?.state].map(v => (v ?? '').trim()).filter(Boolean).join(', ');
+  const siteAddress   = [(site?.address ?? '').trim(), siteCityState].filter(Boolean).join('\n');
   const billTo: InvoiceParty = body.billTo ?? {
-    name:    [project.customer.customerName, project.customer.contactName].filter(Boolean).join(' — '),
-    address: project.customer.billingAddress ?? '',
+    name:    [site?.siteName, project.projectManager].map(v => (v ?? '').trim()).filter(Boolean).join(' -- '),
+    address: siteAddress || (project.customer.billingAddress ?? ''),
   };
   const shipTo: InvoiceParty | null = body.shipTo ?? null;
 
