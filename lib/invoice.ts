@@ -41,8 +41,8 @@ export function usd(v: number): string {
 
 /** Human caption explaining which basis produced the Total Due. */
 export function basisCaption(basis: InvoicePaymentBasis): string {
-  if (basis === 'direct-total') return 'Direct equipment & labor total';
-  if (basis === 'combined')     return 'Direct total plus consulting & project management fees';
+  if (basis === 'direct-total') return 'Direct equipment & labor total plus overhead';
+  if (basis === 'combined')     return 'Direct total and overhead plus consulting & project management fees';
   return 'Remaining consulting + project management fee';
 }
 
@@ -54,10 +54,12 @@ export function resolveAmountDue(
 ): number {
   const fees = schedule.consultingFee + schedule.projectManagementFee;
   if (basis === 'consulting-pm') return fees;
-  // direct-total / combined: bill the direct line-item total,
-  // optionally reduced by the project's down-payment credit.
+  // direct-total / combined: bill the direct line-item total plus overhead
+  // (overhead is a % of the direct total), optionally reduced by the
+  // project's down-payment credit.
   const dp = applyDownPayment ? Number(schedule.downPayment ?? 0) : 0;
-  const direct = schedule.directTotal - dp;
+  const overhead = Number(schedule.overheadAmount ?? 0);
+  const direct = schedule.directTotal + overhead - dp;
   return basis === 'combined' ? direct + fees : direct;
 }
 
@@ -70,6 +72,9 @@ export function resolveAmountDue(
  *  - consulting-pm + line-items→ Consulting Fee + Project Management Fee rows
  *  - consulting-pm + summary   → single combined services row
  *  - combined                  → direct rows (per detail) followed by the fee rows
+ *
+ * For direct-total and combined, an Overhead row (when overhead > 0) follows
+ * the direct rows, and is included in resolveAmountDue().
  */
 export function buildInvoiceRows(
   schedule: CostScheduleData,
@@ -118,6 +123,19 @@ export function buildInvoiceRows(
       unitPrice:   g.quantity > 0 ? g.lineTotal / g.quantity : g.lineTotal,
       amount:      g.lineTotal,
     }));
+  }
+
+  // Overhead row (a % of the direct total) follows the direct rows so the
+  // printed rows reconcile with the Total Due.
+  const overhead = Number(schedule.overheadAmount ?? 0);
+  if (overhead > 0) {
+    const pct = Number(schedule.overheadPercent ?? 0);
+    rows.push({
+      quantity:    '',
+      description: pct > 0 ? `Overhead (${Number(pct.toFixed(2))}%)` : 'Overhead',
+      unitPrice:   null,
+      amount:      overhead,
+    });
   }
 
   // Combined: append the consulting + PM fee rows after the direct rows.

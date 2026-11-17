@@ -63,9 +63,13 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
         setRawCamLocs((d.cameraLocations ?? []) as RawCamLoc[]);
         setFeeSummary((d.feeSummary ?? null) as Parameters<typeof buildCostSchedule>[2]);
         setProjectNumber(d.projectNumber ?? null);
-        const cust = d.customer ?? {};
-        setBillToName([cust.customerName, cust.contactName].filter(Boolean).join(' — '));
-        setBillToAddress(cust.billingAddress ?? '');
+        // Bill To: "<site name> -- <project manager>", addressed to the site.
+        const site = d.building?.site ?? {};
+        setBillToName([site.siteName, d.projectManager]
+          .map((v: unknown) => String(v ?? '').trim()).filter(Boolean).join(' -- '));
+        const cityState = [site.city, site.state]
+          .map((v: unknown) => String(v ?? '').trim()).filter(Boolean).join(', ');
+        setBillToAddress([String(site.address ?? '').trim(), cityState].filter(Boolean).join('\n'));
       });
     fetch(`/api/projects/${projectId}/invoices`)
       .then(r => r.ok ? r.json() : [])
@@ -265,7 +269,7 @@ export function InvoiceModal({ projectId, projectName, onClose, onSaved }: Props
               <div>
                 <label className="form-label">Bill To</label>
                 <input type="text" value={billToName} onChange={e => setBillToName(e.target.value)}
-                  placeholder="Customer / contact name" className="form-input mt-1" />
+                  placeholder="Site name - Project manager" className="form-input mt-1" />
                 <textarea value={billToAddress} onChange={e => setBillToAddress(e.target.value)} rows={3}
                   placeholder="Billing address" className="form-input resize-none mt-2" />
               </div>
